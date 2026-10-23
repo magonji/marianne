@@ -1,0 +1,144 @@
+# Configuration used by `marianne --demo`: Home Assistant sources are simulated.
+theme: amber
+columns: 3
+sources:
+  homeassistant:
+    type: homeassistant
+  luna:
+    type: moon
+panels:
+  - title: Clima
+    items:
+      - entity: sensor.temperatura_salon
+        name: Salón
+        decimals: 1
+        also:
+          entity: sensor.humedad_salon
+          decimals: 0
+          alert_above: 65
+      - entity: sensor.temperatura_dormitorio
+        name: Dormitorio
+        decimals: 1
+        also:
+          entity: sensor.humedad_dormitorio
+          decimals: 0
+          alert_above: 65
+      - entity: sensor.temperatura_cocina
+        name: Cocina
+        decimals: 1
+        also:
+          entity: sensor.humedad_cocina
+          decimals: 0
+          alert_above: 65
+      - entity: sensor.temperatura_estudio
+        name: Estudio
+        decimals: 1
+        also:
+          entity: sensor.humedad_estudio
+          decimals: 0
+          alert_above: 65
+      - entity: sensor.co2_salon
+        name: CO2 salón
+        alert_above: 1200
+
+  - title: Energía
+    refresh: 3
+    items:
+      - entity: sensor.potencia_casa
+        name: Consumo ahora
+        bar: true
+        min: 0
+        max: 5000
+      - entity: sensor.energia_hoy
+        name: Consumo hoy
+      - entity: sensor.precio_luz
+        name: Precio luz
+      - entity: switch.caldera
+        name: Caldera
+        on_text: CALENTANDO
+        off_text: EN REPOSO
+      - entity: sensor.temperatura_objetivo
+        name: Temperatura objetivo
+
+  - title: Casa
+    refresh: 3
+    items:
+      - entity: binary_sensor.puerta_entrada
+        name: Puerta entrada
+        on_text: ABIERTA
+        off_text: CERRADA
+        alert: true
+        alarm_after: 5
+      - entity: binary_sensor.congelador
+        name: Congelador
+        on_text: ABIERTO
+        off_text: CERRADO
+        alert: true
+        alarm_after: 2
+      - entity: binary_sensor.ventana_cocina
+        name: Ventana cocina
+        on_text: ABIERTA
+        off_text: CERRADA
+      - entity: light.salon
+        name: Luz salón
+      - entity: light.terraza
+        name: Luz terraza
+
+  - title: Estación meteorológica
+    span: 2
+    big: true
+    items:
+      - entity: sensor.temperatura_exterior
+        name: Temperatura exterior
+        decimals: 1
+      - entity: sensor.humedad_exterior
+        name: Humedad exterior
+        decimals: 0
+      - entity: sensor.presion_exterior
+        name: Presión
+        decimals: 0
+
+  - title: Astro
+    items:
+      - entity: sensor.sun_next_dawn
+        sun: dawn
+      - entity: sensor.sun_next_rising
+        sun: rising
+      - entity: sensor.sun_next_noon
+        sun: noon
+      - entity: sensor.sun_next_setting
+        sun: setting
+      - entity: sensor.sun_next_dusk
+        sun: dusk
+      - entity: sensor.sun_solar_elevation
+        sun: elevation
+      - entity: sensor.sun_solar_azimuth
+        sun: azimuth
+      - source: luna
+        field: phase
+      - source: luna
+        field: next_phase
+
+  - title: Baterías
+    key: b
+    items:
+      - entity: sensor.bateria_puerta
+        name: Sensor puerta
+        decimals: 0
+        alert_below: 15
+      - entity: sensor.bateria_congelador
+        name: Sensor congelador
+        decimals: 0
+        alert_below: 15
+      - entity: sensor.bateria_termometro_salon
+        name: Termómetro salón
+        decimals: 0
+        alert_below: 15
+      - entity: sensor.bateria_termometro_cocina
+        name: Termómetro cocina
+        decimals: 0
+        alert_below: 15
+      - entity: sensor.bateria_mando
+        name: Mando tele
+        decimals: 0
+        alert_below: 15

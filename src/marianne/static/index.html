@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es" data-theme="amber">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marianne</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230d0800'/><text x='3' y='13' font-family='monospace' font-size='13' fill='%23ffb000'>M</text></svg>">
+</head>
+<body>
+  <div id="boot" hidden><pre id="boot-log"></pre></div>
+
+  <header id="top">
+    <div id="banner">MARIANNE</div>
+    <div id="pomodoro" hidden>
+      <div id="pomodoro-label"></div>
+      <div id="pomodoro-digits" class="digits"></div>
+    </div>
+    <div id="clock">
+      <div id="clock-date"></div>
+      <div id="clock-digits" class="digits"></div>
+    </div>
+  </header>
+
+  <div id="alarm" hidden></div>
+  <div id="notice" hidden></div>
+
+  <main id="panels"></main>
+
+  <footer id="status"></footer>
+
+  <div id="popup" hidden></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

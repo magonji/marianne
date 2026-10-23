@@ -1,0 +1,250 @@
+# Copia este fichero a config.yaml (o a ~/.config/marianne/config.yaml) y adáptalo.
+
+theme: amber           # amber (naranja ámbar) | phosphor (verde) | c64 (azul Commodore)
+columns: 3             # columnas de la rejilla de paneles
+boot: true             # secuencia de arranque tipo BIOS
+uppercase: true        # todo en mayúsculas, como un terminal antiguo
+bell: false            # pitido cada 5 s mientras haya una alarma
+
+sources:
+  homeassistant:
+    type: homeassistant
+    url: http://homeassistant.local:8123
+    # Token de larga duración (Perfil → Seguridad → Tokens de acceso de larga duración).
+    # Mejor no escribirlo aquí: exporta HASS_TOKEN en tu shell.
+    token: ${HASS_TOKEN}
+    verify_ssl: true
+
+  web:
+    type: web
+
+  pomodoro:
+    type: pomodoro                      # P inicia/pausa, X reinicia; al terminar suenan tres campanadas
+    work: 25                            # minutos de trabajo
+    short_break: 5
+    long_break: 15
+    long_every: 4                       # descanso largo cada 4 pomodoros
+
+  fechas:
+    type: dates
+
+  servicios:
+    type: monitor                       # comprueba que los servicios web responden (como el monitor de Glance)
+    timeout: 5                          # segundos antes de darlo por caído
+    # verify_ssl: false                 # para certificados autofirmados
+
+  luna:
+    type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
+
+  tiempo:
+    type: openweather                   # api gratuita de previsión de openweathermap.org
+    api_key: ${OPENWEATHER_KEY}
+    city: Glasgow,GB
+
+panels:
+  - title: Clima
+    source: homeassistant
+    refresh: 10                         # segundos
+    items:
+      - entity: sensor.temperatura_salon
+        name: Salón
+        also:                           # más valores en la misma fila (sin barra)
+          entity: sensor.humedad_salon
+          alert_above: 70               # alerta si pasa de 70 (también alert_below)
+      - sensor.temperatura_cocina       # forma corta: solo el entity_id
+      - entity: sensor.humedad_cocina
+        name: Humedad cocina            # las unidades en % se pintan con barra
+      - entity: weather.casa
+        name: Exterior
+        attribute: temperature          # mostrar un atributo en vez del estado
+      # Para fechas/horas: format: time | date | datetime | auto (hora si es hoy, día y hora si no)
+        unit: °C
+
+  - title: Casa
+    source: homeassistant
+    items:
+      - entity: binary_sensor.puerta_entrada
+        name: Puerta
+        on_text: ABIERTA
+        off_text: CERRADA
+        since: true                     # añade la hora del último cambio
+        # invert: true                  # para sensores al revés ("on" = cerrado)
+        alert: true                     # en rojo y parpadeando mientras esté abierta
+        alarm_after: 10                 # franja de alarma a pantalla completa tras 10 min
+      - entity: light.salon
+        name: Luz salón
+      - entity: climate.termostato
+        name: Calefacción
+        attribute: hvac_action
+        on_states: [heating]            # estados de texto que se pintan como ● encendido
+        map:
+          heating: CALENTANDO
+          idle: EN REPOSO
+      - entity: climate.termostato
+        name: Calefacción hoy
+        attribute: hvac_action
+        on_states: [heating]
+        on_today: true                  # tiempo que ha estado encendido desde medianoche
+      - entity: sensor.lavadora_estado
+        name: Lavadora
+        map:                            # traducir estados de texto (también "none")
+          idle: PARADA
+          running: LAVANDO
+          finish: TERMINADA
+        alert_states: [finish]          # alerta con estados de texto
+        alarm_after: 0                  # franja de alarma inmediata...
+        alarm_text: Lavadora terminada  # ...con este mensaje
+
+  - title: Energía
+    source: homeassistant
+    refresh: 5
+    items:
+      - entity: sensor.consumo_casa
+        name: Consumo
+        decimals: 0
+        scale: 1                        # multiplicar el valor (p. ej. 0.001 para m → km)
+        bar: true                       # barra también para valores que no son %
+        trend: 1                        # flecha ▲▼► con el cambio respecto a hace 1 hora
+        trend_steady: 50                # cambios menores cuentan como estable (►)
+        stats: true                     # añade filas con la máxima y mínima de hoy (beside: al lado, ▲ ▼)
+        records: true                   # filas con la máxima y mínima de toda la historia
+        stale_after: 120                # en rojo si el sensor lleva 2 h sin informar
+      - entity: sensor.contador_wifi_signal
+        hidden: true                    # no se muestra, pero vigila sus alertas
+        alert_below: -80
+        alarm_after: 10                 # franja si lleva 10 min seguidos por debajo
+        alarm_text: Señal wifi del contador baja
+        min: 0
+        max: 4600
+
+  # Scraping: url + selector CSS. Opcional: attr, regex, numeric, decimals, unit.
+  - title: Web
+    source: web
+    refresh: 900
+    span: 3                             # ocupa 3 columnas (rows: N para filas)
+    # big: true                         # el primer valor del panel en dígitos grandes
+    # key: b                            # fuera de la rejilla: la tecla B lo abre como ventana
+    items:
+      - name: Noticia destacada
+        url: https://news.ycombinator.com/
+        selector: .titleline > a
+
+  # OpenWeather: field = now | summary | max | min | rain_probability | rain | wind | hours (count: N) | good_day
+  - title: El tiempo
+    source: tiempo
+    refresh: 600
+    big: true
+    items:
+      - field: now                      # temperatura actual, en grande
+        also: [max, min]                # máxima y mínima de hoy, en pequeño al lado
+      - field: summary
+      - field: good_day                 # franja verde si mañana (9-18 h) es seco, sin viento y soleado
+        from: 9
+        to: 18
+        max_rain_probability: 20
+        max_wind: 20
+      - field: rain_probability
+        alert_above: 80
+      - field: hours
+        count: 4
+
+  # Un panel con páginas: la tecla M pasa de un teléfono a otro.
+  - title: Móvil
+    source: homeassistant
+    page_key: m
+    pages:
+      - name: Ana
+        items:
+          - entity: sensor.movil_ana_battery_level
+            name: Batería
+          - entity: sensor.movil_ana_geocoded_location
+            name: Ubicación
+            attribute: Name             # la calle
+            also:                       # en casa o en otra zona, su nombre en vez de la calle
+              entity: device_tracker.movil_ana
+              replace: true
+              map:
+                home: EN CASA
+                not_home: ""
+      - name: Luis
+        items:
+          - entity: sensor.movil_luis_battery_level
+            name: Batería
+
+  # Cada elemento puede usar su propia fuente con `source:`
+  - title: Astro
+    source: homeassistant
+    items:
+      # Con `sun:` estos valores se dibujan juntos como un esquema: un arco con el sol
+      # encima, alba y salida abajo a la izquierda, mediodía arriba, puesta y anochecer
+      # abajo a la derecha, y elevación y azimut en la esquina.
+      - entity: sensor.sun_next_dawn
+        sun: dawn
+        format: time
+      - entity: sensor.sun_next_rising
+        sun: rising
+        format: time
+      - entity: sensor.sun_next_noon
+        sun: noon
+        format: time
+      - entity: sensor.sun_next_setting
+        sun: setting
+        format: time
+      - entity: sensor.sun_next_dusk
+        sun: dusk
+        format: time
+      - entity: sensor.sun_solar_elevation
+        sun: elevation
+        unit: °
+        decimals: 1
+      - entity: sensor.sun_solar_azimuth
+        sun: azimuth
+        unit: °
+        decimals: 0
+      - source: luna
+        field: phase
+      - source: luna
+        field: next_phase
+
+  # El pomodoro no necesita panel: mientras está en uso sale centrado en la cabecera.
+  # Este panel es opcional, para ver también los pomodoros hechos hoy.
+  - title: Pomodoro
+    source: pomodoro
+    refresh: 1
+    big: true
+    items:
+      - field: timer                    # cuenta atrás (en grande con big: true)
+      - field: status                   # EN MARCHA / EN PAUSA / PARADO
+      - field: count                    # pomodoros hechos hoy
+
+  - title: Fechas
+    source: fechas
+    refresh: 3600
+    items:
+      - progress: day                   # barras de progreso: day | week | month | year | life
+      - progress: year
+      - progress: life
+        birth: 1990-03-14
+        end: 2070-01-01                 # hasta cuándo
+        days_left: true                 # añade "quedan N días"
+      - name: Navidad
+        date: 12-25                     # MM-DD: todos los años
+      - name: Viaje a Madrid
+        date: 2026-12-02                # fecha fija
+      - name: Cumple de Ana
+        date: 1990-03-14
+        yearly: true                    # cada año, y dice cuántos cumple
+        soon: 14                        # resaltada 14 días antes (7 por defecto)
+
+  - title: Servicios
+    source: servicios
+    refresh: 60
+    items:
+      - name: Jellyfin
+        url: https://servidor.local:8096    # en verde con el tiempo de respuesta; en rojo si no contesta
+      - name: Home Assistant
+        url: http://homeassistant.local:8123
+        alarm_after: 10                 # franja de alarma si lleva 10 min caído
+      - name: Pruebas
+        url: http://servidor.local:9000
+        alert: false                    # caído en ○, pero sin alerta

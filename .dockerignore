@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+**/__pycache__
+*.pyc
+.pytest_cache
+tests
+config.yaml
+config.example.yaml
+Dockerfile
+compose.yaml
+CLAUDE.md

@@ -1,0 +1,18 @@
+# docker compose up -d   →   http://<este equipo>:8080
+services:
+  marianne:
+    build: .
+    image: marianne:latest
+    container_name: marianne
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Tu config.yaml (copia de config.example.yaml), solo lectura.
+      - ./config.yaml:/config/config.yaml:ro
+    environment:
+      # Zona horaria de las horas que se muestran.
+      TZ: ${TZ:-Europe/London}
+      # Los secretos que config.yaml pide con ${...}, leídos del fichero .env.
+      HASS_TOKEN: ${HASS_TOKEN:-}
+      OPENWEATHER_KEY: ${OPENWEATHER_KEY:-}

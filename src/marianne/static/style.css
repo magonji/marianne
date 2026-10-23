@@ -1,0 +1,631 @@
+/* Marianne: a retro terminal screen in the browser, with three themes. */
+
+:root,
+[data-theme="amber"] {
+  --primary: #ffb000;
+  --accent: #ffd780;
+  --foreground: #ffb000;
+  --background: #0d0800;
+  --error: #ff4f2e;
+}
+
+[data-theme="phosphor"] {
+  --primary: #33ff66;
+  --accent: #b3ffc6;
+  --foreground: #33ff66;
+  --background: #030a04;
+  --error: #ff5c47;
+}
+
+[data-theme="c64"] {
+  --primary: #a59cff;
+  --accent: #e0dcff;
+  --foreground: #a59cff;
+  --background: #352879;
+  --error: #ff7777;
+}
+
+:root {
+  --dim: color-mix(in srgb, var(--foreground) 35%, transparent);
+  --off: color-mix(in srgb, var(--foreground) 45%, transparent);
+  --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
+  --glow: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
+  /* Sized so the screen holds about as many lines as a full-screen terminal. */
+  font-size: clamp(14px, min(2.15vh, 1.18vw), 30px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "VT323", ui-monospace, "SF Mono", Menlo, monospace;
+  line-height: 1.15;
+  text-shadow: var(--glow);
+  overflow: hidden;
+}
+
+/* CRT scanlines over everything, without catching the clicks. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+  z-index: 100;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- top bar ---- */
+
+#top {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 1.2rem 0.4rem;
+  border-bottom: 4px double color-mix(in srgb, var(--primary) 50%, transparent);
+  flex: none;
+}
+
+#banner {
+  flex: 1;
+  color: var(--primary);
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: 0.3em;
+}
+
+#clock {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 1.2rem;
+}
+
+#clock-date,
+#pomodoro-label {
+  color: var(--soft);
+  white-space: pre;
+  text-align: right;
+}
+
+.digits {
+  color: var(--accent);
+  font-size: 3.4rem;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+#pomodoro {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+#pomodoro.paused #pomodoro-digits {
+  color: color-mix(in srgb, var(--foreground) 50%, transparent);
+}
+
+/* ---- alarm and notice strips ---- */
+
+#alarm,
+#notice {
+  flex: none;
+  margin: 0.3rem 0.6rem 0;
+  padding: 0.15rem 0.5rem;
+  text-align: center;
+  white-space: pre-line;
+}
+
+#alarm {
+  border: 3px solid var(--error);
+  color: var(--error);
+  animation: flash 1s steps(1) infinite;
+}
+
+#notice {
+  border: 3px solid var(--accent);
+  color: var(--accent);
+}
+
+#notice.flash {
+  animation: flash-notice 1s steps(1) infinite;
+}
+
+@keyframes flash {
+  50% {
+    background: var(--error);
+    color: var(--background);
+  }
+}
+
+@keyframes flash-notice {
+  50% {
+    background: var(--accent);
+    color: var(--background);
+  }
+}
+
+/* ---- panels ---- */
+
+#panels {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 0.55rem 0.6rem;
+  padding: 0.7rem 0.6rem 0.4rem;
+}
+
+.panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border: 3px solid color-mix(in srgb, var(--primary) 60%, transparent);
+  padding: 0.55rem 0.6rem 0.4rem;
+}
+
+/* The rows are clipped, not the title that sits on the border. */
+.panel > .body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#popup .panel > .body {
+  height: auto;
+}
+
+.panel > h2 {
+  position: absolute;
+  top: -0.62em;
+  left: 0.6rem;
+  margin: 0;
+  padding: 0 0.35em;
+  font-size: 1rem;
+  font-weight: normal;
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.panel > h2 button {
+  text-shadow: none;
+}
+
+.panel {
+  /* Room for the title that sits on the top border. */
+  margin-top: 0.5em;
+}
+
+.panel .subtitle {
+  position: absolute;
+  right: 0.6rem;
+  bottom: -0.05rem;
+  padding: 0 0.3em;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--foreground) 50%, transparent);
+  background: var(--background);
+}
+
+.panel.stale {
+  border-color: color-mix(in srgb, var(--error) 70%, transparent);
+  opacity: 0.7;
+}
+
+.panel.stale > h2 {
+  background: var(--error);
+}
+
+.panel.stale .subtitle {
+  color: var(--error);
+}
+
+.panel.alert {
+  border-color: var(--error);
+}
+
+.panel.alert > h2 {
+  background: var(--error);
+}
+
+.waiting {
+  color: var(--dim);
+}
+
+.waiting::after {
+  content: "_";
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---- rows ---- */
+
+.row {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.row .label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row .leader {
+  flex: 1 1 1ch;
+  min-width: 1ch;
+  margin: 0 0.5ch;
+  overflow: hidden;
+  color: var(--dim);
+}
+
+.row .leader::before {
+  content: "................................................................................................................................";
+}
+
+.row .values {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row.wide .values {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+}
+
+.row.wide .label {
+  margin-right: 1ch;
+}
+
+.row.wide .bar {
+  flex: 1;
+  width: auto;
+}
+
+.row.wide .value-text {
+  flex: none;
+  text-align: right;
+}
+
+.value {
+  color: var(--accent);
+}
+
+.on {
+  color: var(--accent);
+}
+
+.off {
+  color: var(--off);
+}
+
+.error {
+  color: var(--error);
+}
+
+.alert-text {
+  color: var(--error);
+}
+
+.unit,
+.dim {
+  color: var(--dim);
+}
+
+.blinking {
+  animation: invert-alert 1s steps(1) infinite;
+}
+
+@keyframes invert-alert {
+  0% {
+    background: var(--error);
+    color: var(--background);
+  }
+  50% {
+    background: none;
+    color: var(--error);
+  }
+}
+
+.bar {
+  display: inline-block;
+  position: relative;
+  width: 5em;
+  height: 0.62em;
+  margin-right: 1ch;
+  vertical-align: baseline;
+}
+
+/* The empty part of the bar, and the filled part over it. */
+.bar::before,
+.bar > i {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.bar::before {
+  right: 0;
+  background: repeating-linear-gradient(90deg, var(--foreground) 0 0.36em, transparent 0.36em 0.5em);
+  opacity: 0.3;
+}
+
+.bar.short {
+  width: 2.5em;
+}
+
+.bar > i {
+  background: repeating-linear-gradient(90deg, var(--primary) 0 0.36em, transparent 0.36em 0.5em);
+  box-shadow: var(--glow);
+}
+
+.bar.alerting > i {
+  background: repeating-linear-gradient(90deg, var(--error) 0 0.36em, transparent 0.36em 0.5em);
+}
+
+/* ---- big value ---- */
+
+.big {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0.2rem 0 0.1rem;
+}
+
+.big-row {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.big .art {
+  margin: 0;
+  font: inherit;
+  line-height: 1.05;
+  color: var(--primary);
+}
+
+.big .number {
+  font-size: 4rem;
+  line-height: 0.95;
+  color: var(--accent);
+}
+
+.big .side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 3.2em;
+}
+
+.big .side.three {
+  justify-content: center;
+}
+
+.big .caption {
+  color: var(--dim);
+}
+
+.rule {
+  border-top: 2px solid var(--dim);
+  margin: 0.2rem -0.6rem 0.25rem;
+  box-shadow: var(--glow);
+}
+
+/* ---- the Sun ---- */
+
+.sun {
+  display: block;
+  width: 100%;
+  max-height: 8.4em;
+  margin: 0.1rem 0 0.2rem;
+  overflow: visible;
+}
+
+.sun text {
+  font-family: "VT323", ui-monospace, monospace;
+  font-size: 15px;
+  fill: var(--accent);
+}
+
+.sun .faint {
+  fill: var(--dim);
+}
+
+.sun .arc {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 2;
+  stroke-dasharray: 2 4;
+}
+
+.sun .travelled {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 3px var(--primary));
+}
+
+.sun .horizon {
+  stroke: var(--dim);
+  stroke-width: 1.5;
+}
+
+.sun .body {
+  fill: var(--accent);
+  filter: drop-shadow(0 0 5px var(--primary));
+}
+
+/* ---- status bar ---- */
+
+#status {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2ch;
+  padding: 0.05rem 1ch;
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+#status .source.bad {
+  background: var(--background);
+  color: var(--primary);
+  padding: 0 0.5ch;
+}
+
+#status .source.waiting-source {
+  opacity: 0.6;
+}
+
+#status .flashing {
+  animation: invert-status 1s steps(1) infinite;
+}
+
+@keyframes invert-status {
+  0% {
+    background: var(--background);
+    color: var(--primary);
+  }
+  50% {
+    background: none;
+    color: var(--background);
+  }
+}
+
+#status .ready {
+  margin-left: auto;
+}
+
+#status .ready::after {
+  content: "█";
+  animation: blink 1s steps(1) infinite;
+}
+
+/* ---- pop-up panel ---- */
+
+#popup {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--background) 70%, transparent);
+  z-index: 50;
+}
+
+#popup .panel {
+  width: min(40rem, 92vw);
+  max-height: 90vh;
+  background: var(--background);
+  overflow: auto;
+}
+
+/* ---- boot ---- */
+
+#boot {
+  position: fixed;
+  inset: 0;
+  padding: 1.2rem 2rem;
+  background: var(--background);
+  z-index: 90;
+}
+
+#boot-log {
+  margin: 0;
+  font: inherit;
+  font-size: 1.2rem;
+}
+
+/* ---- narrow screens: one column that scrolls ---- */
+
+@media (max-width: 760px) {
+  :root {
+    font-size: 17px;
+  }
+
+  body {
+    overflow: auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  #top {
+    padding: 0.3rem 16px;
+  }
+
+  #banner {
+    font-size: 2rem;
+    letter-spacing: 0.15em;
+  }
+
+  #clock-date {
+    display: none;
+  }
+
+  .digits {
+    font-size: 2.4rem;
+  }
+
+  #top:has(#pomodoro:not([hidden])) #clock {
+    display: none;
+  }
+
+  #pomodoro-label {
+    font-size: 0.85rem;
+  }
+
+  #panels {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+    padding: 0.7rem 16px 0.6rem;
+    gap: 1rem;
+  }
+
+  .panel {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    padding-bottom: 1rem;
+  }
+
+  #status {
+    position: sticky;
+    bottom: 0;
+    white-space: normal;
+  }
+}
