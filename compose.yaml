@@ -10,6 +10,8 @@ services:
     volumes:
       # Tu config.yaml (copia de config.example.yaml), solo lectura.
       - ./config.yaml:/config/config.yaml:ro
+      # Lo que se cambia desde la página (las fechas, tecla F): créala antes con `mkdir data`.
+      - ./data:/app/data
       # El / del servidor, solo lectura, para el panel del servidor (discos, nombre, sistema).
       - /:/host:ro
     environment:

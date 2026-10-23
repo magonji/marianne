@@ -37,7 +37,7 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   campanadas y el aviso parpadea hasta pulsar una tecla. Basta con definir la fuente: mientras
   está en uso aparece centrada en la cabecera; también puede tener su propio panel.
 - **Fechas señaladas**: cuántos días faltan para cumpleaños, viajes o fiestas, con aviso el
-  mismo día, y barras de progreso del día, la semana, el mes, el año y la vida.
+  mismo día (se añaden y cambian desde la propia página, con la tecla `F`), y barras de progreso del día, la semana, el mes, el año y la vida.
 - **Scraping web**: cualquier valor de una página con un selector CSS.
 - **El servidor**: CPU, carga, memoria, swap, disco, temperatura y tiempo encendido del
   equipo en el que corre Marianne.
@@ -66,6 +66,7 @@ uv run marianne --demo --theme phosphor
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares). En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
+| `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Esc` para volver) |
 | `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
 
 Casi todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
@@ -107,6 +108,9 @@ cp .env.example .env                 # y pon HASS_TOKEN (y OPENWEATHER_KEY si lo
 docker compose up -d --build         # http://<este equipo>:1111
 ```
 
+- Lo que se cambia desde la página (las fechas) se guarda en `data/`, que el contenedor necesita
+  poder escribir: créala antes de arrancar con `mkdir data` (como el usuario con uid 1000, o
+  `sudo chown 1000 data`). Está en `.gitignore`.
 - `config.yaml` se monta en el contenedor en solo lectura: tras cambiarlo basta con
   `docker compose restart`. Tiene que poder leerlo cualquier usuario (el contenedor corre con
   el uid 1000): `chmod 644 config.yaml`.
@@ -167,7 +171,7 @@ panels:
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
-| `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |
+| `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |
 
 ### Opciones de panel
 

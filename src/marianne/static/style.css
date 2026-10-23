@@ -728,6 +728,89 @@ a.tile.cursor > span {
   content: " ]";
 }
 
+/* ---- date editor ---- */
+
+#popup .panel.dates-editor {
+  width: min(44rem, 94vw);
+}
+
+.dates-editor button.row {
+  width: 100%;
+  text-align: left;
+}
+
+.dates-editor .row.add {
+  margin-top: 0.35rem;
+  color: var(--accent);
+}
+
+.dates-editor .field {
+  display: flex;
+  align-items: baseline;
+  gap: 1ch;
+  margin: 0.35rem 0;
+}
+
+.dates-editor .field-label {
+  flex: none;
+  width: 12ch;
+  color: var(--soft);
+}
+
+.dates-editor input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--accent);
+  text-shadow: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--dim);
+  padding: 0 0.3ch;
+}
+
+.dates-editor input.short {
+  flex: none;
+  width: 6ch;
+  /* No browser spinner: it doesn't belong on a terminal. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.dates-editor input.short::-webkit-inner-spin-button,
+.dates-editor input.short::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.dates-editor input::placeholder {
+  color: var(--dim);
+}
+
+.dates-editor input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* Whatever has the focus, in reverse video like the link cursor. */
+.dates-editor [data-focus]:focus {
+  outline: none;
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+}
+
+.dates-editor .row:focus .leader,
+.dates-editor .row:focus .values {
+  color: inherit;
+}
+
+.dates-editor input[type="checkbox"]:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ---- boot ---- */
 
 #boot {

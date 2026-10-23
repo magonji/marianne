@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 config.yaml
 .env
+# Lo que la página guarda (las fechas: pueden llevar cumpleaños).
+data/

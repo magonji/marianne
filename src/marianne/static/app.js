@@ -17,6 +17,8 @@ let popup = null; // index of the open pop-up panel
 let cursor = null; // href of the link under the keyboard cursor (arrows move it, Enter opens it)
 let reader = null; // the story open in the reader: its reading, the title of its panel and the chosen option
 const READER_CHOICES = ["read", "close"];
+// The date editor (its key, F by default): the dates of one source, and the form when one is open.
+let dates = null;
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -204,7 +206,18 @@ function renderPanels() {
 
 function renderPopup() {
   const box = document.getElementById("popup");
-  box.hidden = popup === null && !reader;
+  box.hidden = popup === null && !reader && !dates;
+  if (dates) {
+    // Drawn again only when it changes: the poll every second must not wipe what is being typed.
+    if (box.dataset.dates !== String(dates.version)) {
+      box.replaceChildren(drawDates());
+      box.dataset.dates = String(dates.version);
+      const focus = box.querySelector(dates.focus) || box.querySelector("[data-focus]");
+      if (focus) focus.focus();
+    }
+    return;
+  }
+  delete box.dataset.dates;
   if (reader) {
     // Drawn once: rebuilding it every second would throw away how far it has been scrolled.
     if (box.dataset.reader !== reader.reading.link) box.replaceChildren(drawReader());
@@ -473,6 +486,7 @@ function renderStatus() {
   for (const view of panelViews()) {
     if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
   }
+  for (const editor of layout.date_editors || []) items.push(key(editor.key, "FECHAS"));
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
     // A hidden panel with new alerts: the menu entry flashes so it isn't missed.
@@ -534,6 +548,7 @@ function acknowledge() {
 
 function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (dates) return datesKey(event);
   const key = event.key.toLowerCase();
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button.
   if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader))) event.preventDefault();
@@ -578,6 +593,8 @@ function press(key) {
   if (key === "r") return post("/api/reload");
   if (key === "t") return nextTheme();
   if (key === "a") return acknowledge();
+  const editor = (layout.date_editors || []).find((editor) => editor.key === key);
+  if (editor) return openDates(editor.name);
   for (const pomodoro of layout.pomodoros) {
     if (key === pomodoro.start_key) return post(`/api/pomodoro/${pomodoro.name}/toggle`);
     if (key === pomodoro.reset_key) return post(`/api/pomodoro/${pomodoro.name}/reset`);
@@ -642,6 +659,193 @@ function renderCursor() {
   else {
     cursor = null;
     renderStatus();
+  }
+}
+
+// ---------------------------------------------------------------- date editor
+
+// The page shows dates as DD/MM (every year) or DD/MM/AAAA; the server keeps MM-DD or YYYY-MM-DD.
+function showDate(value) {
+  const [year, month, day] = value.length === 5 ? [null, ...value.split("-")] : value.split("-");
+  return year ? `${day}/${month}/${year}` : `${day}/${month}`;
+}
+
+function storedDate(text) {
+  const parts = text.trim().split(/[/.-]/);
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !/^\d+$/.test(part))) return text.trim();
+  const [day, month, year] = parts;
+  const date = `${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return year ? `${year.length === 2 ? "20" + year : year}-${date}` : date;
+}
+
+function describeDate(entry) {
+  if (entry.date.length === 5) return `${showDate(entry.date)} · cada año`;
+  return `${showDate(entry.date)}${entry.yearly ? " · aniversario" : ""}`;
+}
+
+async function openDates(source) {
+  dates = { source, list: [], form: null, error: null, version: 0, focus: null };
+  reader = null;
+  popup = null;
+  try {
+    const response = await fetch(`/api/dates/${source}`, { cache: "no-store" });
+    const data = await response.json();
+    dates.list = data.dates || [];
+    dates.error = data.error || null;
+  } catch {
+    dates.error = "sin conexión con el servidor";
+  }
+  dates.version += 1;
+  render();
+}
+
+function closeDates() {
+  dates = null;
+  render();
+}
+
+function redrawDates(focus) {
+  dates.focus = focus;
+  dates.version += 1;
+  render();
+}
+
+function openForm(entry) {
+  dates.form = entry
+    ? { ...entry, date: showDate(entry.date) }
+    : { name: "", date: "", yearly: false, soon: 7 };
+  dates.error = null;
+  redrawDates("#date-name");
+}
+
+function backToList() {
+  const id = dates.form && dates.form.id;
+  dates.form = null;
+  dates.error = null;
+  redrawDates(id ? `[data-id="${id}"]` : null);
+}
+
+// What the form says right now, so a redraw (an error) keeps it.
+function readForm() {
+  const value = (id) => document.getElementById(id);
+  Object.assign(dates.form, {
+    name: value("date-name").value,
+    date: value("date-date").value,
+    yearly: value("date-yearly").checked,
+    soon: value("date-soon").value,
+  });
+}
+
+async function sendDate(method, path, body) {
+  readForm();
+  try {
+    const response = await fetch(`/api/dates/${dates.source}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    const saved = dates.form.id;
+    dates.list = data.dates;
+    dates.form = null;
+    dates.error = null;
+    // Back on the date just saved (a new one is the last); the panel catches up with the next poll.
+    const id = method === "DELETE" ? null : saved || (data.dates.at(-1) || {}).id;
+    redrawDates(id ? `[data-id="${id}"]` : null);
+    poll();
+  } catch (error) {
+    dates.error = error.message === "Failed to fetch" ? "sin conexión con el servidor" : error.message;
+    redrawDates(`#${(document.activeElement && document.activeElement.id) || "date-name"}`);
+  }
+}
+
+function saveDate() {
+  readForm();
+  const { id, name, date, yearly, soon } = dates.form;
+  const body = { name, date: storedDate(date), yearly, soon: soon === "" ? 7 : Number(soon) };
+  return id ? sendDate("PUT", `/${id}`, body) : sendDate("POST", "", body);
+}
+
+function deleteDate(button) {
+  // A second press confirms.
+  if (!button.dataset.sure) {
+    button.dataset.sure = "1";
+    button.textContent = upper("¿Seguro? Borrar");
+    return;
+  }
+  sendDate("DELETE", `/${dates.form.id}`);
+}
+
+function drawDates() {
+  const error = dates.error ? el("p", { class: "error" }, upper(`✖ ${dates.error}`)) : null;
+  if (!dates.form) {
+    const rows = dates.list.map((entry) =>
+      el("button", { class: "row", "data-focus": "", "data-id": entry.id, onclick: () => openForm(entry) },
+        el("span", { class: "label" }, upper(entry.name)),
+        el("span", { class: "leader" }),
+        el("span", { class: "values" }, upper(describeDate(entry)))));
+    const add = el("button", { class: "row add", "data-focus": "", onclick: () => openForm(null) }, upper("+ Añadir fecha"));
+    return el("section", { class: "panel dates-editor" },
+      el("h2", {}, upper("Fechas")),
+      el("div", { class: "body" }, rows, add, error,
+        el("p", { class: "dim" }, upper("↑ ↓ elegir · ↵ cambiar · Esc salir"))));
+  }
+  const form = dates.form;
+  const field = (label, input, after) =>
+    el("label", { class: "field" }, el("span", { class: "field-label" }, upper(label)), input, after || null);
+  const input = (id, value, attrs = {}) =>
+    el("input", { id, value: value ?? "", "data-focus": "", autocomplete: "off", ...attrs });
+  const yearly = el("input", { id: "date-yearly", type: "checkbox", "data-focus": "" });
+  yearly.checked = Boolean(form.yearly);
+  return el("section", { class: "panel dates-editor" },
+    el("h2", {}, upper(form.id ? "Cambiar fecha" : "Nueva fecha")),
+    el("div", { class: "body" },
+      field("Nombre", input("date-name", form.name, { maxlength: 60 })),
+      field("Fecha", input("date-date", form.date, { placeholder: "DD/MM o DD/MM/AAAA", inputmode: "numeric" })),
+      field("Aniversario", yearly, el("span", { class: "dim" }, upper(" con año: cada año, y cuántos cumple"))),
+      field("Avisar", input("date-soon", form.soon, { type: "number", min: 0, max: 365, class: "short" }),
+        el("span", { class: "dim" }, upper(" días antes"))),
+      error,
+      el("p", { class: "dim" }, upper("DD/MM: todos los años · DD/MM/AAAA: ese día (o, con aniversario, cada año)"))),
+    el("div", { class: "reader-choices" },
+      el("button", { "data-focus": "", onclick: saveDate }, upper("Guardar")),
+      form.id ? el("button", { "data-focus": "", onclick: (event) => deleteDate(event.currentTarget) }, upper("Borrar")) : null,
+      el("button", { "data-focus": "", onclick: backToList }, upper("Cancelar"))));
+}
+
+// Keys while the editor is open. In a text field they type; the shortcuts of the page don't apply.
+function datesKey(event) {
+  const key = event.key.toLowerCase();
+  const target = event.target;
+  const typing = target.tagName === "INPUT" && target.type !== "checkbox";
+  const focusables = [...document.querySelectorAll("#popup [data-focus]")];
+  const index = focusables.indexOf(document.activeElement);
+  const move = (step) => {
+    event.preventDefault();
+    const next = index < 0 ? 0 : Math.max(0, Math.min(focusables.length - 1, index + step));
+    if (focusables[next]) focusables[next].focus();
+  };
+  if (key === "escape") {
+    event.preventDefault();
+    return dates.form ? backToList() : closeDates();
+  }
+  if (key === "arrowdown" || key === "arrowup") return move(key === "arrowdown" ? 1 : -1);
+  // Left and right move the caret in a text field, and between the buttons under the form.
+  if (!typing && (key === "arrowleft" || key === "arrowright")) return move(key === "arrowright" ? 1 : -1);
+  if (key === "enter") {
+    if (dates.form && (typing || target.type === "checkbox")) {
+      event.preventDefault();
+      return saveDate();
+    }
+    if (index < 0) return move(0);
+    // A focused button is pressed by the browser itself.
+    return;
+  }
+  const editor = (layout.date_editors || []).find((editor) => editor.key === key);
+  if (editor && !typing && !dates.form) {
+    event.preventDefault();
+    closeDates();
   }
 }
 
@@ -725,7 +929,9 @@ document.getElementById("status").addEventListener("click", (event) => {
 // A click outside the pop-up panel closes it.
 document.getElementById("popup").addEventListener("click", (event) => {
   if (event.target.id !== "popup") return;
-  if (reader) closeReader();
+  if (dates) {
+    if (!dates.form) closeDates();
+  } else if (reader) closeReader();
   else togglePopup(popup);
 });
 addEventListener("pointerdown", unlockAudio);

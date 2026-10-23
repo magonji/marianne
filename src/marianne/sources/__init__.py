@@ -61,7 +61,8 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             chimes=int(spec.get("chimes", 3)),
         )
     if kind == "dates":
-        return DatesSource(name, sort=bool(spec.get("sort", True)))
+        return DatesSource(name, sort=bool(spec.get("sort", True)), file=spec.get("file"),
+                           edit_key=str(spec.get("edit_key", "f")).lower())
     if kind == "demo":
         return DemoSource(name)
     raise ValueError(f"source '{name}': tipo desconocido '{kind}'")

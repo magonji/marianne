@@ -26,6 +26,7 @@ from aiohttp import web
 from .config import Config, ConfigError, PanelConfig, load_config, parse_config
 from .icons import Icons
 from .sources import Source, build_source
+from .sources.dates import DatesSource
 from .sources.pomodoro import PomodoroSource
 
 STATIC = Path(__file__).parent / "static"
@@ -53,6 +54,10 @@ class Dashboard:
     @staticmethod
     def pages(panel: PanelConfig) -> list[list[dict[str, Any]]]:
         return [items for _, items in panel.pages] if panel.pages else [panel.items]
+
+    def date_stores(self) -> dict[str, DatesSource]:
+        """The dates sources with a file the page can edit."""
+        return {name: source for name, source in self.sources.items() if isinstance(source, DatesSource) and source.store}
 
     def pomodoros(self) -> dict[str, PomodoroSource]:
         return {name: source for name, source in self.sources.items() if isinstance(source, PomodoroSource)}
@@ -141,6 +146,7 @@ class Dashboard:
                 }
                 for panel in self.config.panels
             ],
+            "date_editors": [{"name": name, "key": source.edit_key} for name, source in self.date_stores().items()],
             "pomodoros": [
                 {"name": name, "start_key": source.start_key, "reset_key": source.reset_key}
                 for name, source in self.pomodoros().items()
@@ -231,7 +237,53 @@ def make_app(dashboard: Dashboard) -> web.Application:
         await dashboard.reload(request.match_info["name"])
         return web.json_response(dashboard.state())
 
-    app = web.Application()
+    # The dates the page edits (tecla F): list, add, change and delete.
+    def date_store(request: web.Request) -> DatesSource:
+        source = dashboard.date_stores().get(request.match_info["name"])
+        if source is None:
+            raise web.HTTPNotFound()
+        return source
+
+    async def change_dates(request: web.Request, change) -> web.Response:
+        source = date_store(request)
+        try:
+            dates = change(source.store)
+        except KeyError:
+            raise web.HTTPNotFound() from None
+        except (ValueError, OSError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        await dashboard.reload(request.match_info["name"])
+        return web.json_response({"dates": dates})
+
+    async def body(request: web.Request) -> dict[str, Any]:
+        try:
+            data = await request.json()
+        except ValueError:
+            raise web.HTTPBadRequest() from None
+        return data if isinstance(data, dict) else {}
+
+    @routes.get("/api/dates/{name}")
+    async def list_dates(request: web.Request) -> web.Response:
+        try:
+            return web.json_response({"dates": date_store(request).store.load()})
+        except (ValueError, OSError, yaml.YAMLError) as exc:
+            return web.json_response({"error": str(exc)}, status=500)
+
+    @routes.post("/api/dates/{name}")
+    async def add_date(request: web.Request) -> web.Response:
+        data = await body(request)
+        return await change_dates(request, lambda store: store.add(data))
+
+    @routes.put("/api/dates/{name}/{id}")
+    async def update_date(request: web.Request) -> web.Response:
+        data = await body(request)
+        return await change_dates(request, lambda store: store.update(request.match_info["id"], data))
+
+    @routes.delete("/api/dates/{name}/{id}")
+    async def delete_date(request: web.Request) -> web.Response:
+        return await change_dates(request, lambda store: store.delete(request.match_info["id"]))
+
+    app = web.Application(client_max_size=64 * 1024)
     app.add_routes(routes)
     app.router.add_static("/static", STATIC)
 

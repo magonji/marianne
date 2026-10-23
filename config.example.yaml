@@ -28,6 +28,7 @@ sources:
 
   fechas:
     type: dates
+    file: data/fechas.yaml              # opcional: fechas que se añaden y cambian desde la página (tecla F)
 
   servidor:
     type: system                        # el equipo en el que corre marianne
