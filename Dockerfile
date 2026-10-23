@@ -28,9 +28,9 @@ RUN uv sync --locked --no-dev
 RUN useradd --system --uid 1000 marianne
 USER marianne
 
-EXPOSE 8080
+EXPOSE 1111
 # La configuración se monta en /config/config.yaml.
-CMD ["marianne", "--config", "/config/config.yaml", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["marianne", "--config", "/config/config.yaml", "--host", "0.0.0.0", "--port", "1111"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/layout', timeout=4)"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:1111/api/layout', timeout=4)"

@@ -1,7 +1,7 @@
 """Marianne: a retro dashboard in the browser. This small server reads config.yaml, asks the
 sources (Home Assistant, OpenWeather...) and hands the readings to the page in static/ as JSON.
 
-    uv run marianne                  # http://127.0.0.1:8080
+    uv run marianne                  # http://127.0.0.1:1111
     uv run marianne --demo
     uv run marianne --host 0.0.0.0   # reachable from other devices
 
@@ -234,7 +234,7 @@ def main() -> None:
     parser.add_argument("--demo", action="store_true", help="usa datos simulados en lugar de Home Assistant")
     parser.add_argument("--theme", help="phosphor | amber | c64")
     parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 para abrirlo desde otros dispositivos")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=1111)
     args = parser.parse_args()
 
     try:

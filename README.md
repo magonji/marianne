@@ -49,7 +49,7 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
 Hace falta [uv](https://docs.astral.sh/uv/).
 
 ```sh
-uv run marianne --demo                  # datos simulados, en http://127.0.0.1:8080
+uv run marianne --demo                  # datos simulados, en http://127.0.0.1:1111
 uv run marianne --demo --theme phosphor
 ```
 
@@ -73,7 +73,7 @@ dejan sonar nada hasta la primera tecla o clic en la página.
 1. Crea un token de larga duración en Home Assistant (tu perfil → Seguridad).
 2. `export HASS_TOKEN=...` (por ejemplo en tu `~/.zshrc`).
 3. `cp config.example.yaml config.yaml` y pon tu URL y tus entidades.
-4. `uv run marianne` y abre http://127.0.0.1:8080.
+4. `uv run marianne` y abre http://127.0.0.1:1111.
 
 El fichero de configuración se busca en `./config.yaml` y en `~/.config/marianne/config.yaml`,
 o se indica con `marianne -c ruta.yaml`. `config.yaml` está en `.gitignore`: ahí pueden ir tus
@@ -86,7 +86,7 @@ Si una variable está en los dos sitios, gana la de la shell.
 | Opción | Para qué |
 |---|---|
 | `--host 0.0.0.0` | Abrirlo desde el móvil u otro ordenador (por defecto, solo desde este) |
-| `--port 8080` | Puerto |
+| `--port 1111` | Puerto |
 | `--theme c64` | Tema, en lugar del de `config.yaml` |
 | `--demo` | Datos simulados en lugar de Home Assistant |
 
@@ -100,7 +100,7 @@ Para saber los nombres de tus entidades: Herramientas para desarrolladores → E
 ```sh
 cp config.example.yaml config.yaml   # y adáptalo
 cp .env.example .env                 # y pon HASS_TOKEN (y OPENWEATHER_KEY si lo usas)
-docker compose up -d --build         # http://<este equipo>:8080
+docker compose up -d --build         # http://<este equipo>:1111
 ```
 
 - `config.yaml` se monta en el contenedor en solo lectura: tras cambiarlo basta con
@@ -115,7 +115,7 @@ docker compose up -d --build         # http://<este equipo>:8080
   el `/` del servidor en `/host` (solo lectura) y la fuente lo usa con `host_root: /host`;
   `path: /mnt/datos` se refiere entonces al disco del servidor. Fuera de Docker se ignora.
 - Para actualizar tras un `git pull`: `docker compose up -d --build`.
-- Para verlo solo desde el propio equipo, cambia el puerto en `compose.yaml` a `"127.0.0.1:8080:8080"`.
+- Para verlo solo desde el propio equipo, cambia el puerto en `compose.yaml` a `"127.0.0.1:1111:1111"`.
 
 ## Configuración
 
