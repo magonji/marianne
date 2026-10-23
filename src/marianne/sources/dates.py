@@ -134,14 +134,14 @@ class DateStore:
         dates = self.load()
         if len(dates) >= MAX_DATES:
             raise ValueError(f"como mucho {MAX_DATES} fechas")
-        dates.append({"id": secrets.token_hex(4), **clean_date(raw)})
+        dates.append({"id": secrets.token_hex(4), **clean_date(raw, decide_yearly=True)})
         self.save(dates)
         return dates
 
     def update(self, date_id: str, raw: dict[str, Any]) -> list[dict[str, Any]]:
         dates = self.load()
         index = self._index(dates, date_id)
-        dates[index] = {"id": date_id, **clean_date(raw)}
+        dates[index] = {"id": date_id, **clean_date(raw, decide_yearly=True)}
         self.save(dates)
         return dates
 
@@ -159,8 +159,12 @@ class DateStore:
         raise KeyError(date_id)
 
 
-def clean_date(raw: Any) -> dict[str, Any]:
-    """A date as the page sends it, checked: a name, 'YYYY-MM-DD' or 'MM-DD', yearly and soon."""
+def clean_date(raw: Any, decide_yearly: bool = False, today: date | None = None) -> dict[str, Any]:
+    """A date as the page sends it, checked: a name, 'YYYY-MM-DD' or 'MM-DD', yearly and soon.
+
+    With `decide_yearly` (a date saved from the page), a date with a year that has already gone by
+    is a birthday or an anniversary: every year, counting the years. One still to come (a trip) is
+    that day only. Read back from the file, what was decided is kept."""
     if not isinstance(raw, dict):
         raise ValueError("cada fecha tiene que ser un diccionario")
     name = str(raw.get("name") or "").strip()
@@ -184,7 +188,11 @@ def clean_date(raw: Any) -> dict[str, Any]:
         raise ValueError("los días de aviso tienen que estar entre 0 y 365")
     entry: dict[str, Any] = {"name": name, "date": text}
     # Only a date with a year can be yearly (an anniversary); without a year it already is.
-    if year is not None and raw.get("yearly"):
+    if decide_yearly:
+        yearly = year is not None and date(year, month, day) < (today or date.today())
+    else:
+        yearly = year is not None and bool(raw.get("yearly"))
+    if yearly:
         entry["yearly"] = True
     entry["soon"] = soon
     return entry

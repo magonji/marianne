@@ -680,7 +680,7 @@ function storedDate(text) {
 
 function describeDate(entry) {
   if (entry.date.length === 5) return `${showDate(entry.date)} · cada año`;
-  return `${showDate(entry.date)}${entry.yearly ? " · aniversario" : ""}`;
+  return `${showDate(entry.date)} · ${entry.yearly ? "cada año, con los años" : "una vez"}`;
 }
 
 async function openDates(source) {
@@ -713,7 +713,7 @@ function redrawDates(focus) {
 function openForm(entry) {
   dates.form = entry
     ? { ...entry, date: showDate(entry.date) }
-    : { name: "", date: "", yearly: false, soon: 7 };
+    : { name: "", date: "", soon: 7 };
   dates.error = null;
   redrawDates("#date-name");
 }
@@ -731,7 +731,6 @@ function readForm() {
   Object.assign(dates.form, {
     name: value("date-name").value,
     date: value("date-date").value,
-    yearly: value("date-yearly").checked,
     soon: value("date-soon").value,
   });
 }
@@ -762,8 +761,9 @@ async function sendDate(method, path, body) {
 
 function saveDate() {
   readForm();
-  const { id, name, date, yearly, soon } = dates.form;
-  const body = { name, date: storedDate(date), yearly, soon: soon === "" ? 7 : Number(soon) };
+  const { id, name, date, soon } = dates.form;
+  // Whether it repeats every year is decided by the server, from the date (see clean_date).
+  const body = { name, date: storedDate(date), soon: soon === "" ? 7 : Number(soon) };
   return id ? sendDate("PUT", `/${id}`, body) : sendDate("POST", "", body);
 }
 
@@ -796,18 +796,15 @@ function drawDates() {
     el("label", { class: "field" }, el("span", { class: "field-label" }, upper(label)), input, after || null);
   const input = (id, value, attrs = {}) =>
     el("input", { id, value: value ?? "", "data-focus": "", autocomplete: "off", ...attrs });
-  const yearly = el("input", { id: "date-yearly", type: "checkbox", "data-focus": "" });
-  yearly.checked = Boolean(form.yearly);
   return el("section", { class: "panel dates-editor" },
     el("h2", {}, upper(form.id ? "Cambiar fecha" : "Nueva fecha")),
     el("div", { class: "body" },
       field("Nombre", input("date-name", form.name, { maxlength: 60 })),
       field("Fecha", input("date-date", form.date, { placeholder: "DD/MM o DD/MM/AAAA", inputmode: "numeric" })),
-      field("Aniversario", yearly, el("span", { class: "dim" }, upper(" con año: cada año, y cuántos cumple"))),
       field("Avisar", input("date-soon", form.soon, { type: "number", min: 0, max: 365, class: "short" }),
         el("span", { class: "dim" }, upper(" días antes"))),
       error,
-      el("p", { class: "dim" }, upper("DD/MM: todos los años · DD/MM/AAAA: ese día (o, con aniversario, cada año)"))),
+      el("p", { class: "dim" }, upper("DD/MM: todos los años. DD/MM/AAAA: si ya pasó (un cumpleaños), cada año y cuántos cumple; si está por venir (un viaje), solo ese día."))),
     el("div", { class: "reader-choices" },
       el("button", { "data-focus": "", onclick: saveDate }, upper("Guardar")),
       form.id ? el("button", { "data-focus": "", onclick: (event) => deleteDate(event.currentTarget) }, upper("Borrar")) : null,
@@ -818,7 +815,7 @@ function drawDates() {
 function datesKey(event) {
   const key = event.key.toLowerCase();
   const target = event.target;
-  const typing = target.tagName === "INPUT" && target.type !== "checkbox";
+  const typing = target.tagName === "INPUT";
   const focusables = [...document.querySelectorAll("#popup [data-focus]")];
   const index = focusables.indexOf(document.activeElement);
   const move = (step) => {
@@ -834,7 +831,7 @@ function datesKey(event) {
   // Left and right move the caret in a text field, and between the buttons under the form.
   if (!typing && (key === "arrowleft" || key === "arrowright")) return move(key === "arrowright" ? 1 : -1);
   if (key === "enter") {
-    if (dates.form && (typing || target.type === "checkbox")) {
+    if (dates.form && typing) {
       event.preventDefault();
       return saveDate();
     }

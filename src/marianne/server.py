@@ -155,7 +155,7 @@ class Dashboard:
 
     def boot_lines(self) -> list[str]:
         lines = [
-            "MARIANNE BIOS v0.1                (C) 1986-2026 MARIANNE SYSTEMS",
+            "MARIANNE BIOS v0.1                (C) 1984-2026 MARIANNE SYSTEMS",
             "",
             "MEMORY TEST ............................ 640K OK",
             f"CONFIG ................................. {self.config.path.name if self.config.path else 'DEMO'}",

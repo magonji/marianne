@@ -757,7 +757,7 @@ a.tile.cursor > span {
   color: var(--soft);
 }
 
-.dates-editor input:not([type="checkbox"]) {
+.dates-editor input {
   flex: 1;
   min-width: 0;
   font: inherit;
@@ -787,12 +787,6 @@ a.tile.cursor > span {
   color: var(--dim);
 }
 
-.dates-editor input[type="checkbox"] {
-  accent-color: var(--primary);
-  width: 1.1em;
-  height: 1.1em;
-}
-
 /* Whatever has the focus, in reverse video like the link cursor. */
 .dates-editor [data-focus]:focus {
   outline: none;
@@ -804,11 +798,6 @@ a.tile.cursor > span {
 .dates-editor .row:focus .leader,
 .dates-editor .row:focus .values {
   color: inherit;
-}
-
-.dates-editor input[type="checkbox"]:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
 }
 
 /* ---- boot ---- */

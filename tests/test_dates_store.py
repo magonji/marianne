@@ -11,9 +11,15 @@ from marianne.sources.dates import DatesSource, DateStore, clean_date
 
 def test_clean_date_checks_what_the_page_sends():
     assert clean_date({"name": " Navidad ", "date": "12-25"}) == {"name": "Navidad", "date": "12-25", "soon": 7}
-    # yearly only means something with a year (an anniversary)
+    # Read back from the file, yearly is kept, and only means something with a year
     assert clean_date({"name": "Cumple", "date": "1990-03-14", "yearly": True, "soon": "14"})["yearly"] is True
     assert "yearly" not in clean_date({"name": "Navidad", "date": "12-25", "yearly": True})
+    # Saved from the page, it's decided by the date: gone by (a birthday) yearly, to come (a trip) once
+    today = date(2026, 10, 23)
+    assert clean_date({"name": "Cumple", "date": "1990-03-14"}, decide_yearly=True, today=today)["yearly"] is True
+    assert "yearly" not in clean_date({"name": "Viaje", "date": "2026-12-02", "yearly": True},
+                                      decide_yearly=True, today=today)
+    assert "yearly" not in clean_date({"name": "Navidad", "date": "12-25"}, decide_yearly=True, today=today)
     assert clean_date({"name": "Bisiesto", "date": "02-29"})["date"] == "02-29"
     assert clean_date({"name": "Yaml", "date": date(2027, 1, 6)})["date"] == "2027-01-06"
     for wrong in ({"name": "", "date": "12-25"}, {"name": "x" * 61, "date": "12-25"},
