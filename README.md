@@ -41,7 +41,8 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
 - **Scraping web**: cualquier valor de una página con un selector CSS.
 - **El servidor**: CPU, carga, memoria, swap, disco, temperatura y tiempo encendido del
   equipo en el que corre Marianne.
-- **Noticias**: los últimos titulares de tus feeds RSS o Atom; un clic abre la noticia.
+- **Noticias**: los últimos titulares de tus feeds RSS o Atom; un clic los abre en un lector con
+  el texto que trae el feed y, al final, el enlace a la noticia en la web.
 - **Monitor de servicios**: comprueba que tus servicios web responden y cuánto tardan; si
   alguno se cae, sale en rojo.
 
@@ -64,8 +65,8 @@ uv run marianne --demo --theme phosphor
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares) |
-| `Enter` | Abrir el enlace del cursor en una pestaña nueva |
-| `Esc` | Quitar el cursor; si no hay, cerrar el panel emergente |
+| `Enter` | Abrir el enlace del cursor: un titular se abre en el lector (y ahí `Enter` lleva a la noticia en la web); lo demás, en una pestaña nueva |
+| `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
 
 Todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
 página de cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
@@ -162,7 +163,7 @@ panels:
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `link` (adónde lleva un clic, si no es la misma `url`), `alert: false`, `alarm_after`, `alarm_text` |
-| `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7) |
+| `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |

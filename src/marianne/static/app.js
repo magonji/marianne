@@ -15,6 +15,7 @@ let noticeFlashUntil = 0;
 let lastBell = 0;
 let popup = null; // index of the open pop-up panel
 let cursor = null; // href of the link under the keyboard cursor (arrows move it, Enter opens it)
+let reader = null; // the story open in the reader: its reading and the title of its panel
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -200,9 +201,48 @@ function renderPanels() {
 
 function renderPopup() {
   const box = document.getElementById("popup");
-  box.hidden = popup === null;
+  box.hidden = popup === null && !reader;
+  if (reader) {
+    // Drawn once: rebuilding it every second would throw away how far it has been scrolled.
+    if (box.dataset.reader !== reader.reading.link) box.replaceChildren(drawReader());
+    box.dataset.reader = reader.reading.link;
+    return;
+  }
+  delete box.dataset.reader;
   if (popup === null) return;
   box.replaceChildren(drawPanel(panelViews()[popup]));
+}
+
+// A story from a feed, in a window: its headline, date and text, and at the end the link to the web.
+function drawReader() {
+  const { reading, title } = reader;
+  const detail = reading.detail || {};
+  const when = [detail.date, reading.value && `hace ${reading.value}`].filter(Boolean).join(" · ");
+  const paragraphs = (detail.text || "").split("\n\n").filter(Boolean);
+  const address = reading.link.replace(/^https?:\/\//, "");
+  return el("section", { class: "panel reader" },
+    el("h2", {}, upper(detail.feed || title)),
+    el("div", { class: "body" },
+      el("div", { class: "reader-title" }, upper(reading.label)),
+      when ? el("div", { class: "dim" }, upper(when)) : null,
+      el("div", { class: "rule" }),
+      paragraphs.length
+        ? paragraphs.map((text) => el("p", {}, upper(text)))
+        : el("p", { class: "dim" }, upper("Esta noticia no trae texto en el feed.")),
+      el("div", { class: "rule" }),
+      el("a", { class: "reader-link", href: reading.link, target: "_blank", rel: "noopener noreferrer" },
+        `[↵] ${upper("Leer en la web")}  ${address}`)));
+}
+
+function openReader(panel, reading) {
+  reader = { reading, title: panel.title };
+  cursor = reading.link;
+  render();
+}
+
+function closeReader() {
+  reader = null;
+  render();
 }
 
 function drawPanel(view) {
@@ -277,10 +317,23 @@ function drawRow(panel, reading, widths) {
   const label = el("span", {
     class: `label${alerting ? " alert-text" : reading.switch !== null ? " " + styleClass(reading) : ""}`,
     style: wide ? `width: ${widths.labelWidth}ch; flex: none` : null,
-  }, reading.link ? el("a", { href: reading.link, target: "_blank", rel: "noopener noreferrer" }, labelText(reading)) : labelText(reading));
+  }, reading.link ? drawLink(panel, reading) : labelText(reading));
   const values = el("span", { class: "values" }, drawValue(panel, reading, wide ? widths.valueWidth : 0));
   for (const extra of reading.extra || []) values.append("  ", drawValue(panel, extra, 0));
   return el("div", { class: `row${wide ? " wide" : ""}${reading.link ? " linked" : ""}` }, label, wide ? null : el("span", { class: "leader" }), values);
+}
+
+// A headline with its story (detail) opens the reader; ctrl/cmd-click still goes straight to the web.
+function drawLink(panel, reading) {
+  const open = (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    openReader(panel, reading);
+  };
+  return el("a", {
+    href: reading.link, target: "_blank", rel: "noopener noreferrer",
+    "data-reader": reading.detail ? "1" : null, onclick: reading.detail ? open : null,
+  }, labelText(reading));
 }
 
 function drawValue(panel, reading, valueWidth) {
@@ -411,7 +464,8 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
-  if (cursor) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
+  if (reader) items.push(key("enter", "LEER EN LA WEB"), key("escape", "CERRAR"));
+  else if (cursor) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
   if (!audio || audio.state !== "running") items.push(el("span", {}, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -456,7 +510,7 @@ function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key.toLowerCase();
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button.
-  if (Object.hasOwn(ARROWS, key) || (key === "enter" && cursor)) event.preventDefault();
+  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader))) event.preventDefault();
   press(key);
 }
 
@@ -464,8 +518,22 @@ function onKey(event) {
 function press(key) {
   unlockAudio();
   noticeFlashUntil = 0;
+  if (reader) {
+    // In the reader: up and down scroll the story, Enter goes to the web, Esc closes it.
+    if (key === "enter") return void window.open(reader.reading.link, "_blank", "noopener");
+    if (key === "escape") return closeReader();
+    if (Object.hasOwn(ARROWS, key)) {
+      const box = document.querySelector("#popup .panel > .body");
+      if (box) box.scrollBy(0, ARROWS[key][1] * 4 * parseFloat(getComputedStyle(box).lineHeight || "20"));
+      return;
+    }
+  }
   if (Object.hasOwn(ARROWS, key)) return moveCursor(ARROWS[key]);
-  if (key === "enter" && cursor) return void window.open(cursor, "_blank", "noopener");
+  if (key === "enter" && cursor) {
+    const link = visibleLinks().find((node) => node.getAttribute("href") === cursor);
+    if (link && link.dataset.reader) return link.click();
+    return void window.open(cursor, "_blank", "noopener");
+  }
   if (key === "escape" && cursor) {
     cursor = null;
     return render();
@@ -620,7 +688,9 @@ document.getElementById("status").addEventListener("click", (event) => {
 });
 // A click outside the pop-up panel closes it.
 document.getElementById("popup").addEventListener("click", (event) => {
-  if (event.target.id === "popup") togglePopup(popup);
+  if (event.target.id !== "popup") return;
+  if (reader) closeReader();
+  else togglePopup(popup);
 });
 addEventListener("pointerdown", unlockAudio);
 start();
