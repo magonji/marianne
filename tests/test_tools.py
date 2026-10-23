@@ -189,3 +189,12 @@ def test_a_popup_with_pages_needs_no_page_key():
     del data["panels"][0]["key"]
     with pytest.raises(ConfigError):
         parse_config(data, None)
+
+
+def test_row_heights():
+    data = {"sources": {}, "panels": [], "row_heights": [1.25, 1, 1]}
+    assert parse_config(data, None).row_heights == [1.25, 1.0, 1.0]
+    assert parse_config({"sources": {}, "panels": []}, None).row_heights == []
+    for wrong in ([0, 1], ["alto"], 2):
+        with pytest.raises(ConfigError):
+            parse_config({"sources": {}, "panels": [], "row_heights": wrong}, None)

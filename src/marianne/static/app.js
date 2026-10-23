@@ -194,9 +194,11 @@ function renderStrips() {
 function renderPanels() {
   const grid = document.getElementById("panels");
   const views = panelViews().filter(({ panel }) => !panel.key);
-  // Every row the same height, like the terminal grid.
+  // Every row the same height, like the terminal grid, unless row_heights says otherwise.
   const cells = views.reduce((sum, { panel }) => sum + panel.span * panel.rows, 0);
-  grid.style.gridTemplateRows = `repeat(${Math.max(1, Math.ceil(cells / layout.columns))}, minmax(0, 1fr))`;
+  const rows = Math.max(1, Math.ceil(cells / layout.columns));
+  const heights = layout.row_heights || [];
+  grid.style.gridTemplateRows = Array.from({ length: rows }, (_, row) => `minmax(0, ${heights[row] || 1}fr)`).join(" ");
   grid.replaceChildren(...views.map(drawPanel));
 }
 

@@ -46,6 +46,8 @@ class Config:
     path: Path | None
     theme: str = "amber"
     columns: int = 3
+    # Relative height of each row of the grid (rows left out are 1): [1.25, 1, 1] makes the first taller.
+    row_heights: list[float] = field(default_factory=list)
     boot: bool = True
     uppercase: bool = True
     bell: bool = False
@@ -101,6 +103,7 @@ def parse_config(data: dict[str, Any], path: Path | None) -> Config:
         path=path,
         theme=data.get("theme", "amber"),
         columns=int(data.get("columns", 3)),
+        row_heights=_row_heights(data.get("row_heights")),
         boot=bool(data.get("boot", True)),
         uppercase=bool(data.get("uppercase", True)),
         bell=bool(data.get("bell", False)),
@@ -135,6 +138,16 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         pages=pages,
         page_key=page_key,
     )
+
+
+def _row_heights(raw: Any) -> list[float]:
+    try:
+        heights = [float(height) for height in raw or []]
+    except (TypeError, ValueError):
+        heights = []
+    if not isinstance(raw, (list, type(None))) or any(height <= 0 for height in heights) or len(heights) != len(raw or []):
+        raise ConfigError("'row_heights' debe ser una lista de números mayores que 0, como [1.25, 1, 1]")
+    return heights
 
 
 def _key(title: str, raw: dict[str, Any], option: str) -> str | None:

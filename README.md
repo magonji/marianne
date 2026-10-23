@@ -128,6 +128,7 @@ docker compose up -d --build         # http://<este equipo>:1111
 ```yaml
 theme: amber            # amber | phosphor | c64
 columns: 3              # columnas de la rejilla
+row_heights: [1.25, 1, 1]  # alto relativo de cada fila (opcional; por defecto, iguales)
 bell: false             # pitido cada 5 s mientras haya una alarma
 
 sources:

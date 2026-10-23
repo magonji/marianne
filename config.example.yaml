@@ -2,6 +2,7 @@
 
 theme: amber           # amber (naranja ámbar) | phosphor (verde) | c64 (azul Commodore)
 columns: 3             # columnas de la rejilla de paneles
+# row_heights: [1.25, 1, 1]  # alto relativo de cada fila (por defecto, todas iguales)
 boot: true             # secuencia de arranque tipo BIOS
 uppercase: true        # todo en mayúsculas, como un terminal antiguo
 bell: false            # pitido cada 5 s mientras haya una alarma

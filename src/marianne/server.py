@@ -122,6 +122,7 @@ class Dashboard:
         return {
             "theme": self.config.theme,
             "columns": self.config.columns,
+            "row_heights": self.config.row_heights,
             "boot": self.config.boot,
             "uppercase": self.config.uppercase,
             "bell": self.config.bell,
