@@ -30,8 +30,10 @@
   --off: color-mix(in srgb, var(--foreground) 45%, transparent);
   --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
   --glow: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
+  /* The terminal's own font, like elinor: SF Mono on a Mac, whatever monospace font elsewhere. */
+  --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   /* Sized so the screen holds about as many lines as a full-screen terminal. */
-  font-size: clamp(14px, min(2.15vh, 1.18vw), 30px);
+  font-size: clamp(11px, min(1.72vh, 0.94vw), 24px);
 }
 
 * {
@@ -49,8 +51,8 @@ body {
   flex-direction: column;
   background: var(--background);
   color: var(--foreground);
-  font-family: "VT323", ui-monospace, "SF Mono", Menlo, monospace;
-  line-height: 1.15;
+  font-family: var(--mono);
+  line-height: 1.3;
   text-shadow: var(--glow);
   overflow: hidden;
 }
@@ -186,7 +188,8 @@ button {
   min-width: 0;
   min-height: 0;
   border: 3px solid color-mix(in srgb, var(--primary) 60%, transparent);
-  padding: 0.55rem 0.6rem 0.4rem;
+  /* The top leaves room for the title on the border, which the terminal font makes taller. */
+  padding: 0.8rem 0.6rem 0.4rem;
 }
 
 /* The rows are clipped, not the title that sits on the border. */
@@ -211,7 +214,7 @@ button {
   margin: 0;
   padding: 0 0.35em;
   font-size: 1rem;
-  font-weight: normal;
+  font-weight: bold;
   background: var(--primary);
   color: var(--background);
   text-shadow: none;
@@ -400,7 +403,20 @@ a.tile.cursor > span {
 }
 
 .row .leader::before {
-  content: "................................................................................................................................";
+  /* Spaced dots, as elinor draws them. */
+  content: ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .";
+}
+
+/* Values in bold and labels, units and notes in normal weight, as in elinor. */
+.value-text > .value,
+.value-text > .on,
+.value-text > .alert-text,
+.value-text > .error,
+.big .number,
+.big .side span:last-child,
+.tile .name,
+#status button {
+  font-weight: bold;
 }
 
 .row .values {
@@ -572,8 +588,8 @@ a.tile.cursor > span {
 }
 
 .sun text {
-  font-family: "VT323", ui-monospace, monospace;
-  font-size: 15px;
+  font-family: var(--mono);
+  font-size: 12px;
   fill: var(--accent);
 }
 
@@ -820,7 +836,8 @@ a.tile.cursor > span {
 
 @media (max-width: 760px) {
   :root {
-    font-size: 17px;
+    /* The terminal font is wide: this fits about 44 characters across a phone. */
+    font-size: 13.5px;
   }
 
   body {
