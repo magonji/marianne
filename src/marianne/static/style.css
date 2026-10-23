@@ -683,11 +683,43 @@ a.tile.cursor > span {
   margin: 0.45rem 0;
 }
 
-.reader .reader-link {
-  display: block;
-  margin: 0.4rem 0 0.2rem;
-  color: var(--primary);
+.reader .reader-address {
+  margin: 0.6rem 0 0.1rem;
   overflow-wrap: anywhere;
+}
+
+/* The story scrolls; the two options below it stay put. */
+#popup .panel.reader > .body {
+  max-height: calc(90vh - 5rem);
+}
+
+.reader-choices {
+  display: flex;
+  justify-content: center;
+  gap: 3ch;
+  padding: 0.45rem 0 0.15rem;
+  border-top: 2px solid var(--dim);
+  margin: 0 -0.6rem;
+}
+
+.reader-choices > * {
+  color: var(--primary);
+  text-decoration: none;
+  padding: 0.1rem 1ch;
+}
+
+.reader-choices > .cursor {
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+}
+
+.reader-choices > *::before {
+  content: "[ ";
+}
+
+.reader-choices > *::after {
+  content: " ]";
 }
 
 /* ---- boot ---- */

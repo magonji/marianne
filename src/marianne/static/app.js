@@ -15,7 +15,8 @@ let noticeFlashUntil = 0;
 let lastBell = 0;
 let popup = null; // index of the open pop-up panel
 let cursor = null; // href of the link under the keyboard cursor (arrows move it, Enter opens it)
-let reader = null; // the story open in the reader: its reading and the title of its panel
+let reader = null; // the story open in the reader: its reading, the title of its panel and the chosen option
+const READER_CHOICES = ["read", "close"];
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -206,6 +207,7 @@ function renderPopup() {
     // Drawn once: rebuilding it every second would throw away how far it has been scrolled.
     if (box.dataset.reader !== reader.reading.link) box.replaceChildren(drawReader());
     box.dataset.reader = reader.reading.link;
+    renderChoice();
     return;
   }
   delete box.dataset.reader;
@@ -229,13 +231,22 @@ function drawReader() {
       paragraphs.length
         ? paragraphs.map((text) => el("p", {}, upper(text)))
         : el("p", { class: "dim" }, upper("Esta noticia no trae texto en el feed.")),
-      el("div", { class: "rule" }),
-      el("a", { class: "reader-link", href: reading.link, target: "_blank", rel: "noopener noreferrer" },
-        `[↵] ${upper("Leer en la web")}  ${address}`)));
+      el("div", { class: "reader-address dim" }, address)),
+    // Outside the scrolling body, so they are always in sight. ← → choose, Enter accepts.
+    el("div", { class: "reader-choices" },
+      el("a", { "data-choice": "read", href: reading.link, target: "_blank", rel: "noopener noreferrer" }, upper("Leer en la web")),
+      el("button", { "data-choice": "close", onclick: closeReader }, upper("Salir"))));
+}
+
+// The chosen option in reverse video, like the link cursor.
+function renderChoice() {
+  for (const node of document.querySelectorAll("#popup [data-choice]")) {
+    node.classList.toggle("cursor", node.dataset.choice === reader.choice);
+  }
 }
 
 function openReader(panel, reading) {
-  reader = { reading, title: panel.title };
+  reader = { reading, title: panel.title, choice: "read" };
   cursor = reading.link;
   render();
 }
@@ -464,8 +475,7 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
-  if (reader) items.push(key("enter", "LEER EN LA WEB"), key("escape", "CERRAR"));
-  else if (cursor) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
+  if (cursor && !reader) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
   if (!audio || audio.state !== "running") items.push(el("span", {}, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -519,9 +529,19 @@ function press(key) {
   unlockAudio();
   noticeFlashUntil = 0;
   if (reader) {
-    // In the reader: up and down scroll the story, Enter goes to the web, Esc closes it.
-    if (key === "enter") return void window.open(reader.reading.link, "_blank", "noopener");
+    // In the reader: left and right choose between reading on the web and leaving, Enter accepts,
+    // up and down scroll the story. Esc leaves too.
+    if (key === "enter") {
+      if (reader.choice === "close") return closeReader();
+      return void window.open(reader.reading.link, "_blank", "noopener");
+    }
     if (key === "escape") return closeReader();
+    if (key === "arrowleft" || key === "arrowright") {
+      const step = key === "arrowright" ? 1 : -1;
+      const index = READER_CHOICES.indexOf(reader.choice) + step;
+      reader.choice = READER_CHOICES[Math.max(0, Math.min(READER_CHOICES.length - 1, index))];
+      return renderChoice();
+    }
     if (Object.hasOwn(ARROWS, key)) {
       const box = document.querySelector("#popup .panel > .body");
       if (box) box.scrollBy(0, ARROWS[key][1] * 4 * parseFloat(getComputedStyle(box).lineHeight || "20"));

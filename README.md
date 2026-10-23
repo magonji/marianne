@@ -64,8 +64,8 @@ uv run marianne --demo --theme phosphor
 | `X` | Pomodoro: reiniciar |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
-| `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares) |
-| `Enter` | Abrir el enlace del cursor: un titular se abre en el lector (y ahí `Enter` lleva a la noticia en la web); lo demás, en una pestaña nueva |
+| `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares). En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
+| `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
 | `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
 
 Todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
