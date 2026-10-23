@@ -534,6 +534,12 @@ a.tile.cursor > span {
   color: var(--accent);
 }
 
+/* A big value that hasn't been reported for a while, or that crossed a threshold, in red too. */
+.big .number.error,
+.big .number.alert-text {
+  color: var(--error);
+}
+
 .big .side {
   display: flex;
   flex-direction: column;

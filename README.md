@@ -57,18 +57,18 @@ uv run marianne --demo --theme phosphor
 
 | Tecla | Acción |
 |---|---|
-| `R` | Refrescar todos los paneles |
+| `R` | Refrescar todos los paneles (no sale en la barra de abajo) |
 | `T` | Cambiar de tema (ámbar → Commodore 64 → fósforo verde) |
 | `A` | Alerta vista: deja de parpadear y sale de la franja de alarma (sigue en rojo); si se resuelve y vuelve, avisa de nuevo |
 | `P` | Pomodoro: iniciar / pausar |
-| `X` | Pomodoro: reiniciar |
+| `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares). En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
 | `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
 
-Todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
+Casi todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
 página de cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
 dejan sonar nada hasta la primera tecla o clic en la página.
 
@@ -177,7 +177,7 @@ panels:
 | `span`, `rows` | Columnas y filas de la rejilla que ocupa |
 | `big: true` | El primer valor, en dígitos grandes |
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
-| `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo) |
+| `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
 | `pages`, `page_key: m` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
 
 ### Opciones de elemento

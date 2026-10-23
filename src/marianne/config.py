@@ -119,7 +119,8 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
     items = [item for _, page in pages for item in page] if pages else _parse_items(title, raw.get("items"), source, sources)
     key = _key(title, raw, "key")
     page_key = _key(title, raw, "page_key")
-    if pages and page_key is None:
+    # A pop-up with pages goes through them with its own key, so it needs no page_key.
+    if pages and page_key is None and key is None:
         raise ConfigError(f"Panel '{title}': con 'pages' hace falta 'page_key', la tecla para cambiar de página")
     return PanelConfig(
         title=title,

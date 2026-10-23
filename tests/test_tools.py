@@ -179,3 +179,13 @@ def test_load_env_does_not_override_the_shell(tmp_path, monkeypatch):
     assert os.environ["CLAVE_SHELL"] == "de_la_shell"
     monkeypatch.delenv("CLAVE_NUEVA")
     monkeypatch.delenv("VACIA")
+
+
+def test_a_popup_with_pages_needs_no_page_key():
+    data = {"sources": {"homeassistant": {"type": "homeassistant"}},
+            "panels": [{"title": "Móvil", "key": "m", "pages": [{"name": "Uno", "items": ["sensor.a"]},
+                                                                 {"name": "Dos", "items": ["sensor.b"]}]}]}
+    assert parse_config(data, None).panels[0].page_key is None
+    del data["panels"][0]["key"]
+    with pytest.raises(ConfigError):
+        parse_config(data, None)

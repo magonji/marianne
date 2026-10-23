@@ -397,7 +397,8 @@ function drawBig(panel, reading) {
         el("span", { class: styleClass(extra) }, `${extra.value}${extra.unit === "°C" ? "°" : extra.unit}`)))));
   }
   return el("div", { class: "big" }, row,
-    el("div", { class: "caption" }, upper(reading.label), reading.note ? `  ${reading.note}` : ""));
+    el("div", { class: "caption" }, upper(reading.label),
+      reading.note ? el("span", { class: reading.error ? "error" : null }, `  ${reading.note}`) : ""));
 }
 
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.
@@ -458,13 +459,14 @@ function renderStatus() {
   // A click on one of these does the same as pressing its key (see the listener on #status).
   const key = (letter, text, flashing = false) =>
     el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
-  items.push(key("r", "REFRESCAR"));
+  // R (refresh) still works, but stays out of the bar to save room.
   items.push(key("t", "TEMA"));
   if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
     items.push(key(pomodoro.start_key, running ? "PAUSAR" : "POMODORO"));
-    items.push(key(pomodoro.reset_key, "REINICIAR"));
+    // Reset only while a pomodoro is under way: stopped at the start there's nothing to reset.
+    if (state && state.pomodoro && state.pomodoro.active) items.push(key(pomodoro.reset_key, "REINICIAR"));
   }
   for (const view of panelViews()) {
     if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
@@ -503,6 +505,18 @@ function nextPage(index) {
   pages[index] = ((pages[index] || 0) + 1) % layout.panels[index].pages.length;
   save("marianne.pages", pages);
   render();
+}
+
+// A pop-up's key opens it, and with pages goes through them: open on the first, then the next,
+// and after the last one it closes.
+function pressPopupKey(index) {
+  const panel = layout.panels[index];
+  if (popup !== index) {
+    if (!panel.page_key) pages[index] = 0;
+    return togglePopup(index);
+  }
+  if (!panel.page_key && (pages[index] || 0) < panel.pages.length - 1) return nextPage(index);
+  togglePopup(index);
 }
 
 function togglePopup(index) {
@@ -567,7 +581,7 @@ function press(key) {
     if (key === pomodoro.reset_key) return post(`/api/pomodoro/${pomodoro.name}/reset`);
   }
   layout.panels.forEach((panel, index) => {
-    if (panel.key === key) togglePopup(index);
+    if (panel.key === key) pressPopupKey(index);
     else if (panel.page_key === key) nextPage(index);
   });
   render();
