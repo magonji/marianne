@@ -13,6 +13,7 @@ from .sources.dates import PROGRESS
 from .sources.moon import FIELDS as MOON_FIELDS
 from .sources.openweather import FIELDS as OPENWEATHER_FIELDS
 from .sources.pomodoro import FIELDS as POMODORO_FIELDS
+from .sources.system import FIELDS as SYSTEM_FIELDS
 from .sun import ROLES as SUN_ROLES
 
 RESERVED_KEYS = {"a", "q", "r", "t"}
@@ -166,7 +167,8 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
             raise ConfigError(f"Panel '{title}': cada fecha necesita 'date' (2026-12-25, o 12-25 para todos los años)")
         if "sun" in item and item["sun"] not in SUN_ROLES:
             raise ConfigError(f"Panel '{title}': 'sun' debe ser uno de {', '.join(sorted(SUN_ROLES))}")
-        fields = {"openweather": OPENWEATHER_FIELDS, "moon": MOON_FIELDS, "pomodoro": POMODORO_FIELDS}.get(kind)
+        fields = {"openweather": OPENWEATHER_FIELDS, "moon": MOON_FIELDS, "pomodoro": POMODORO_FIELDS,
+                  "system": SYSTEM_FIELDS}.get(kind)
         if fields and any(part.get("field") not in fields for part in [item, *item.get("also", [])]):
             raise ConfigError(f"Panel '{title}': 'field' debe ser uno de {', '.join(sorted(fields))}")
     return items

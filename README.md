@@ -11,6 +11,8 @@ se ponen en una columna.
 Un pequeño servidor en Python consulta las fuentes y la página solo recibe los valores ya
 calculados: el token de Home Assistant y las claves nunca llegan al navegador.
 
+Marianne está basado en **elinor**, el mejor dashboard del mundo para tu terminal.
+
 ## Qué hace
 
 - **Paneles configurables** en un `config.yaml`: filas con puntos guía, barras, indicadores
@@ -37,6 +39,8 @@ calculados: el token de Home Assistant y las claves nunca llegan al navegador.
 - **Fechas señaladas**: cuántos días faltan para cumpleaños, viajes o fiestas, con aviso el
   mismo día, y barras de progreso del día, la semana, el mes, el año y la vida.
 - **Scraping web**: cualquier valor de una página con un selector CSS.
+- **El servidor**: CPU, carga, memoria, swap, disco, temperatura y tiempo encendido del
+  equipo en el que corre Marianne.
 - **Monitor de servicios**: comprueba que tus servicios web responden y cuánto tardan; si
   alguno se cae, sale en rojo.
 
@@ -106,6 +110,10 @@ docker compose up -d --build         # http://<este equipo>:8080
 - `TZ` en `.env` fija la zona horaria de las horas que se muestran (`Europe/London` por defecto).
 - La `url` de Home Assistant tiene que ser alcanzable desde el contenedor: una IP o nombre de
   la red, no `localhost`.
+- El panel del servidor (`type: system`) lee CPU, memoria, carga y tiempo encendido del
+  servidor desde el contenedor. Para los discos, el nombre y el sistema, `compose.yaml` monta
+  el `/` del servidor en `/host` (solo lectura) y la fuente lo usa con `host_root: /host`;
+  `path: /mnt/datos` se refiere entonces al disco del servidor. Fuera de Docker se ignora.
 - Para actualizar tras un `git pull`: `docker compose up -d --build`.
 - Para verlo solo desde el propio equipo, cambia el puerto en `compose.yaml` a `"127.0.0.1:8080:8080"`.
 
@@ -151,6 +159,7 @@ panels:
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `alert: false`, `alarm_after`, `alarm_text` |
+| `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |
 
@@ -220,6 +229,7 @@ src/marianne/
     dates.py           cuenta atrás de fechas señaladas
     web.py             scraping con selectores CSS
     monitor.py         monitor de servicios web
+    system.py          CPU, memoria y disco de este equipo
     demo.py            datos simulados
 ```
 

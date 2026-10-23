@@ -28,6 +28,10 @@ sources:
   fechas:
     type: dates
 
+  servidor:
+    type: system                        # el equipo en el que corre marianne
+    host_root: /host                    # en Docker, donde compose.yaml monta el / del servidor
+
   servicios:
     type: monitor                       # comprueba que los servicios web responden (como el monitor de Glance)
     timeout: 5                          # segundos antes de darlo por caído
@@ -235,6 +239,23 @@ panels:
         date: 1990-03-14
         yearly: true                    # cada año, y dice cuántos cumple
         soon: 14                        # resaltada 14 días antes (7 por defecto)
+
+  - title: Servidor
+    source: servidor
+    refresh: 5
+    items:
+      - field: hostname
+      - field: uptime
+      - field: cpu
+        alert_above: 90
+      - field: load                     # carga media de 1, 5 y 15 min
+      - field: memory
+        alert_above: 90
+      - field: swap
+      - field: disk                     # path: /datos para otro disco (por defecto /)
+        alert_above: 90
+      - field: temperature
+        alert_above: 80
 
   - title: Servicios
     source: servicios
