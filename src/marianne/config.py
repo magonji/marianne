@@ -14,6 +14,7 @@ from .sources.moon import FIELDS as MOON_FIELDS
 from .sources.openweather import FIELDS as OPENWEATHER_FIELDS
 from .sources.pomodoro import FIELDS as POMODORO_FIELDS
 from .sources.system import FIELDS as SYSTEM_FIELDS
+from .icons import parse as parse_icon
 from .sun import ROLES as SUN_ROLES
 
 RESERVED_KEYS = {"a", "q", "r", "t"}
@@ -30,6 +31,8 @@ class PanelConfig:
     row_span: int = 1
     # Draw the first item with big seven-segment digits.
     big: bool = False
+    # Draw the items as a grid of icons (`icon: mdi:dolphin`) instead of rows.
+    icons: bool = False
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -126,6 +129,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         column_span=int(raw.get("span", 1)),
         row_span=int(raw.get("rows", 1)),
         big=bool(raw.get("big", False)),
+        icons=bool(raw.get("icons", False)),
         key=key,
         pages=pages,
         page_key=page_key,
@@ -165,6 +169,8 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
                 raise ConfigError(f"Panel '{title}': la barra de vida necesita 'birth' y 'end'")
         elif kind == "dates" and "date" not in item:
             raise ConfigError(f"Panel '{title}': cada fecha necesita 'date' (2026-12-25, o 12-25 para todos los años)")
+        if "icon" in item and parse_icon(item["icon"]) is None:
+            raise ConfigError(f"Panel '{title}': 'icon' debe ser mdi:nombre o si:nombre (como en Glance), no '{item['icon']}'")
         if "sun" in item and item["sun"] not in SUN_ROLES:
             raise ConfigError(f"Panel '{title}': 'sun' debe ser uno de {', '.join(sorted(SUN_ROLES))}")
         fields = {"openweather": OPENWEATHER_FIELDS, "moon": MOON_FIELDS, "pomodoro": POMODORO_FIELDS,

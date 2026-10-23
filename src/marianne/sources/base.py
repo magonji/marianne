@@ -40,6 +40,8 @@ class Reading:
     art: list[str] | None = None
     # Its place in the Sun diagram (dawn, rising, noon...), instead of a row.
     sun: str | None = None
+    # Its icon in a panel drawn as icons, as "mdi:dolphin" or "si:jellyfin".
+    icon: str | None = None
 
     def parts(self) -> list[Reading]:
         return [self, *self.extra]

@@ -171,6 +171,7 @@ panels:
 | `refresh` | Segundos entre actualizaciones (10 por defecto) |
 | `span`, `rows` | Columnas y filas de la rejilla que ocupa |
 | `big: true` | El primer valor, en dígitos grandes |
+| `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo) |
 | `pages`, `page_key: m` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
 
@@ -200,6 +201,7 @@ panels:
 | `trend`, `trend_steady` | Flecha ▲▼► con el cambio respecto a hace N horas |
 | `stats: true` | Filas con la máxima y la mínima de hoy (`stats: beside`: al lado del valor, ▲ ▼) |
 | `records: true` | Filas con la máxima y la mínima de toda la historia, de las estadísticas a largo plazo de Home Assistant |
+| `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)). El servidor los descarga una vez de jsDelivr y la página los pinta con líneas de barrido en el color del tema |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 
 ## Desarrollo
@@ -215,6 +217,7 @@ src/marianne/
   server.py            servidor (aiohttp): sondea las fuentes y sirve la página y su API
   config.py            carga y validación de config.yaml
   sun.py               papeles del esquema del sol
+  icons.py             iconos mdi: y si: (descargados una vez y servidos en /api/icon)
   demo.yaml            configuración del modo demo
   static/
     index.html         la página
@@ -235,7 +238,8 @@ src/marianne/
 
 API del servidor: `GET /api/layout` (paneles y opciones, sin entidades ni claves),
 `GET /api/state` (lecturas de cada panel y página, estado de las fuentes y del pomodoro),
-`POST /api/reload` y `POST /api/pomodoro/<fuente>/toggle|reset`.
+`GET /api/icon/<mdi|si>/<nombre>` (el SVG de un icono), `POST /api/reload` y
+`POST /api/pomodoro/<fuente>/toggle|reset`.
 
 Para añadir una fuente nueva: una subclase de `Source` con `async fetch(items) -> list[Reading]`,
 registrada en `sources/__init__.py`.

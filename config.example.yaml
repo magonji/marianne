@@ -260,11 +260,14 @@ panels:
   - title: Servicios
     source: servicios
     refresh: 60
+    icons: true                         # cuadrícula de iconos (con su nombre y el tiempo de respuesta)
     items:
       - name: Jellyfin
-        url: https://servidor.local:8096    # en verde con el tiempo de respuesta; en rojo si no contesta
+        url: https://servidor.local:8096    # en color con el tiempo de respuesta; en rojo si no contesta
+        icon: si:jellyfin               # como en Glance: mdi:nombre (materialdesignicons.com) o si:nombre (simpleicons.org)
       - name: Home Assistant
         url: http://homeassistant.local:8123
+        icon: si:homeassistant
         alarm_after: 10                 # franja de alarma si lleva 10 min caído
       - name: Pruebas
         url: http://servidor.local:9000

@@ -66,7 +66,8 @@ class MonitorSource(Source):
             minutes = (now - since).total_seconds() / 60
             if minutes >= float(item["alarm_after"]):
                 alarm = f"{item.get('alarm_text') or f'{label} {value}'} · desde hace {int(minutes)} min"
-        return Reading(label, value, switch=up, alert=alert, alarm=alarm, hidden=bool(item.get("hidden")))
+        return Reading(label, value, switch=up, alert=alert, alarm=alarm, hidden=bool(item.get("hidden")),
+                       icon=item.get("icon"))
 
     async def close(self) -> None:
         await self.client.aclose()

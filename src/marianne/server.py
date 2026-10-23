@@ -24,6 +24,7 @@ import yaml
 from aiohttp import web
 
 from .config import Config, ConfigError, PanelConfig, load_config, parse_config
+from .icons import Icons
 from .sources import Source, build_source
 from .sources.pomodoro import PomodoroSource
 
@@ -47,6 +48,7 @@ class Dashboard:
         # Goes up by one each time a pomodoro phase ends, so every open page rings once.
         self.rings = 0
         self.tasks: list[asyncio.Task] = []
+        self.icons = Icons()
 
     @staticmethod
     def pages(panel: PanelConfig) -> list[list[dict[str, Any]]]:
@@ -66,6 +68,7 @@ class Dashboard:
             task.cancel()
         for source in self.sources.values():
             await source.close()
+        await self.icons.close()
 
     async def poll(self, index: int, page: int) -> None:
         while True:
@@ -128,6 +131,7 @@ class Dashboard:
                 {
                     "title": panel.title,
                     "big": panel.big,
+                    "icons": panel.icons,
                     "span": panel.column_span,
                     "rows": panel.row_span,
                     "key": panel.key,
@@ -199,6 +203,17 @@ def make_app(dashboard: Dashboard) -> web.Application:
     @routes.get("/api/state")
     async def state(request: web.Request) -> web.Response:
         return web.json_response(dashboard.state())
+
+    @routes.get("/api/icon/{kind}/{name}")
+    async def icon(request: web.Request) -> web.Response:
+        svg = await dashboard.icons.get(request.match_info["kind"], request.match_info["name"])
+        if svg is None:
+            raise web.HTTPNotFound()
+        return web.Response(text=svg, content_type="image/svg+xml", headers={
+            "Cache-Control": "max-age=86400",
+            # CSS masks fetch in CORS mode: lets a copy of the page opened from a file use them too.
+            "Access-Control-Allow-Origin": "*",
+        })
 
     @routes.post("/api/reload")
     async def reload(request: web.Request) -> web.Response:

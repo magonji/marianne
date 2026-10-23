@@ -257,6 +257,73 @@ button {
   color: var(--dim);
 }
 
+/* ---- grid of icons (services) ---- */
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.3rem, 1fr));
+  align-content: start;
+  gap: 0.15rem 0.5rem;
+  padding-top: 0.1rem;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.tile > span {
+  max-width: 100%;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The glow goes on the wrapper: a filter on the masked element itself would be cut off by the mask. */
+.tile .icon {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, currentColor 60%, transparent));
+  margin-bottom: 0.05rem;
+}
+
+/* The icon is a mask over horizontal lines in the text colour, so it looks drawn on a CRT. */
+.tile .glyph {
+  display: block;
+  width: 2.3rem;
+  height: 2.3rem;
+  background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 3px);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.tile .glyph.letter {
+  -webkit-mask: none;
+  mask: none;
+  background: none;
+  font-size: 1.8rem;
+  line-height: 2.3rem;
+}
+
+.tile.on {
+  color: var(--primary);
+}
+
+.tile .name {
+  color: var(--foreground);
+}
+
+.tile.off .name,
+.tile.alert-text .name {
+  color: inherit;
+}
+
+.blinking-icon .icon {
+  animation: blink 1s steps(1) infinite;
+}
+
 .waiting::after {
   content: "_";
   animation: blink 1s steps(1) infinite;

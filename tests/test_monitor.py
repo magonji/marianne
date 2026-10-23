@@ -49,3 +49,37 @@ def test_monitor_items_need_url():
             "panels": [{"title": "Servicios", "source": "servicios", "items": [{"name": "Sin url"}]}]}
     with pytest.raises(ConfigError):
         parse_config(data, None)
+
+
+def test_icons_are_downloaded_once_and_validated():
+    from marianne.icons import FALLBACK, Icons
+
+    calls = []
+
+    def cdn(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if "missing" in request.url.path:
+            return httpx.Response(404)
+        return httpx.Response(200, text='<svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>')
+
+    async def run():
+        icons = Icons(transport=httpx.MockTransport(cdn))
+        assert "<svg" in await icons.get("mdi", "dolphin")
+        assert "<svg" in await icons.get("mdi", "dolphin")
+        assert await icons.get("si", "missing") == FALLBACK
+        assert await icons.get("mdi", "../secret") is None
+        assert await icons.get("fa", "dolphin") is None
+        await icons.close()
+
+    asyncio.run(run())
+    assert calls == ["/npm/@mdi/svg@7.4.47/svg/dolphin.svg", "/npm/simple-icons@16.35.0/icons/missing.svg"]
+
+
+def test_icon_names_are_checked_in_the_config():
+    data = {"sources": {"servicios": {"type": "monitor"}},
+            "panels": [{"title": "Servicios", "source": "servicios", "icons": True,
+                        "items": [{"name": "Jellyfin", "url": "https://jellyfin.test", "icon": "jellyfin"}]}]}
+    with pytest.raises(ConfigError):
+        parse_config(data, None)
+    data["panels"][0]["items"][0]["icon"] = "si:jellyfin"
+    assert parse_config(data, None).panels[0].icons

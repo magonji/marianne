@@ -222,6 +222,10 @@ function drawPanel(view) {
     body.append(el("div", { class: "waiting" }, "ESPERANDO DATOS"));
   } else {
     let rows = shown;
+    if (panel.icons) {
+      body.append(drawIcons(panel, rows));
+      rows = [];
+    }
     if (panel.big) {
       body.append(drawBig(panel, rows[0]), el("div", { class: "rule" }));
       rows = rows.slice(1);
@@ -291,6 +295,22 @@ function drawValue(panel, reading, valueWidth) {
   if (reading.note) text.append(` ${reading.note}`);
   out.append(text);
   return out;
+}
+
+// A grid of icons with a name and value under each, like Glance's monitor: for many short items.
+function drawIcons(panel, readings) {
+  return el("div", { class: "icons" }, readings.map((reading) => {
+    const blinking = reading.alert && !seen.has(alertKey(panel, reading));
+    const [kind, name] = (reading.icon || "").split(":");
+    // The SVG is a mask over horizontal lines in the theme colour: the icon drawn in scanlines.
+    const icon = reading.icon
+      ? el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })
+      : el("span", { class: "glyph letter" }, upper(reading.label).slice(0, 2));
+    return el("div", { class: `tile ${styleClass(reading)}${blinking ? " blinking-icon" : ""}`, title: `${reading.label}: ${reading.value}` },
+      el("span", { class: "icon" }, icon),
+      el("span", { class: "name" }, upper(reading.label)),
+      el("span", { class: `${styleClass(reading)}${blinking ? " blinking" : ""}` }, reading.value));
+  }));
 }
 
 function drawBig(panel, reading) {
