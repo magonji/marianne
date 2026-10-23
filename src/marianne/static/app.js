@@ -366,27 +366,33 @@ function renderStatus() {
     const cls = source.ok === null ? " waiting-source" : source.ok ? "" : " bad";
     items.push(el("span", { class: `source${cls}` }, `${mark} ${source.name.toUpperCase()}`));
   }
-  const key = (letter, text, action, flashing = false) =>
-    el("button", { class: flashing ? "flashing" : null, onclick: action }, `[${letter.toUpperCase()}]${text}`);
-  items.push(key("r", "REFRESCAR", () => post("/api/reload")));
-  items.push(key("t", "TEMA", nextTheme));
-  if (state && unseenAlerts().length) items.push(key("a", "VISTO", acknowledge, true));
+  // A click on one of these does the same as pressing its key (see the listener on #status).
+  const key = (letter, text, flashing = false) =>
+    el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${letter.toUpperCase()}]${text}`);
+  items.push(key("r", "REFRESCAR"));
+  items.push(key("t", "TEMA"));
+  if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
-    items.push(key(pomodoro.start_key, running ? "PAUSAR" : "POMODORO", () => post(`/api/pomodoro/${pomodoro.name}/toggle`)));
-    items.push(key(pomodoro.reset_key, "REINICIAR", () => post(`/api/pomodoro/${pomodoro.name}/reset`)));
+    items.push(key(pomodoro.start_key, running ? "PAUSAR" : "POMODORO"));
+    items.push(key(pomodoro.reset_key, "REINICIAR"));
   }
   for (const view of panelViews()) {
-    if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title), () => nextPage(view.index)));
+    if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
   }
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
     // A hidden panel with new alerts: the menu entry flashes so it isn't missed.
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
-    items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), () => togglePopup(view.index), fresh));
+    items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
   if (!audio || audio.state !== "running") items.push(el("span", {}, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
+  // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
+  // straddles the rebuild (common on phones), so only replace them when something changed.
+  const html = items.map((item) => item.outerHTML).join("");
+  if (bar.dataset.html === html) return;
+  bar.dataset.html = html;
   bar.replaceChildren(...items);
 }
 
@@ -422,9 +428,13 @@ function acknowledge() {
 
 function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  press(event.key.toLowerCase());
+}
+
+// A key, typed or clicked in the status bar.
+function press(key) {
   unlockAudio();
   noticeFlashUntil = 0;
-  const key = event.key.toLowerCase();
   if (key === "escape" && popup !== null) return togglePopup(popup);
   if (key === "r") return post("/api/reload");
   if (key === "t") return nextTheme();
@@ -513,6 +523,10 @@ function boot(lines) {
 }
 
 addEventListener("keydown", onKey);
+document.getElementById("status").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-key]");
+  if (button) press(button.dataset.key);
+});
 // A click outside the pop-up panel closes it.
 document.getElementById("popup").addEventListener("click", (event) => {
   if (event.target.id === "popup") togglePopup(popup);

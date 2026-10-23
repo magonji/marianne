@@ -73,6 +73,8 @@ button {
   padding: 0;
   cursor: pointer;
   text-shadow: inherit;
+  /* No double-tap zoom, so a tap acts at once. */
+  touch-action: manipulation;
 }
 
 [hidden] {
@@ -627,5 +629,11 @@ button {
     position: sticky;
     bottom: 0;
     white-space: normal;
+    gap: 0 1.6ch;
+  }
+
+  /* Big enough for a finger. */
+  #status button {
+    padding: 0.45rem 0;
   }
 }
