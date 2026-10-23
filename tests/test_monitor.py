@@ -30,7 +30,7 @@ def test_monitor_up_down_and_errors():
         {"url": "https://caido.test", "name": "Caído", "alert": False},
     ]
     bien, redirige, roto, caido = asyncio.run(source().fetch(items))
-    assert bien.switch and bien.value.endswith(" ms") and not bien.alert
+    assert bien.switch and bien.value.endswith(" ms") and not bien.alert and bien.link == "https://bien.test"
     assert redirige.switch
     assert roto.switch is False and roto.value == "ERROR 502" and roto.alert
     assert caido.switch is False and caido.value == "CAÍDO" and not caido.alert

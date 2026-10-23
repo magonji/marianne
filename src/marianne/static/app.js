@@ -14,6 +14,7 @@ let lastRings = null;
 let noticeFlashUntil = 0;
 let lastBell = 0;
 let popup = null; // index of the open pop-up panel
+let cursor = null; // href of the link under the keyboard cursor (arrows move it, Enter opens it)
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -140,6 +141,7 @@ function render() {
   renderPanels();
   renderPopup();
   renderStatus();
+  renderCursor();
 }
 
 function tickClock() {
@@ -306,7 +308,10 @@ function drawIcons(panel, readings) {
     const icon = reading.icon
       ? el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })
       : el("span", { class: "glyph letter" }, upper(reading.label).slice(0, 2));
-    return el("div", { class: `tile ${styleClass(reading)}${blinking ? " blinking-icon" : ""}`, title: `${reading.label}: ${reading.value}` },
+    // With a link (a service's url), the whole tile opens it.
+    const tag = reading.link ? "a" : "div";
+    const link = reading.link ? { href: reading.link, target: "_blank", rel: "noopener noreferrer" } : {};
+    return el(tag, { class: `tile ${styleClass(reading)}${blinking ? " blinking-icon" : ""}`, title: `${reading.label}: ${reading.value}`, ...link },
       el("span", { class: "icon" }, icon),
       el("span", { class: "name" }, upper(reading.label)),
       el("span", { class: `${styleClass(reading)}${blinking ? " blinking" : ""}` }, reading.value));
@@ -388,7 +393,7 @@ function renderStatus() {
   }
   // A click on one of these does the same as pressing its key (see the listener on #status).
   const key = (letter, text, flashing = false) =>
-    el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${letter.toUpperCase()}]${text}`);
+    el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
   items.push(key("r", "REFRESCAR"));
   items.push(key("t", "TEMA"));
   if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
@@ -406,6 +411,7 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
+  if (cursor) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
   if (!audio || audio.state !== "running") items.push(el("span", {}, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -448,13 +454,22 @@ function acknowledge() {
 
 function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  press(event.key.toLowerCase());
+  const key = event.key.toLowerCase();
+  // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button.
+  if (Object.hasOwn(ARROWS, key) || (key === "enter" && cursor)) event.preventDefault();
+  press(key);
 }
 
 // A key, typed or clicked in the status bar.
 function press(key) {
   unlockAudio();
   noticeFlashUntil = 0;
+  if (Object.hasOwn(ARROWS, key)) return moveCursor(ARROWS[key]);
+  if (key === "enter" && cursor) return void window.open(cursor, "_blank", "noopener");
+  if (key === "escape" && cursor) {
+    cursor = null;
+    return render();
+  }
   if (key === "escape" && popup !== null) return togglePopup(popup);
   if (key === "r") return post("/api/reload");
   if (key === "t") return nextTheme();
@@ -468,6 +483,62 @@ function press(key) {
     else if (panel.page_key === key) nextPage(index);
   });
   render();
+}
+
+// ---------------------------------------------------------------- link cursor
+
+const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
+const KEY_NAMES = { enter: "↵", escape: "ESC" };
+
+// The links that can be seen: those of the open pop-up, or else of the grid, and not cut off by a panel.
+function visibleLinks() {
+  const root = document.getElementById(popup !== null ? "popup" : "panels");
+  return [...root.querySelectorAll("a[href]")].filter((link) => {
+    const box = link.getBoundingClientRect();
+    const body = link.closest(".body");
+    if (!box.width || !box.height || !body) return Boolean(box.width && box.height);
+    const area = body.getBoundingClientRect();
+    return box.top >= area.top - 1 && box.bottom <= area.bottom + 1;
+  });
+}
+
+// To the nearest link in that direction, measured between edges: a list of headlines (all starting
+// at the same left edge) is entered at the top. The distance across counts double, and is zero while
+// the two overlap, so a column of headlines or of icons is followed straight down.
+function moveCursor([dx, dy]) {
+  const links = visibleLinks();
+  const current = links.find((link) => link.getAttribute("href") === cursor);
+  let target = current ? null : links[0];
+  if (current) {
+    const from = current.getBoundingClientRect();
+    let best = Infinity;
+    for (const link of links) {
+      const to = link.getBoundingClientRect();
+      const ahead = dx ? (to.left + to.right - from.left - from.right) * dx : (to.top + to.bottom - from.top - from.bottom) * dy;
+      if (link === current || ahead <= 2) continue;
+      const along = Math.max(0, dx > 0 ? to.left - from.right : dx < 0 ? from.left - to.right : dy > 0 ? to.top - from.bottom : from.top - to.bottom);
+      const across = dx
+        ? Math.max(0, to.top - from.bottom, from.top - to.bottom)
+        : Math.max(0, to.left - from.right, from.left - to.right);
+      if (along + 2 * across < best) [best, target] = [along + 2 * across, link];
+    }
+  }
+  if (!target) return;
+  cursor = target.getAttribute("href");
+  render();
+  target = visibleLinks().find((link) => link.getAttribute("href") === cursor);
+  if (target) target.scrollIntoView({ block: "nearest" });
+}
+
+// Panels are drawn again every second: put the cursor back on its link, or drop it if it's gone.
+function renderCursor() {
+  if (!cursor) return;
+  const link = visibleLinks().find((node) => node.getAttribute("href") === cursor);
+  if (link) link.classList.add("cursor");
+  else {
+    cursor = null;
+    renderStatus();
+  }
 }
 
 // ---------------------------------------------------------------- sound

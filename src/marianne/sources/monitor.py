@@ -67,7 +67,7 @@ class MonitorSource(Source):
             if minutes >= float(item["alarm_after"]):
                 alarm = f"{item.get('alarm_text') or f'{label} {value}'} · desde hace {int(minutes)} min"
         return Reading(label, value, switch=up, alert=alert, alarm=alarm, hidden=bool(item.get("hidden")),
-                       icon=item.get("icon"))
+                       icon=item.get("icon"), link=item.get("link", item["url"]))
 
     async def close(self) -> None:
         await self.client.aclose()

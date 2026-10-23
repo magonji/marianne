@@ -275,6 +275,14 @@ button {
   text-align: center;
 }
 
+a.tile {
+  text-decoration: none;
+}
+
+a.tile:hover .name {
+  text-decoration: underline;
+}
+
 .tile > span {
   max-width: 100%;
   font-size: 0.9rem;
@@ -363,6 +371,19 @@ button {
 /* A headline gives way to its age, which is short and always whole. */
 .row.linked .values {
   flex: none;
+}
+
+/* The keyboard link cursor, in reverse video like a terminal selection. */
+a.cursor,
+a.tile.cursor,
+.row .label a.cursor {
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+}
+
+a.tile.cursor > span {
+  color: inherit;
 }
 
 .row .leader {
