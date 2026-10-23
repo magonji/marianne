@@ -536,7 +536,7 @@ a.tile.cursor > span {
 }
 
 .big .number {
-  font-size: 1.45rem;
+  font-size: 1.2rem;
   color: var(--accent);
 }
 
@@ -853,7 +853,7 @@ a.tile.cursor > span {
   }
 
   .big .number {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
   }
 
   #top:has(#pomodoro:not([hidden])) #clock {
