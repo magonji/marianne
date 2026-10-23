@@ -41,6 +41,7 @@ sources:
     type: monitor                       # comprueba que los servicios web responden (como el monitor de Glance)
     timeout: 5                          # segundos antes de darlo por caído
     # verify_ssl: false                 # para certificados autofirmados
+    # wud: http://servidor.local:3000   # What's Up Docker: icono en rojo si un contenedor tiene actualización
 
   luna:
     type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
@@ -270,6 +271,7 @@ panels:
       - name: Jellyfin
         url: https://servidor.local:8096    # en color con el tiempo de respuesta; en rojo si no contesta
         icon: si:jellyfin               # como en Glance: mdi:nombre (materialdesignicons.com) o si:nombre (simpleicons.org)
+        container: jellyfin             # su contenedor en What's Up Docker (containers: [a, b] si son varios)
       - name: Home Assistant
         url: http://homeassistant.local:8123
         icon: si:homeassistant

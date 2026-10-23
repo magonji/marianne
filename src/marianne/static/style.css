@@ -340,6 +340,11 @@ a.tile:hover .name {
   color: inherit;
 }
 
+/* An update waiting (What's Up Docker): the icon in red, but without the alert's blinking. */
+.tile.update .icon {
+  color: var(--error);
+}
+
 .blinking-icon .icon {
   animation: blink 1s steps(1) infinite;
 }

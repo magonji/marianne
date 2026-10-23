@@ -41,7 +41,8 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             lang=spec.get("lang", "es"),
         )
     if kind == "monitor":
-        return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True))
+        return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),
+                             wud=spec.get("wud"))
     if kind == "rss":
         return RssSource(name, timeout=spec.get("timeout", 15))
     if kind == "system":

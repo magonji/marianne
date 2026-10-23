@@ -44,6 +44,8 @@ class Reading:
     icon: str | None = None
     # Where a click on the label goes (a news headline opens the article).
     link: str | None = None
+    # A newer version is waiting (a service whose container What's Up Docker can update).
+    update: bool = False
     # More to show when the link is opened in the page (a story: its feed, date and text).
     detail: dict[str, Any] | None = None
 

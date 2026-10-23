@@ -83,3 +83,36 @@ def test_icon_names_are_checked_in_the_config():
         parse_config(data, None)
     data["panels"][0]["items"][0]["icon"] = "si:jellyfin"
     assert parse_config(data, None).panels[0].icons
+
+
+def test_services_with_an_update_in_whats_up_docker():
+    def wud(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "wud.test":
+            return httpx.Response(200, json=[
+                {"name": "bookorbit-db", "updateAvailable": True},
+                {"name": "bookorbit-app", "updateAvailable": False},
+                {"name": "jellyfin", "updateAvailable": False},
+            ])
+        return handler(request)
+
+    monitor = MonitorSource("servicios", wud="https://wud.test/", transport=httpx.MockTransport(wud))
+    items = [
+        {"url": "https://bien.test", "name": "Bookorbit", "containers": ["bookorbit-app", "bookorbit-db"]},
+        {"url": "https://bien.test", "name": "Jellyfin", "container": "jellyfin"},
+        {"url": "https://bien.test", "name": "Sin contenedor"},
+    ]
+    bookorbit, jellyfin, other = asyncio.run(monitor.fetch(items))
+    assert bookorbit.update and not jellyfin.update and not other.update
+    # An update is not an alert: the service is up
+    assert not bookorbit.alert and bookorbit.switch
+
+
+def test_whats_up_docker_down_marks_nothing():
+    def wud(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "wud.test":
+            raise httpx.ConnectError("refused")
+        return handler(request)
+
+    monitor = MonitorSource("servicios", wud="https://wud.test", transport=httpx.MockTransport(wud))
+    (reading,) = asyncio.run(monitor.fetch([{"url": "https://bien.test", "name": "X", "container": "x"}]))
+    assert not reading.update and reading.switch
