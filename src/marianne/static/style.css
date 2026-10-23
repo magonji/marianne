@@ -886,11 +886,20 @@ a.tile.cursor > span {
     position: sticky;
     bottom: 0;
     white-space: normal;
-    gap: 0 1.6ch;
+    gap: 0 1.4ch;
+    font-size: 0.9rem;
   }
 
   /* Big enough for a finger. */
   #status button {
-    padding: 0.45rem 0;
+    padding: 0.3rem 0;
+  }
+
+  /* On a phone only the keys: the sources that are fine, the sound hint (any tap turns it on)
+     and READY stay out. A source that fails is still shown. */
+  #status .source:not(.bad),
+  #status .sound-hint,
+  #status .ready {
+    display: none;
   }
 }
