@@ -494,7 +494,7 @@ function renderStatus() {
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
   if (cursor && !reader) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
-  if (!audio || audio.state !== "running") items.push(el("span", { title: "Los navegadores no dejan sonar nada hasta la primera tecla o clic" }, "♪ TECLA PARA SONIDO"));
+  if (!audio || audio.state !== "running") items.push(el("span", {}, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
   // straddles the rebuild (common on phones), so only replace them when something changed.
