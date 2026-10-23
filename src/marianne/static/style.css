@@ -116,9 +116,16 @@ button {
 
 .digits {
   color: var(--accent);
-  font-size: 3.4rem;
-  line-height: 0.9;
-  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+}
+
+/* Big digits drawn with box-drawing characters, three rows high (see segmentRows), like elinor.
+   VT323 has no box-drawing glyphs, so they use a font that does, with the rows touching. */
+.segments {
+  font-family: Menlo, "DejaVu Sans Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  white-space: pre;
+  line-height: 1.05;
+  letter-spacing: 0;
 }
 
 #pomodoro {
@@ -529,8 +536,7 @@ a.tile.cursor > span {
 }
 
 .big .number {
-  font-size: 4rem;
-  line-height: 0.95;
+  font-size: 1.45rem;
   color: var(--accent);
 }
 
@@ -843,7 +849,11 @@ a.tile.cursor > span {
   }
 
   .digits {
-    font-size: 2.4rem;
+    font-size: 1rem;
+  }
+
+  .big .number {
+    font-size: 1.1rem;
   }
 
   #top:has(#pomodoro:not([hidden])) #clock {
