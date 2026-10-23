@@ -861,8 +861,19 @@ a.tile.cursor > span {
     font-size: 0.95rem;
   }
 
-  #top:has(#pomodoro:not([hidden])) #clock {
-    display: none;
+  /* The pomodoro on its own line under the name and the clock: beside them it doesn't fit. */
+  #top {
+    flex-wrap: wrap;
+  }
+
+  #pomodoro {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+    gap: 1.2rem;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--dim);
   }
 
   #pomodoro-label {
