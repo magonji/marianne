@@ -351,6 +351,20 @@ button {
   text-overflow: ellipsis;
 }
 
+.row .label a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.row .label a:hover {
+  text-decoration: underline;
+}
+
+/* A headline gives way to its age, which is short and always whole. */
+.row.linked .values {
+  flex: none;
+}
+
 .row .leader {
   flex: 1 1 1ch;
   min-width: 1ch;

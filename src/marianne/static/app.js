@@ -275,10 +275,10 @@ function drawRow(panel, reading, widths) {
   const label = el("span", {
     class: `label${alerting ? " alert-text" : reading.switch !== null ? " " + styleClass(reading) : ""}`,
     style: wide ? `width: ${widths.labelWidth}ch; flex: none` : null,
-  }, labelText(reading));
+  }, reading.link ? el("a", { href: reading.link, target: "_blank", rel: "noopener noreferrer" }, labelText(reading)) : labelText(reading));
   const values = el("span", { class: "values" }, drawValue(panel, reading, wide ? widths.valueWidth : 0));
   for (const extra of reading.extra || []) values.append("  ", drawValue(panel, extra, 0));
-  return el("div", { class: `row${wide ? " wide" : ""}` }, label, wide ? null : el("span", { class: "leader" }), values);
+  return el("div", { class: `row${wide ? " wide" : ""}${reading.link ? " linked" : ""}` }, label, wide ? null : el("span", { class: "leader" }), values);
 }
 
 function drawValue(panel, reading, valueWidth) {

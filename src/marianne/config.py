@@ -160,6 +160,8 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
             item["also"] = [{key: extra} if isinstance(extra, str) else dict(extra) for extra in extras]
         if kind == "web" and not {"url", "selector"} <= item.keys():
             raise ConfigError(f"Panel '{title}': cada elemento web necesita 'url' y 'selector'")
+        if kind == "rss" and not ("url" in item or item.get("feeds")):
+            raise ConfigError(f"Panel '{title}': cada elemento rss necesita 'url' (un feed) o 'feeds' (varios)")
         if kind == "monitor" and "url" not in item:
             raise ConfigError(f"Panel '{title}': cada servicio necesita 'url'")
         if kind == "dates" and "progress" in item:

@@ -41,6 +41,7 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
 - **Scraping web**: cualquier valor de una página con un selector CSS.
 - **El servidor**: CPU, carga, memoria, swap, disco, temperatura y tiempo encendido del
   equipo en el que corre Marianne.
+- **Noticias**: los últimos titulares de tus feeds RSS o Atom; un clic abre la noticia.
 - **Monitor de servicios**: comprueba que tus servicios web responden y cuánto tardan; si
   alguno se cae, sale en rojo.
 
@@ -159,6 +160,7 @@ panels:
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `alert: false`, `alarm_after`, `alarm_text` |
+| `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7) |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |
@@ -232,6 +234,7 @@ src/marianne/
     dates.py           cuenta atrás de fechas señaladas
     web.py             scraping con selectores CSS
     monitor.py         monitor de servicios web
+    rss.py             titulares de feeds RSS y Atom
     system.py          CPU, memoria y disco de este equipo
     demo.py            datos simulados
 ```

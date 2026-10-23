@@ -32,6 +32,9 @@ sources:
     type: system                        # el equipo en el que corre marianne
     host_root: /host                    # en Docker, donde compose.yaml monta el / del servidor
 
+  noticias:
+    type: rss                           # titulares de feeds RSS o Atom
+
   servicios:
     type: monitor                       # comprueba que los servicios web responden (como el monitor de Glance)
     timeout: 5                          # segundos antes de darlo por caído
@@ -272,3 +275,18 @@ panels:
       - name: Pruebas
         url: http://servidor.local:9000
         alert: false                    # caído en ○, pero sin alerta
+
+  - title: Noticias
+    source: noticias
+    refresh: 600
+    page_key: n                         # una página por periódico: la tecla N (o un clic en el título) cambia
+    pages:
+      - name: El Diario
+        items:
+          - url: https://eldiario.example/rss   # los titulares más recientes; un clic abre la noticia
+            limit: 7                    # cuántos (7 por defecto)
+      - name: Mundo
+        items:
+          - feeds:                      # varios feeds juntos, ordenados por fecha
+              - https://mundo.example/rss
+              - https://mundo.example/atom

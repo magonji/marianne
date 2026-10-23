@@ -11,6 +11,7 @@ from .monitor import MonitorSource
 from .moon import MoonSource
 from .openweather import OpenWeatherSource
 from .pomodoro import PomodoroSource
+from .rss import RssSource
 from .system import SystemSource
 from .web import WebSource
 
@@ -41,6 +42,8 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
         )
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True))
+    if kind == "rss":
+        return RssSource(name, timeout=spec.get("timeout", 15))
     if kind == "system":
         return SystemSource(name, host_root=spec.get("host_root"))
     if kind == "moon":
