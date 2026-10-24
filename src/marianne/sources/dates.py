@@ -202,19 +202,24 @@ def clean_date(raw: Any, decide_yearly: bool = False, today: date | None = None)
 
 def month_calendar(today: date, dates: list[dict[str, Any]]) -> dict[str, Any]:
     """This month for the calendar: its first weekday (0 Monday), its length, today, and the days
-    that one of the dates falls on, with their names."""
+    that one of the dates falls on, with their names; and every date, so that the page can mark
+    them in any other month it goes to."""
     first = today.replace(day=1)
     length = ((first + timedelta(days=32)).replace(day=1) - first).days
     marked: dict[int, list[str]] = {}
+    events = []
     for item in dates:
         try:
             when = next_occurrence(item, first)
+            year, month, day = parse_date(item["date"])
         except (ValueError, KeyError):
             continue
         if when.year == today.year and when.month == today.month:
             marked.setdefault(when.day, []).append(str(item.get("name", "")))
+        events.append({"name": str(item.get("name", "")), "year": year, "month": month, "day": day,
+                       "yearly": year is None or bool(item.get("yearly"))})
     return {"year": today.year, "month": today.month, "first_weekday": first.weekday(), "days": length,
-            "today": today.day, "marked": {str(day): names for day, names in marked.items()}}
+            "today": today.day, "marked": {str(day): names for day, names in marked.items()}, "events": events}
 
 
 def as_datetime(value: Any) -> datetime:

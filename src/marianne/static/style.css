@@ -273,9 +273,14 @@ button {
 
 .panel > .body.with-calendar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0 1.5ch;
-  align-items: start;
+  /* The calendar's column reaches the bottom, and its line with it. */
+  align-items: stretch;
+}
+
+.panel > .body.with-calendar > .calendar-rows {
+  align-self: start;
 }
 
 .calendar-rows {
@@ -284,11 +289,39 @@ button {
 
 .calendar {
   text-align: right;
+  /* The line between the calendar and the dates. */
+  padding-right: 1.5ch;
+  border-right: 2px solid var(--dim);
 }
 
 .calendar-title {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   color: var(--soft);
+}
+
+.calendar-arrow {
+  color: var(--dim);
+  padding: 0 0.6ch;
+}
+
+.calendar-arrow:hover {
+  color: var(--accent);
+}
+
+/* On the cursor: a frame, like the chart. */
+.calendar.cursor {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* What the picked day is, under the rows. */
+.calendar-info {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
 }
 
 .calendar-grid {
@@ -319,6 +352,15 @@ button {
 .calendar-grid .marked {
   color: var(--accent);
   text-decoration: underline;
+}
+
+.calendar-grid .day {
+  cursor: pointer;
+}
+
+.calendar-grid .selected {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .calendar-grid .today {
@@ -1123,6 +1165,19 @@ a.tile.cursor > span {
   .panel > .body.with-calendar {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.6rem 0;
+  }
+
+  /* On a phone, above the dates, with the line under it. */
+  .calendar {
+    justify-self: stretch;
+    padding: 0 0 0.5rem;
+    border-right: 0;
+    border-bottom: 2px solid var(--dim);
+  }
+
+  .calendar-title {
+    justify-content: center;
+    gap: 2ch;
   }
 
   .calendar-grid {

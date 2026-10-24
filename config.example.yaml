@@ -234,13 +234,13 @@ panels:
       - field: status                   # EN MARCHA / EN PAUSA / PARADO
       - field: count                    # pomodoros hechos hoy
 
-  - title: Fechas
+  - title: Calendario
     source: fechas
     refresh: 3600
     items:
       - progress: day                   # barras de progreso: day | week | month | year | life
       - progress: year
-      - calendar: true                  # el mes, a la derecha: hoy en inverso y las fechas subrayadas
+      - calendar: true                  # el mes, a la izquierda: hoy en inverso y las fechas subrayadas
       - progress: life
         birth: 1990-03-14
         end: 2070-01-01                 # hasta cuándo

@@ -25,6 +25,10 @@ let chartDay = 0;
 let chartHour = null;
 // The chart's place in the link cursor: it takes the cursor like a link, and then ← → pick the hour.
 const CHART_CURSOR = "chart:";
+// The calendar takes the cursor too: Enter goes into its days, and the arrows move through them.
+const CALENDAR_CURSOR = "calendar:";
+let calendarView = null; // { year, month } shown; null, this month
+let calendarDay = null; // "YYYY-MM-DD" picked while going through the days
 // The history command (its key, H): which period is shown, and the max and min of it, by panel.
 let history = null; // { period, data, at } while it's on
 const HISTORY_NAMES = { today: "hoy", "7d": "7 días", "30d": "30 días", year: "este año", all: "siempre" };
@@ -297,7 +301,7 @@ function drawPanel(view) {
   node.append(el("h2", {}, heading));
   const body = el("div", { class: "body" });
 
-  // A calendar goes in a column of its own, to the right of the rows.
+  // A calendar goes in a column of its own, to the left of the rows.
   const calendar = data.readings.find((reading) => reading.calendar);
   const shown = data.readings.filter((reading) => !reading.hidden && !reading.calendar);
   if (!shown.length && !calendar) {
@@ -330,9 +334,9 @@ function drawPanel(view) {
     }
   }
   if (calendar) {
-    const rows = el("div", { class: "calendar-rows" }, ...body.childNodes);
+    const rows = el("div", { class: "calendar-rows" }, ...body.childNodes, drawCalendarInfo(calendar.calendar));
     body.classList.add("with-calendar");
-    body.append(rows, drawCalendar(calendar.calendar));
+    body.append(drawCalendar(calendar.calendar), rows);
   }
   node.append(body);
   const subtitle = stale ? `✖ ${data.error}` : data.updated;
@@ -443,20 +447,108 @@ function drawBig(panel, reading) {
 
 // A month like the terminal's `cal`: today in reverse video, the special dates highlighted (their
 // names in the tooltip) and the weekend dimmer.
-function drawCalendar(month) {
-  const names = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const pad2 = (number) => String(number).padStart(2, "0");
+const isoDate = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const fromIso = (iso) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+
+// The dates on one day, with the years for an anniversary (29 February is the 28th in other years).
+function eventsOn(events, year, month, day) {
+  const leap = new Date(year, 1, 29).getMonth() === 1;
+  return events
+    .filter((event) => event.month === month && (event.yearly || event.year === year)
+      && (event.day === day || (!leap && event.month === 2 && event.day === 29 && day === 28)))
+    .map((event) => (event.year && event.yearly ? `${event.name} · ${year - event.year} años` : event.name));
+}
+
+// A month like the terminal's `cal`: today in reverse video, the special dates highlighted (their
+// names in the tooltip) and the weekend dimmer. ‹ › go to another month.
+function drawCalendar(calendar) {
+  const view = calendarView || { year: calendar.year, month: calendar.month };
+  const first = new Date(view.year, view.month - 1, 1);
+  const length = new Date(view.year, view.month, 0).getDate();
+  const firstWeekday = (first.getDay() + 6) % 7;
+  const today = `${calendar.year}-${pad2(calendar.month)}-${pad2(calendar.today)}`;
+  const events = calendar.events || [];
   const cells = [];
-  for (const day of ["lu", "ma", "mi", "ju", "vi", "sá", "do"]) cells.push(el("span", { class: "weekday" }, upper(day)));
-  for (let blank = 0; blank < month.first_weekday; blank += 1) cells.push(el("span", {}));
-  for (let day = 1; day <= month.days; day += 1) {
-    const weekend = (month.first_weekday + day - 1) % 7 >= 5;
-    const marked = month.marked[String(day)];
-    const classes = ["day", weekend ? "weekend" : "", marked ? "marked" : "", day === month.today ? "today" : ""].filter(Boolean);
-    cells.push(el("span", { class: classes.join(" "), title: marked ? marked.join(", ") : null }, String(day)));
-  }
-  return el("div", { class: "calendar" },
-    el("div", { class: "calendar-title" }, upper(`${names[month.month - 1]} ${month.year}`)),
+  // The usual Spanish initials: X for miércoles, so it isn't confused with martes.
+  for (const day of ["l", "m", "x", "j", "v", "s", "d"]) cells.push(el("span", { class: "weekday" }, upper(day)));
+  for (let blank = 0; blank < firstWeekday; blank += 1) cells.push(el("span", {}));
+  const dayCell = (day) => {
+    const iso = `${view.year}-${pad2(view.month)}-${pad2(day)}`;
+    const marked = eventsOn(events, view.year, view.month, day);
+    const classes = ["day", (firstWeekday + day - 1) % 7 >= 5 ? "weekend" : "", marked.length ? "marked" : "",
+      iso === today ? "today" : "", iso === calendarDay ? "selected" : ""].filter(Boolean);
+    return el("span", {
+      class: classes.join(" "), title: marked.length ? marked.join(", ") : null,
+      onclick: () => pickCalendarDay(iso),
+    }, String(day));
+  };
+  for (let day = 1; day <= length; day += 1) cells.push(dayCell(day));
+  const arrow = (text, step) => el("button", { class: "calendar-arrow", onclick: () => shiftCalendarMonth(step) }, text);
+  return el("div", { class: "calendar", "data-cursor": CALENDAR_CURSOR },
+    el("div", { class: "calendar-title" }, arrow("‹", -1),
+      el("span", {}, upper(`${MONTH_NAMES[view.month - 1]} ${view.year}`)), arrow("›", 1)),
     el("div", { class: "calendar-grid" }, cells));
+}
+
+// What the picked day is: under the panel's rows, where there's room for it.
+function drawCalendarInfo(calendar) {
+  if (!calendarDay) return null;
+  const text = `▸ ${describeDay(calendar, calendarDay)}`;
+  return el("div", { class: "calendar-info", title: text }, text);
+}
+
+// "SÁ 31/10 · EN 7 DÍAS · HALLOWEEN"
+function describeDay(calendar, iso) {
+  const date = fromIso(iso);
+  const today = new Date(calendar.year, calendar.month - 1, calendar.today);
+  const days = Math.round((date - today) / 86_400_000);
+  const when = days === 0 ? "hoy" : days === 1 ? "mañana" : days === -1 ? "ayer" : days > 0 ? `en ${days} días` : `hace ${-days} días`;
+  const weekday = ["do", "lu", "ma", "mi", "ju", "vi", "sá"][date.getDay()];
+  const year = date.getFullYear() === calendar.year ? "" : `/${date.getFullYear()}`;
+  const names = eventsOn(calendar.events || [], date.getFullYear(), date.getMonth() + 1, date.getDate());
+  return upper([`${weekday} ${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}${year}`, when, ...names].join(" · "));
+}
+
+function calendarReading() {
+  for (const { data } of panelViews()) {
+    const reading = data.readings.find((reading) => reading.calendar);
+    if (reading) return reading.calendar;
+  }
+  return null;
+}
+
+function pickCalendarDay(iso) {
+  calendarDay = iso;
+  calendarView = { year: Number(iso.slice(0, 4)), month: Number(iso.slice(5, 7)) };
+  cursor = CALENDAR_CURSOR;
+  render();
+}
+
+function moveCalendarDay(step) {
+  const date = fromIso(calendarDay);
+  date.setDate(date.getDate() + step);
+  pickCalendarDay(isoDate(date));
+}
+
+function shiftCalendarMonth(step) {
+  const calendar = calendarReading();
+  if (!calendar) return;
+  const view = calendarView || { year: calendar.year, month: calendar.month };
+  const date = new Date(view.year, view.month - 1 + step, 1);
+  calendarView = { year: date.getFullYear(), month: date.getMonth() + 1 };
+  // The picked day keeps its place in the new month (the 31st becomes its last day).
+  if (calendarDay) {
+    const last = new Date(calendarView.year, calendarView.month, 0).getDate();
+    calendarDay = `${calendarView.year}-${pad2(calendarView.month)}-${pad2(Math.min(Number(calendarDay.slice(8)), last))}`;
+  }
+  render();
+}
+
+function leaveCalendar() {
+  calendarDay = null;
+  calendarView = null;
 }
 
 // The day's weather: temperature (thick line, in red below 0 °C), wind (thin line), rain (bars as
@@ -745,7 +837,10 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
-  if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
+  if (cursor === CALENDAR_CURSOR && !reader) {
+    if (calendarDay) items.push(key("q", "VOLVER"));
+    else items.push(key("enter", "ELEGIR DÍA"), key("q", "SALIR"));
+  } else if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
   else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("q", "SALIR"));
   // A pop-up panel open: Q closes it.
   else if (popup !== null && !reader && !dates) items.push(key("q", "CERRAR"));
@@ -838,6 +933,16 @@ function press(key) {
   }
   if (Object.hasOwn(ARROWS, key)) return moveCursor(ARROWS[key]);
   if (key === "enter" && cursor === CHART_CURSOR) return toggleChartDay();
+  if (key === "enter" && cursor === CALENDAR_CURSOR) {
+    const calendar = calendarReading();
+    if (!calendarDay && calendar) pickCalendarDay(`${calendar.year}-${pad2(calendar.month)}-${pad2(calendar.today)}`);
+    return;
+  }
+  if (key === "escape" && cursor === CALENDAR_CURSOR && calendarDay) {
+    // Out of the days, still on the calendar; once more and the cursor goes.
+    calendarDay = null;
+    return render();
+  }
   if (key === "enter" && cursor) {
     const link = visibleLinks().find((node) => cursorId(node) === cursor);
     if (link && link.dataset.reader) return link.click();
@@ -849,6 +954,7 @@ function press(key) {
     return render();
   }
   if (key === "escape" && cursor) {
+    leaveCalendar();
     cursor = null;
     chartHour = null;
     return render();
@@ -933,6 +1039,8 @@ function visibleLinks() {
     const body = link.closest(".body");
     if (!box.width || !box.height || !body) return Boolean(box.width && box.height);
     const area = body.getBoundingClientRect();
+    // A chart or a calendar only has to start inside its panel: cut off at the bottom, it's still there.
+    if (link.dataset.cursor) return box.top >= area.top - 1 && box.top < area.bottom;
     return box.top >= area.top - 1 && box.bottom <= area.bottom + 1;
   });
 }
@@ -945,6 +1053,8 @@ function moveCursor([dx, dy]) {
   const current = links.find((link) => cursorId(link) === cursor);
   // On the chart, left and right move along its hours, up and down leave it.
   if (current && cursor === CHART_CURSOR && dx) return moveChartHour(dx);
+  // In the calendar's days: left and right a day, up and down a week (the month follows).
+  if (current && cursor === CALENDAR_CURSOR && calendarDay) return moveCalendarDay(dx + dy * 7);
   let target = current ? null : links[0];
   if (current) {
     const from = current.getBoundingClientRect();
@@ -978,6 +1088,7 @@ function renderCursor() {
   else {
     cursor = null;
     chartHour = null;
+    leaveCalendar();
     renderStatus();
   }
 }
