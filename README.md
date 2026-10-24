@@ -30,7 +30,7 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   máxima/mínima del día desde el historial, y aviso de sensores que han dejado de informar.
 - **El tiempo** de OpenWeather (API gratuita): una gráfica del día (temperatura, viento,
   lluvia y nubes por horas, con lo observado en las horas ya pasadas y la previsión en las que
-  faltan, y la tecla `D` para ver mañana), temperatura actual, resumen del día, máxima, mínima, lluvia,
+  faltan, y la tecla `M` para ver mañana), temperatura actual, resumen del día, máxima, mínima, lluvia,
   viento, próximas horas y si mañana hará buen día.
 - **Esquema del sol**: el arco del día con el sol encima, las horas de alba, salida,
   mediodía, puesta y anochecer, y la elevación y el azimut.
@@ -60,17 +60,18 @@ uv run marianne --demo --theme phosphor
 | Tecla | Acción |
 |---|---|
 | `R` | Refrescar todos los paneles (no sale en la barra de abajo) |
-| `T` | Cambiar de tema (ámbar → Commodore 64 → fósforo verde) |
+| `C` | Cambiar de color (ámbar → Commodore 64 → fósforo verde) |
 | `A` | Alerta vista: deja de parpadear y sale de la franja de alarma (sigue en rojo); si se resuelve y vuelve, avisa de nuevo |
 | `P` | Pomodoro: iniciar / pausar |
 | `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
-| `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
+| `T`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares) y la gráfica del tiempo, donde `←` `→` van de hora en hora. En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
-| `D` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
-| `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Esc` para volver) |
-| `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
+| `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
+| `H` | Historial: los paneles con `history: true` muestran la máxima y la mínima de cada valor de hoy; cada pulsación pasa a 7 días, 30 días, este año y desde siempre, y la última vuelve a lo normal (`Q` también) |
+| `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
+| `Q` | Salir: cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente (`Esc` hace lo mismo) |
 
 Casi todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
 página de cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
@@ -198,15 +199,29 @@ de los modelos de los servicios meteorológicos nacionales; datos CC BY 4.0), en
 de la ciudad que da OpenWeather; también rellena, como "estimado", las horas pasadas en las que
 Marianne no observó nada. Si Open-Meteo no responde, vuelve a los tramos de 3 horas. El resto de
 campos sigue con OpenWeather. Las líneas y los chevrones llevan un fino borde negro para que se distingan sobre las barras. La
-tecla `day_key` (`D`) o el botón de la barra pasan a mañana y vuelven. La máxima y la mínima del
+tecla `day_key` (`M`) o el botón de la barra pasan a mañana y vuelven. La máxima y la mínima del
 día van escritas sobre la línea de temperatura, y debajo de la gráfica, las condiciones de ahora
 (temperatura, viento, lluvia y nubes).
 
 Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o lleva
 hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
-(sin perder la hora) y `↑` `↓` o `Esc` salen. Debajo se lee entonces la hora, la
+(sin perder la hora) y `↑` `↓` o `Q` salen. Debajo se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado, lo estimado o lo previsto.
+
+### El historial
+
+Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` cambian sus
+valores por la máxima y la mínima del periodo, con cuándo fue cada una: hoy, últimos 7 días,
+últimos 30 días, este año y desde siempre (cada pulsación pasa al siguiente; la última, o `Q`,
+vuelve a lo normal).
+
+- **Home Assistant**: salen de sus estadísticas a largo plazo (los sensores con `state_class`).
+  Para lo que se mide (temperatura, humedad, potencia...), la máxima y la mínima; para los
+  contadores (kWh), el día de más y el de menos consumo. Si un sensor no ha informado desde la
+  medianoche, "hoy" dice SIN DATOS en lugar de repetir su último valor.
+- **El tiempo**: de lo que Marianne ha ido observando (el fichero `history` de la fuente, que
+  guarda un resumen de cada día): temperatura, viento y lluvia por día, y desde cuándo hay datos.
 
 ### Opciones de panel
 
@@ -216,9 +231,10 @@ observado, lo estimado o lo previsto.
 | `refresh` | Segundos entre actualizaciones (10 por defecto) |
 | `span`, `rows` | Columnas y filas de la rejilla que ocupa |
 | `big: true` | El primer valor, en dígitos grandes |
+| `history: true` | Sale con el historial (tecla `H`, ver abajo) |
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
-| `pages`, `page_key: m` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
+| `pages`, `page_key: t` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
 
 ### Opciones de elemento
 
@@ -247,6 +263,8 @@ observado, lo estimado o lo previsto.
 | `stats: true` | Filas con la máxima y la mínima de hoy (`stats: beside`: al lado del valor, ▲ ▼) |
 | `records: true` | Filas con la máxima y la mínima de toda la historia, de las estadísticas a largo plazo de Home Assistant |
 | `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)). El servidor los descarga una vez de jsDelivr y la página los pinta con líneas de barrido en el color del tema |
+| `history: false` | Deja este valor fuera del historial |
+| `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 
 ## Desarrollo

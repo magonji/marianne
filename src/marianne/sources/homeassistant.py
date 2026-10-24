@@ -13,7 +13,7 @@ from urllib.parse import quote
 import httpx
 import websockets
 
-from .base import Reading, Source, check_alert, format_number, make_fraction, parse_number
+from .base import WHEN_FORMAT, Reading, Source, check_alert, format_number, make_fraction, parse_number, period_start
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
 # Shortcuts for `format:`; any other value is used as a strftime pattern.
@@ -25,6 +25,8 @@ CACHE_SECONDS = 2.0
 HISTORY_CACHE_SECONDS = 300.0
 # Records only change when a new one is set: the current value is checked on every refresh anyway.
 RECORDS_CACHE_SECONDS = 3600.0
+# The `history` command: the statistics' step for each period.
+STATISTICS_STEP = {"today": "5minute", "7d": "hour", "30d": "day", "year": "day", "all": "day"}
 
 Samples = list[tuple[datetime, float]]
 Records = dict[str, tuple[datetime, float]]
@@ -66,6 +68,8 @@ class HomeAssistantSource(Source):
         self._records: tuple[float, dict[str, Records]] = (0.0, {})
         # When each numeric alert started, so `alarm_after` can wait for it to persist.
         self._alert_since: dict[tuple[str, str | None], datetime] = {}
+        # The `history` command's rows, by period and items, for a few minutes.
+        self._history_rows: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
 
     def describe(self) -> str:
         return self.url
@@ -167,35 +171,93 @@ class HomeAssistantSource(Source):
             changes = [*changes, (latest, raw_state(item, state))]
         return Reading(label, format_duration(on_minutes(item, changes, now)))
 
+    async def _statistics(self, queries: list[dict[str, Any]]) -> list[dict[str, list[dict[str, Any]]]] | None:
+        """Answers to `recorder/statistics_during_period` queries, over one WebSocket (the statistics
+        are only there); None if Home Assistant can't be asked."""
+        url = "ws" + self.url[len("http"):] + "/api/websocket"
+        context = None if url.startswith("ws:") else True if self.verify_ssl else _no_verify()
+        try:
+            # Months of hourly rows don't fit in the default 1 MB message.
+            async with websockets.connect(url, open_timeout=self.timeout, ssl=context, max_size=16 * 2**20) as ws:
+                await ws.recv()  # auth_required
+                await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
+                if json.loads(await ws.recv()).get("type") != "auth_ok":
+                    return None
+                answers = []
+                for number, query in enumerate(queries, start=1):
+                    await ws.send(json.dumps({"id": number, "type": "recorder/statistics_during_period", **query}))
+                    answer = json.loads(await asyncio.wait_for(ws.recv(), self.timeout * 3))
+                    answers.append(answer.get("result") or {})
+                return answers
+        except (OSError, asyncio.TimeoutError, websockets.WebSocketException, ValueError):
+            return None
+
     async def _all_records(self, items: list[dict[str, Any]]) -> dict[str, Records]:
         """All-time max and min of the `records` items, from Home Assistant's long-term statistics."""
         entities = sorted({item["entity"] for item in items if item.get("records")})
         cached_at, cached = self._records
         if not entities or (time.monotonic() - cached_at < RECORDS_CACHE_SECONDS and set(entities) <= cached.keys()):
             return cached
-        # The statistics are only on the WebSocket API.
-        url = "ws" + self.url[len("http"):] + "/api/websocket"
-        try:
-            async with websockets.connect(url, open_timeout=self.timeout, ssl=None if url.startswith("ws:") else True if self.verify_ssl else _no_verify()) as ws:
-                await ws.recv()  # auth_required
-                await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
-                if json.loads(await ws.recv()).get("type") != "auth_ok":
-                    return cached
-                await ws.send(json.dumps({
-                    "id": 1,
-                    "type": "recorder/statistics_during_period",
-                    "start_time": "2000-01-01T00:00:00Z",
-                    "statistic_ids": entities,
-                    "period": "day",
-                    "types": ["max", "min"],
-                }))
-                answer = json.loads(await asyncio.wait_for(ws.recv(), self.timeout))
-        except (OSError, asyncio.TimeoutError, websockets.WebSocketException, ValueError):
+        answers = await self._statistics([{
+            "start_time": "2000-01-01T00:00:00Z", "statistic_ids": entities, "period": "day", "types": ["max", "min"],
+        }])
+        if answers is None:
             # Without records the panel still shows everything else.
             return cached
-        records = {entity: parse_records(rows) for entity, rows in (answer.get("result") or {}).items() if rows}
+        records = {entity: parse_records(rows) for entity, rows in answers[0].items() if rows}
         self._records = (time.monotonic(), {**cached, **records})
         return self._records[1]
+
+    async def history(self, items: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+        """The `history` command's rows for these items over a period: the max and min of each
+        measured value (temperature, power...) and, for meters (kWh), of the consumption per day."""
+        key = (period, json.dumps([item.get("entity") for item in items]))
+        cached = self._history_rows.get(key)
+        if cached and time.monotonic() - cached[0] < HISTORY_CACHE_SECONDS:
+            return cached[1]
+        states = await self._all_states()
+        now = datetime.now().astimezone()
+        start = period_start(period, now)
+        parts = {item_id: history_parts(item) for item_id, item in enumerate(items)}
+        kinds = {part["entity"]: state_kind(states.get(part["entity"])) for found in parts.values() for part in found}
+        measured = sorted(entity for entity, kind in kinds.items() if kind == "range")
+        meters = sorted(entity for entity, kind in kinds.items() if kind == "daily")
+        queries = []
+        if measured:
+            queries.append({"start_time": start.isoformat(), "statistic_ids": measured,
+                            "period": STATISTICS_STEP[period], "types": ["max", "min"]})
+        if meters:
+            queries.append({"start_time": midnight(start).isoformat(), "statistic_ids": meters,
+                            "period": "day", "types": ["change"]})
+        answers = await self._statistics(queries) if queries else []
+        if answers is None:
+            return [{"label": item.get("name", item.get("entity", "")), "error": "SIN CONEXIÓN"} for item in items]
+        found = {entity: rows for answer in answers for entity, rows in answer.items()}
+        rows = []
+        for item_id, item in enumerate(items):
+            if not parts[item_id]:
+                continue
+            row_parts = []
+            for part in parts[item_id]:
+                state = states.get(part["entity"])
+                unit = part.get("unit", (state or {}).get("attributes", {}).get("unit_of_measurement", ""))
+                current = parse_number((state or {}).get("state")) if state else None
+                if current is not None:
+                    current *= part.get("scale", 1)
+                kind = kinds[part["entity"]]
+                reported = parse_timestamp((state or {}).get("last_reported") or (state or {}).get("last_updated") or "")
+                if period == "today" and kind == "range" and reported is not None and reported < start:
+                    # Nothing reported since midnight: today's statistics would only repeat an old value.
+                    row_parts.append({"error": "SIN DATOS", "unit": unit})
+                    continue
+                if kind == "range":
+                    row_parts.append(range_part(part, found.get(part["entity"], []), unit, current, now, period))
+                elif kind == "daily":
+                    row_parts.append(daily_part(part, found.get(part["entity"], []), unit, period))
+            if row_parts:
+                rows.append({"label": item.get("name", item["entity"]), "parts": row_parts})
+        self._history_rows[key] = (time.monotonic(), rows)
+        return rows
 
     async def _histories(self, items: list[dict[str, Any]]) -> dict[str, Samples]:
         """Numeric history of the items that use `trend` or `stats`, since midnight or longer."""
@@ -381,6 +443,77 @@ def record_rows(item: dict[str, Any], reading: Reading, records: Records, curren
             when, value = now, current
         rows.append(Reading(item.get(f"record_{kind}_name", name), format_number(value, decimals), reading.unit, note=f"{when:%d/%m/%y}"))
     return rows
+
+
+def history_parts(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """The values of an item (and of its `also`) that have a history: entities' numeric states,
+    not attributes, counters of time (`on_today`) or hidden ones; `history: false` leaves one out."""
+    if item.get("hidden") or item.get("on_today") or item.get("history") is False or "entity" not in item:
+        return []
+    return [
+        part for part in [item, *item.get("also", [])]
+        if "entity" in part and not part.get("attribute") and not part.get("replace") and part.get("history") is not False
+    ]
+
+
+def state_kind(state: dict[str, Any] | None) -> str | None:
+    """'range' for a measured value (the max and min of it), 'daily' for a meter (the consumption
+    per day); None for anything without long-term statistics."""
+    state_class = ((state or {}).get("attributes") or {}).get("state_class")
+    if state_class == "measurement":
+        return "range"
+    if state_class in ("total", "total_increasing"):
+        return "daily"
+    return None
+
+
+def row_time(row: dict[str, Any]) -> datetime:
+    start = row["start"]
+    if isinstance(start, (int, float)):
+        return datetime.fromtimestamp(start / 1000).astimezone()
+    return datetime.fromisoformat(start).astimezone()
+
+
+def range_part(
+    part: dict[str, Any], rows: list[dict[str, Any]], unit: str, current: float | None, now: datetime, period: str
+) -> dict[str, Any]:
+    """Max and min of a measured value, with when each happened. Values beyond `valid_max` or
+    `valid_min` (a sensor's glitch) are left out. The statistics lag a little: the current value
+    counts too."""
+    scale = part.get("scale", 1)
+    high_limit, low_limit = part.get("valid_max"), part.get("valid_min")
+    samples = [(row_time(row), row["max"] * scale, row["min"] * scale) for row in rows
+               if row.get("max") is not None and row.get("min") is not None]
+    highs = [(when, value) for when, value, _ in samples if high_limit is None or value <= float(high_limit)]
+    lows = [(when, value) for when, _, value in samples if low_limit is None or value >= float(low_limit)]
+    if current is not None:
+        highs.append((now, current))
+        lows.append((now, current))
+    if not highs or not lows:
+        return {"error": "SIN DATOS", "unit": unit}
+    high, low = max(highs, key=lambda sample: sample[1]), min(lows, key=lambda sample: sample[1])
+    decimals, fmt = part.get("decimals"), WHEN_FORMAT[period]
+    return {"max": format_number(high[1], decimals), "max_at": f"{high[0]:{fmt}}",
+            "min": format_number(low[1], decimals), "min_at": f"{low[0]:{fmt}}", "unit": unit}
+
+
+def daily_part(part: dict[str, Any], rows: list[dict[str, Any]], unit: str, period: str) -> dict[str, Any]:
+    """A meter's consumption per day: today's alone, or the day of most and of least."""
+    # A negative day is the meter being reset or replaced, not consumption.
+    days = [(row_time(row), row["change"] * part.get("scale", 1)) for row in rows
+            if row.get("change") is not None and row["change"] >= 0]
+    decimals = part.get("decimals", 1)
+    if not days:
+        return {"error": "SIN DATOS", "unit": unit}
+    if period == "today":
+        return {"total": format_number(days[-1][1], decimals), "unit": unit}
+    # Today isn't over: it only counts if it's already a record.
+    finished = days[:-1] if days[-1][0].date() == datetime.now().date() and len(days) > 1 else days
+    high = max(days, key=lambda day: day[1])
+    low = min(finished, key=lambda day: day[1])
+    fmt = "%d/%m/%y" if period == "all" else "%d/%m"
+    return {"max": format_number(high[1], decimals), "max_at": f"{high[0]:{fmt}}",
+            "min": format_number(low[1], decimals), "min_at": f"{low[0]:{fmt}}", "unit": f"{unit}/día"}
 
 
 def format_timestamp(raw: str, fmt: str) -> str:

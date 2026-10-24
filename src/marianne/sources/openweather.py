@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from .base import Reading, Source, check_alert, format_number, make_fraction
+from .base import WHEN_FORMAT, Reading, Source, check_alert, format_number, make_fraction, period_start
 
 API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
@@ -66,8 +66,9 @@ WEEKDAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
 SUNNY = {800, 801}
 # Rain from this many mm an hour is heavy (the Met Office's "heavy rain"): its bar goes in red.
 HEAVY_RAIN = 4.0
-# Observed weather is kept for this long, enough for today and yesterday.
-HISTORY_SECONDS = 2 * 86400
+# Observed weather is kept sample by sample for today and the two days before; older days, only
+# as a summary (their max, min and rain), for the `history` command.
+HISTORY_DAYS = 2
 
 
 class OpenWeatherSource(Source):
@@ -96,7 +97,7 @@ class OpenWeatherSource(Source):
         self._current_at = 0.0
         self._lock = asyncio.Lock()
         # The weather observed through the day, for the hours already gone in the chart.
-        self.history = WeatherHistory(Path(history_file) if history_file else None)
+        self.observed = WeatherHistory(Path(history_file) if history_file else None)
         # "open-meteo": the chart's forecast hour by hour, at the city OpenWeather has found.
         if hourly not in (None, "open-meteo"):
             raise ValueError(f"source '{name}': 'hourly' solo puede ser open-meteo")
@@ -126,7 +127,7 @@ class OpenWeatherSource(Source):
             if time.monotonic() - self._current_at > CACHE_SECONDS:
                 self._current = await self._get(CURRENT_URL)
                 self._current_at = time.monotonic()
-                self.history.add(self._current)
+                self.observed.add(self._current)
             return self._current
 
     async def _get_hours(self, forecast: dict[str, Any]) -> list[dict[str, Any]]:
@@ -161,7 +162,7 @@ class OpenWeatherSource(Source):
         now = datetime.now(timezone.utc)
         readings = []
         for item in items:
-            reading = field_reading(item, forecast, now, current, self.history.samples, hours)
+            reading = field_reading(item, forecast, now, current, self.observed.samples, hours)
             for extra in item.get("also", []):
                 extra = {"name": EXTRA_LABELS.get(extra["field"], LABELS[extra["field"]]), **extra}
                 extra_reading = field_reading(extra, forecast, now, current)
@@ -169,6 +170,9 @@ class OpenWeatherSource(Source):
                 reading.extra.append(extra_reading)
             readings.append(reading)
         return readings
+
+    async def history(self, items: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+        return weather_history(self.observed, period, datetime.now().astimezone())
 
     async def close(self) -> None:
         await self.client.aclose()
@@ -341,37 +345,110 @@ def good_day(item: dict[str, Any], label: str, forecast: dict[str, Any], now: da
 
 
 class WeatherHistory:
-    """The weather observed through the day: one sample per current-weather call, kept two days,
-    in a file if there is one, so that a restart doesn't lose the hours already gone."""
+    """The weather observed: one sample per current-weather call for the last days, and a summary
+    of each older day, in a file if there is one, so that a restart doesn't lose them."""
 
     def __init__(self, path: Path | None) -> None:
         self.path = path
-        self.samples: list[dict[str, Any]] = self._load()
+        self.samples: list[dict[str, Any]] = []
+        self.days: dict[str, dict[str, Any]] = {}
+        self._load()
 
-    def _load(self) -> list[dict[str, Any]]:
+    def _load(self) -> None:
         if self.path is None or not self.path.exists():
-            return []
+            return
         try:
             data = json.loads(self.path.read_text())
         except (OSError, ValueError):
-            return []
-        return [sample for sample in data if isinstance(sample, dict) and "t" in sample] if isinstance(data, list) else []
+            return
+        # The first version of the file was just the list of samples.
+        samples = data if isinstance(data, list) else data.get("samples", []) if isinstance(data, dict) else []
+        self.samples = [sample for sample in samples if isinstance(sample, dict) and "t" in sample]
+        if isinstance(data, dict) and isinstance(data.get("days"), dict):
+            self.days = data["days"]
 
     def add(self, current: dict[str, Any]) -> None:
         sample = observed_sample(current)
         if sample is None or any(old["t"] == sample["t"] for old in self.samples):
             return
-        cutoff = sample["t"] - HISTORY_SECONDS
-        self.samples = sorted([old for old in self.samples if old["t"] >= cutoff] + [sample], key=lambda old: old["t"])
+        samples = sorted([*self.samples, sample], key=lambda old: old["t"])
+        # Days before the last few are kept only as their summary.
+        keep_from = (local_day(sample["t"]) - timedelta(days=HISTORY_DAYS)).isoformat()
+        old = [old for old in samples if local_day(old["t"]).isoformat() < keep_from]
+        self.days.update(daily_summaries(old))
+        self.samples = [old for old in samples if local_day(old["t"]).isoformat() >= keep_from]
         if self.path is not None:
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 handle, temporary = tempfile.mkstemp(dir=self.path.parent, prefix=".tiempo-", suffix=".json")
                 with os.fdopen(handle, "w") as file:
-                    json.dump(self.samples, file)
+                    json.dump({"samples": self.samples, "days": self.days}, file)
                 os.replace(temporary, self.path)
             except OSError:
                 pass  # The chart still has them in memory.
+
+    def all_days(self) -> dict[str, dict[str, Any]]:
+        """Every day observed: the summaries kept, and those of the days still sample by sample."""
+        return {**self.days, **daily_summaries(self.samples)}
+
+
+def local_day(t: float) -> date:
+    return datetime.fromtimestamp(t).astimezone().date()
+
+
+def daily_summaries(samples: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Each day's highest and lowest temperature and wind (with when) and its rain in mm, which is
+    the sum of each hour's mean rate."""
+    by_day: dict[str, list[dict[str, Any]]] = {}
+    for sample in samples:
+        by_day.setdefault(local_day(sample["t"]).isoformat(), []).append(sample)
+    summaries = {}
+    for day, group in by_day.items():
+        hours: dict[int, list[float]] = {}
+        for sample in group:
+            hours.setdefault(int(sample["t"] // 3600), []).append(sample["rain"])
+        summary: dict[str, Any] = {"rain": sum(sum(rates) / len(rates) for rates in hours.values())}
+        for key in ("temp", "wind"):
+            high = max(group, key=lambda sample: sample[key])
+            low = min(group, key=lambda sample: sample[key])
+            summary.update({f"{key}_max": high[key], f"{key}_max_t": high["t"], f"{key}_min": low[key], f"{key}_min_t": low["t"]})
+        summaries[day] = summary
+    return summaries
+
+
+def weather_history(history: WeatherHistory, period: str, now: datetime) -> list[dict[str, Any]]:
+    """The `history` command's rows from what was observed: temperature, wind, and rain per day."""
+    start = period_start(period, now).date().isoformat()
+    days = {day: summary for day, summary in sorted(history.all_days().items()) if day >= start}
+    if not days:
+        return [{"label": "Temperatura", "error": "SIN DATOS"}]
+    fmt = WHEN_FORMAT[period]
+    when = lambda t: f"{datetime.fromtimestamp(t).astimezone():{fmt}}"
+    rows = []
+    for key, label, unit, decimals in (("temp", "Temperatura", "°C", 1), ("wind", "Viento", "km/h", 0)):
+        high = max(days.values(), key=lambda day: day[f"{key}_max"])
+        low = min(days.values(), key=lambda day: day[f"{key}_min"])
+        rows.append({"label": label, "parts": [{
+            "max": format_number(high[f"{key}_max"], decimals), "max_at": when(high[f"{key}_max_t"]),
+            "min": format_number(low[f"{key}_min"], decimals), "min_at": when(low[f"{key}_min_t"]), "unit": unit}]})
+    today = now.date().isoformat()
+    if period == "today":
+        rows.append({"label": "Lluvia", "parts": [{"total": format_number(days.get(today, {}).get("rain", 0), 1), "unit": "mm"}]})
+    else:
+        # Today isn't over: the driest day is among the finished ones.
+        finished = {day: summary for day, summary in days.items() if day != today} or days
+        wettest = max(days.items(), key=lambda day: day[1]["rain"])
+        driest = min(finished.items(), key=lambda day: day[1]["rain"])
+        day_fmt = "%d/%m/%y" if period == "all" else "%d/%m"
+        rows.append({"label": "Lluvia", "parts": [{
+            "max": format_number(wettest[1]["rain"], 1), "max_at": f"{date.fromisoformat(wettest[0]):{day_fmt}}",
+            "min": format_number(driest[1]["rain"], 1), "min_at": f"{date.fromisoformat(driest[0]):{day_fmt}}",
+            "unit": "mm/día"}]})
+    first = min(days)
+    if first > start and period != "today":
+        # Marianne only knows what it has observed: say since when.
+        rows.append({"label": "Datos desde", "parts": [{"total": f"{date.fromisoformat(first):%d/%m/%y}", "unit": ""}]})
+    return rows
 
 
 def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
@@ -402,7 +479,7 @@ def chart_reading(
     days = [chart_day(day, forecast, history, now, offset, hours) for day in (today, today + timedelta(days=1))]
     temperature = current.get("main", {}).get("temp")
     chart = {
-        "key": str(item.get("day_key", "d")).lower(),
+        "key": str(item.get("day_key", "m")).lower(),
         "hourly": bool(hours),
         "heavy_rain": float(item.get("heavy_rain", HEAVY_RAIN)),
         "now": now.timestamp(),

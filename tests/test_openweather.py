@@ -235,7 +235,7 @@ def test_chart_observed_hours_then_forecast(tmp_path):
     assert today["rain"] == pytest.approx(2 + 15)
 
     reading = chart_reading({"field": "chart"}, "El tiempo", forecast, now, {"main": {"temp": 2.5}}, history.samples)
-    assert reading.chart["key"] == "d" and reading.chart["heavy_rain"] == 4.0 and reading.chart["temp"] == 2.5
+    assert reading.chart["key"] == "m" and reading.chart["heavy_rain"] == 4.0 and reading.chart["temp"] == 2.5
     assert [day["date"] for day in reading.chart["days"]] == ["2026-10-24", "2026-10-25"]
     now_weather = {"dt": int(now.timestamp()), "main": {"temp": 2.5}, "wind": {"speed": 5}, "clouds": {"all": 75}}
     current = chart_reading({"field": "chart"}, "El tiempo", forecast, now, now_weather, history.samples).chart["current"]

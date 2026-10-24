@@ -26,6 +26,7 @@ from aiohttp import web
 from .config import Config, ConfigError, PanelConfig, load_config, parse_config
 from .icons import Icons
 from .sources import Source, build_source
+from .sources.base import HISTORY_PERIODS
 from .sources.dates import DatesSource
 from .sources.pomodoro import PomodoroSource
 
@@ -54,6 +55,30 @@ class Dashboard:
     @staticmethod
     def pages(panel: PanelConfig) -> list[list[dict[str, Any]]]:
         return [items for _, items in panel.pages] if panel.pages else [panel.items]
+
+    async def history(self, period: str) -> dict[str, Any]:
+        """The `history` command: for each panel with `history`, the rows of its sources' max and min."""
+        async def panel_rows(panel: PanelConfig) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            # Consecutive items from the same source go together, as in load().
+            runs: list[tuple[str, list[dict[str, Any]]]] = []
+            for item in panel.items:
+                if runs and runs[-1][0] == item["source"]:
+                    runs[-1][1].append(item)
+                else:
+                    runs.append((item["source"], [item]))
+            for name, items in runs:
+                source = self.sources[name]
+                if hasattr(source, "history"):
+                    try:
+                        rows += await source.history(items, period)
+                    except Exception as exc:  # A panel without history doesn't stop the rest.
+                        rows.append({"label": name, "error": str(exc)[:40] or "ERROR"})
+            return rows
+
+        wanted = [(index, panel) for index, panel in enumerate(self.config.panels) if panel.history]
+        results = await asyncio.gather(*(panel_rows(panel) for _, panel in wanted))
+        return {"period": period, "panels": {str(index): rows for (index, _), rows in zip(wanted, results)}}
 
     def date_stores(self) -> dict[str, DatesSource]:
         """The dates sources with a file the page can edit."""
@@ -138,6 +163,7 @@ class Dashboard:
                     "title": panel.title,
                     "big": panel.big,
                     "icons": panel.icons,
+                    "history": panel.history,
                     "span": panel.column_span,
                     "rows": panel.row_span,
                     "key": panel.key,
@@ -146,6 +172,8 @@ class Dashboard:
                 }
                 for panel in self.config.panels
             ],
+            "history_key": self.config.history_key if any(panel.history for panel in self.config.panels) else None,
+            "history_periods": list(HISTORY_PERIODS),
             "date_editors": [{"name": name, "key": source.edit_key} for name, source in self.date_stores().items()],
             "pomodoros": [
                 {"name": name, "start_key": source.start_key, "reset_key": source.reset_key}
@@ -261,6 +289,13 @@ def make_app(dashboard: Dashboard) -> web.Application:
         except ValueError:
             raise web.HTTPBadRequest() from None
         return data if isinstance(data, dict) else {}
+
+    @routes.get("/api/history/{period}")
+    async def history(request: web.Request) -> web.Response:
+        period = request.match_info["period"]
+        if period not in HISTORY_PERIODS:
+            raise web.HTTPNotFound()
+        return web.json_response(await dashboard.history(period))
 
     @routes.get("/api/dates/{name}")
     async def list_dates(request: web.Request) -> web.Response:

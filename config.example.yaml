@@ -144,12 +144,13 @@ panels:
   # OpenWeather: field = now | summary | max | min | rain_probability | rain | wind | hours (count: N) | good_day
   - title: El tiempo
     source: tiempo
+    history: true                       # sale con el historial (tecla H): máximas y mínimas
     refresh: 600
     big: true                           # sin la gráfica: la temperatura actual en grande
     items:
       # O, en lugar de la temperatura grande (y sin big: true), la gráfica del día:
       # - field: chart                  # temperatura, viento, lluvia y nubes por horas
-      #   day_key: d                    # la tecla D (o un clic) pasa a mañana y vuelve
+      #   day_key: m                    # la tecla M pasa a mañana y vuelve
       #   heavy_rain: 4                 # mm/h desde los que la lluvia sale en rojo
       - field: now                      # temperatura actual, en grande
         also: [max, min]                # máxima y mínima de hoy, en pequeño al lado
@@ -164,10 +165,10 @@ panels:
       - field: hours
         count: 4
 
-  # Un panel con páginas: la tecla M pasa de un teléfono a otro.
-  - title: Móvil
+  # Un panel con páginas: la tecla T pasa de un teléfono a otro.
+  - title: Teléfono
     source: homeassistant
-    page_key: m
+    page_key: t
     pages:
       - name: Ana
         items:

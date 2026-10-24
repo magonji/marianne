@@ -25,6 +25,10 @@ let chartDay = 0;
 let chartHour = null;
 // The chart's place in the link cursor: it takes the cursor like a link, and then ← → pick the hour.
 const CHART_CURSOR = "chart:";
+// The history command (its key, H): which period is shown, and the max and min of it, by panel.
+let history = null; // { period, data, at } while it's on
+const HISTORY_NAMES = { today: "hoy", "7d": "7 días", "30d": "30 días", year: "este año", all: "siempre" };
+const HISTORY_REFRESH_MS = 5 * 60_000;
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -82,6 +86,7 @@ async function start() {
 }
 
 async function poll() {
+  if (history && history.data && Date.now() - history.at > HISTORY_REFRESH_MS) loadHistory(history.period);
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(response.statusText);
@@ -278,6 +283,7 @@ function closeReader() {
 }
 
 function drawPanel(view) {
+  if (history && view.panel.history) return drawHistoryPanel(view);
   const { panel, data, title, index } = view;
   const alerting = data.readings.some((reading) => parts(reading).some((part) => part.alert));
   const stale = Boolean(data.error);
@@ -690,7 +696,7 @@ function renderStatus() {
   const key = (letter, text, flashing = false) =>
     el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
   // R (refresh) still works, but stays out of the bar to save room.
-  items.push(key("t", "TEMA"));
+  items.push(key("c", "COLOR"));
   if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
@@ -701,6 +707,10 @@ function renderStatus() {
   for (const view of panelViews()) {
     if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
   }
+  if (layout.history_key) {
+    const label = history ? `HISTORIAL ${upper(HISTORY_NAMES[history.period])}` : "HISTORIAL";
+    items.push(key(layout.history_key, label));
+  }
   const weatherKey = chartKey();
   if (weatherKey) items.push(key(weatherKey, chartDay ? "HOY" : "MAÑANA"));
   for (const editor of layout.date_editors || []) items.push(key(editor.key, "FECHAS"));
@@ -710,8 +720,10 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
-  if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("escape", "SALIR"));
-  else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
+  if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
+  else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("q", "SALIR"));
+  // A pop-up panel open: Q closes it.
+  else if (popup !== null && !reader && !dates) items.push(key("q", "CERRAR"));
   if (!audio || audio.state !== "running") items.push(el("span", { class: "sound-hint" }, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -777,9 +789,11 @@ function onKey(event) {
 function press(key) {
   unlockAudio();
   noticeFlashUntil = 0;
+  // Q leaves, as in most terminal programs (and in elinor); Esc still does too.
+  if (key === "q") key = "escape";
   if (reader) {
     // In the reader: left and right choose between reading on the web and leaving, Enter accepts,
-    // up and down scroll the story. Esc leaves too.
+    // up and down scroll the story. Q (or Esc) leaves too.
     if (key === "enter") {
       if (reader.choice === "close") return closeReader();
       return void window.open(reader.reading.link, "_blank", "noopener");
@@ -804,6 +818,11 @@ function press(key) {
     if (link && link.dataset.reader) return link.click();
     return void window.open(cursor, "_blank", "noopener");
   }
+  if (key === layout.history_key) return nextHistory();
+  if (key === "escape" && history && popup === null && !cursor) {
+    history = null;
+    return render();
+  }
   if (key === "escape" && cursor) {
     cursor = null;
     chartHour = null;
@@ -811,7 +830,7 @@ function press(key) {
   }
   if (key === "escape" && popup !== null) return togglePopup(popup);
   if (key === "r") return post("/api/reload");
-  if (key === "t") return nextTheme();
+  if (key === "c") return nextTheme();
   if (key === "a") return acknowledge();
   const editor = (layout.date_editors || []).find((editor) => editor.key === key);
   if (editor) return openDates(editor.name);
@@ -936,6 +955,84 @@ function renderCursor() {
     chartHour = null;
     renderStatus();
   }
+}
+
+// ---------------------------------------------------------------- history
+
+// Each press goes to the next period (today, 7 days, 30 days, this year, ever) and then back to normal.
+function nextHistory() {
+  const periods = layout.history_periods;
+  const next = history ? periods.indexOf(history.period) + 1 : 0;
+  history = next < periods.length ? { period: periods[next], data: null, at: 0 } : null;
+  render();
+  if (history) loadHistory(history.period);
+}
+
+async function loadHistory(period) {
+  try {
+    const response = await fetch(`/api/history/${period}`, { cache: "no-store" });
+    const data = await response.json();
+    if (history && history.period === period) Object.assign(history, { data, at: Date.now() });
+  } catch {
+    if (history && history.period === period) Object.assign(history, { data: { panels: {} }, at: Date.now(), failed: true });
+  }
+  render();
+}
+
+// A panel in history mode: each row, the max and min of its values (and when) instead of the value.
+function drawHistoryPanel(view) {
+  const { panel, index } = view;
+  const node = el("section", {
+    class: "panel history",
+    style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}`,
+  });
+  node.append(el("h2", {}, upper(`${panel.title} · ${HISTORY_NAMES[history.period]}`)));
+  const body = el("div", { class: "body" });
+  const rows = history.data && history.data.panels[String(index)];
+  if (!history.data) body.append(el("div", { class: "waiting" }, "CARGANDO HISTORIAL"));
+  else if (history.failed) body.append(el("div", { class: "error" }, "SIN CONEXIÓN CON EL SERVIDOR"));
+  else if (!rows || !rows.length) body.append(el("div", { class: "waiting" }, "SIN DATOS"));
+  for (const row of rows || []) {
+    const several = (row.parts || []).length > 1;
+    // Nothing for any of its values: said once.
+    const error = row.error || (row.parts.every((part) => part.error) && row.parts[0].error);
+    const values = error
+      ? [el("span", { class: "error" }, upper(error))]
+      : row.parts.map((part) => historyPart(part, several));
+    const times = (row.parts || []).filter((part) => part.max_at)
+      .map((part) => `▲ ${part.max} ${part.unit} ${part.max_at}  ▼ ${part.min} ${part.unit} ${part.min_at}`).join("   ");
+    body.append(el("div", { class: "row", title: times || null },
+      el("span", { class: "label" }, upper(row.label)),
+      el("span", { class: "leader" }),
+      el("span", { class: "values" }, values.flatMap((value, at) => (at ? ["  ", value] : [value])))));
+  }
+  node.append(body);
+  if (history.at) node.append(el("div", { class: "subtitle" }, new Date(history.at).toTimeString().slice(0, 8)));
+  return node;
+}
+
+// One value's max and min. Alone in its row it says when each was; sharing it, only the numbers
+// (the times are in the row's tooltip).
+function historyPart(part, short) {
+  const out = document.createDocumentFragment();
+  if (part.error) {
+    out.append(el("span", { class: "error" }, upper(part.error)));
+    return out;
+  }
+  const unit = part.unit ? el("span", { class: "unit" }, ` ${part.unit}`) : "";
+  if (part.total !== undefined) {
+    out.append(el("span", { class: "value" }, part.total), unit);
+    return out;
+  }
+  if (short) {
+    out.append(el("span", { class: "dim" }, "▲"), el("span", { class: "value" }, part.max), " ",
+      el("span", { class: "dim" }, "▼"), el("span", { class: "value" }, part.min), unit);
+    return out;
+  }
+  out.append(el("span", { class: "dim" }, "▲ "), el("span", { class: "value" }, part.max), unit,
+    el("span", { class: "dim" }, ` ${part.max_at}  ▼ `), el("span", { class: "value" }, part.min), unit,
+    el("span", { class: "dim" }, ` ${part.min_at}`));
+  return out;
 }
 
 // ---------------------------------------------------------------- date editor
@@ -1065,7 +1162,7 @@ function drawDates() {
     return el("section", { class: "panel dates-editor" },
       el("h2", {}, upper("Fechas")),
       el("div", { class: "body" }, rows, add, error,
-        el("p", { class: "dim" }, upper("↑ ↓ elegir · ↵ cambiar · Esc salir"))));
+        el("p", { class: "dim" }, upper("↑ ↓ elegir · ↵ cambiar · Q salir"))));
   }
   const form = dates.form;
   const field = (label, input, after) =>
@@ -1099,7 +1196,8 @@ function datesKey(event) {
     const next = index < 0 ? 0 : Math.max(0, Math.min(focusables.length - 1, index + step));
     if (focusables[next]) focusables[next].focus();
   };
-  if (key === "escape") {
+  // Q leaves too, except while typing in a field (where it's a letter); Esc always.
+  if (key === "escape" || (key === "q" && !typing)) {
     event.preventDefault();
     return dates.form ? backToList() : closeDates();
   }

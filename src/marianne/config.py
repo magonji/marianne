@@ -17,7 +17,7 @@ from .sources.system import FIELDS as SYSTEM_FIELDS
 from .icons import parse as parse_icon
 from .sun import ROLES as SUN_ROLES
 
-RESERVED_KEYS = {"a", "q", "r", "t"}
+RESERVED_KEYS = {"a", "c", "h", "q", "r"}
 SEARCH_PATHS = [Path("config.yaml"), Path.home() / ".config" / "marianne" / "config.yaml"]
 
 
@@ -33,6 +33,8 @@ class PanelConfig:
     big: bool = False
     # Draw the items as a grid of icons (`icon: mdi:dolphin`) instead of rows.
     icons: bool = False
+    # Shown by the `history` command (its key, H): the max and min of its values over a period.
+    history: bool = False
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -51,6 +53,8 @@ class Config:
     boot: bool = True
     uppercase: bool = True
     bell: bool = False
+    # The `history` command's key.
+    history_key: str = "h"
     sources: dict[str, dict[str, Any]] = field(default_factory=dict)
     panels: list[PanelConfig] = field(default_factory=list)
 
@@ -107,6 +111,7 @@ def parse_config(data: dict[str, Any], path: Path | None) -> Config:
         boot=bool(data.get("boot", True)),
         uppercase=bool(data.get("uppercase", True)),
         bell=bool(data.get("bell", False)),
+        history_key=str(data.get("history_key", "h")).lower(),
         sources=sources,
         panels=panels,
     )
@@ -134,6 +139,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         row_span=int(raw.get("rows", 1)),
         big=bool(raw.get("big", False)),
         icons=bool(raw.get("icons", False)),
+        history=bool(raw.get("history", False)),
         key=key,
         pages=pages,
         page_key=page_key,
