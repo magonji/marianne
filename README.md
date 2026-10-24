@@ -69,7 +69,7 @@ uv run marianne --demo --theme phosphor
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares), la gráfica del tiempo, donde `←` `→` van de hora en hora, y el calendario, donde `Enter` entra en los días: `←` `→` de día en día y `↑` `↓` de semana en semana, pasando de mes, con lo que es cada día debajo; `Q` sale de los días. En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
 | `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
-| `H` | Historial: los paneles con `history: true` muestran la máxima y la mínima de cada valor de hoy; cada pulsación pasa a 7 días, 30 días, este año y desde siempre, y la última vuelve a lo normal (`Q` también) |
+| `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
 | `Q` | Salir: cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente (`Esc` hace lo mismo) |
 
@@ -211,23 +211,19 @@ observado, lo estimado o lo previsto.
 
 ### El historial
 
-Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` cambian sus
-valores por la máxima y la mínima del periodo, con cuándo fue cada una: hoy, últimos 7 días,
-últimos 30 días, este año y desde siempre (cada pulsación pasa al siguiente; la última, o `Q`,
-vuelve a lo normal).
+Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` muestran los
+últimos 7 días en una tabla: un día por fila y un valor por columna, con la máxima y la mínima
+de ese día (o, para un contador o la lluvia, el total del día). Otra `H`, o `Q`, vuelve a lo
+normal. Si un panel tiene más de tres valores, van en páginas (los de una misma fila, juntos: la
+temperatura y la humedad de una habitación) que pasan solas cada 10 segundos o con un clic en el
+título.
 
-En **7 días** sale, en lugar de eso, una tabla con un día por fila y un valor por columna: la
-máxima y la mínima de ese día (o el consumo, o la lluvia, del día). Si un panel tiene más de tres
-valores, van en páginas (los de una misma fila, juntos: la temperatura y la humedad de una
-habitación) que pasan solas cada 10 segundos o con un clic en el título.
-
-- **Home Assistant**: salen de sus estadísticas a largo plazo (los sensores con `state_class`);
-  los días posteriores al último informe de un sensor salen como `--`.
-  Para lo que se mide (temperatura, humedad, potencia...), la máxima y la mínima; para los
-  contadores (kWh), el día de más y el de menos consumo. Si un sensor no ha informado desde la
-  medianoche, "hoy" dice SIN DATOS en lugar de repetir su último valor.
-- **El tiempo**: de lo que Marianne ha ido observando (el fichero `history` de la fuente, que
-  guarda un resumen de cada día): temperatura, viento y lluvia por día, y desde cuándo hay datos.
+- **Home Assistant**: salen de sus estadísticas a largo plazo (los sensores con `state_class`),
+  hora a hora, sin las horas fuera de `valid_max`/`valid_min`; los días posteriores al último
+  informe de un sensor salen como `--`. Un elemento `on_today` con `week: true` da su tiempo
+  encendido de cada día (la calefacción).
+- **El tiempo**: de lo que Marianne ha ido observando (el fichero `history` de la fuente):
+  temperatura, viento y lluvia de cada día.
 
 ### Opciones de panel
 
@@ -270,6 +266,9 @@ habitación) que pasan solas cada 10 segundos o con un clic en el título.
 | `records: true` | Filas con la máxima y la mínima de toda la historia, de las estadísticas a largo plazo de Home Assistant |
 | `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)). El servidor los descarga una vez de jsDelivr y la página los pinta con líneas de barrido en el color del tema |
 | `history: false` | Deja este valor fuera del historial |
+| `week: false` | Lo deja fuera solo de la tabla de 7 días (p. ej. una potencia, para quedarse con su consumo) |
+| `week: true` | En un elemento `on_today`: su tiempo encendido de cada día en la tabla de 7 días (la calefacción) |
+| `week_name` | Su nombre en la tabla de 7 días ("Calefacción" en lugar de "Calefacción hoy") |
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 
@@ -308,7 +307,7 @@ src/marianne/
 
 API del servidor: `GET /api/layout` (paneles y opciones, sin entidades ni claves),
 `GET /api/state` (lecturas de cada panel y página, estado de las fuentes y del pomodoro),
-`GET /api/icon/<mdi|si>/<nombre>` (el SVG de un icono), `POST /api/reload` y
+`GET /api/icon/<mdi|si>/<nombre>` (el SVG de un icono), `GET /api/history` (los últimos 7 días de los paneles con historial), `POST /api/reload` y
 `POST /api/pomodoro/<fuente>/toggle|reset`.
 
 Para añadir una fuente nueva: una subclase de `Source` con `async fetch(items) -> list[Reading]`,

@@ -13,8 +13,7 @@ from urllib.parse import quote
 import httpx
 import websockets
 
-from .base import (WHEN_FORMAT, Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number,
-                   period_start)
+from .base import Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
 # Shortcuts for `format:`; any other value is used as a strftime pattern.
@@ -26,8 +25,6 @@ CACHE_SECONDS = 2.0
 HISTORY_CACHE_SECONDS = 300.0
 # Records only change when a new one is set: the current value is checked on every refresh anyway.
 RECORDS_CACHE_SECONDS = 3600.0
-# The `history` command: the statistics' step for each period.
-STATISTICS_STEP = {"today": "5minute", "7d": "hour", "30d": "day", "year": "day", "all": "day"}
 
 Samples = list[tuple[datetime, float]]
 Records = dict[str, tuple[datetime, float]]
@@ -69,8 +66,8 @@ class HomeAssistantSource(Source):
         self._records: tuple[float, dict[str, Records]] = (0.0, {})
         # When each numeric alert started, so `alarm_after` can wait for it to persist.
         self._alert_since: dict[tuple[str, str | None], datetime] = {}
-        # The `history` command's rows, by period and items, for a few minutes.
-        self._history_rows: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
+        # The `history` command's rows, by items, for a few minutes.
+        self._history_rows: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     def describe(self) -> str:
         return self.url
@@ -209,58 +206,13 @@ class HomeAssistantSource(Source):
         self._records = (time.monotonic(), {**cached, **records})
         return self._records[1]
 
-    async def history(self, items: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
-        """The `history` command's rows for these items over a period: the max and min of each
-        measured value (temperature, power...) and, for meters (kWh), of the consumption per day."""
-        key = (period, json.dumps([item.get("entity") for item in items]))
+    async def history(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """The `history` command's rows for these items: the last 7 days, day by day."""
+        key = json.dumps([item.get("entity") for item in items])
         cached = self._history_rows.get(key)
         if cached and time.monotonic() - cached[0] < HISTORY_CACHE_SECONDS:
             return cached[1]
-        states = await self._all_states()
-        now = datetime.now().astimezone()
-        if period == "7d":
-            rows = await self._week(items, states, now)
-            self._history_rows[key] = (time.monotonic(), rows)
-            return rows
-        start = period_start(period, now)
-        parts = {item_id: history_parts(item) for item_id, item in enumerate(items)}
-        kinds = {part["entity"]: state_kind(states.get(part["entity"])) for found in parts.values() for part in found}
-        measured = sorted(entity for entity, kind in kinds.items() if kind == "range")
-        meters = sorted(entity for entity, kind in kinds.items() if kind == "daily")
-        queries = []
-        if measured:
-            queries.append({"start_time": start.isoformat(), "statistic_ids": measured,
-                            "period": STATISTICS_STEP[period], "types": ["max", "min"]})
-        if meters:
-            queries.append({"start_time": midnight(start).isoformat(), "statistic_ids": meters,
-                            "period": "day", "types": ["change"]})
-        answers = await self._statistics(queries) if queries else []
-        if answers is None:
-            return [{"label": item.get("name", item.get("entity", "")), "error": "SIN CONEXIÓN"} for item in items]
-        found = {entity: rows for answer in answers for entity, rows in answer.items()}
-        rows = []
-        for item_id, item in enumerate(items):
-            if not parts[item_id]:
-                continue
-            row_parts = []
-            for part in parts[item_id]:
-                state = states.get(part["entity"])
-                unit = part.get("unit", (state or {}).get("attributes", {}).get("unit_of_measurement", ""))
-                current = parse_number((state or {}).get("state")) if state else None
-                if current is not None:
-                    current *= part.get("scale", 1)
-                kind = kinds[part["entity"]]
-                reported = parse_timestamp((state or {}).get("last_reported") or (state or {}).get("last_updated") or "")
-                if period == "today" and kind == "range" and reported is not None and reported < start:
-                    # Nothing reported since midnight: today's statistics would only repeat an old value.
-                    row_parts.append({"error": "SIN DATOS", "unit": unit})
-                    continue
-                if kind == "range":
-                    row_parts.append(range_part(part, found.get(part["entity"], []), unit, current, now, period))
-                elif kind == "daily":
-                    row_parts.append(daily_part(part, found.get(part["entity"], []), unit, period))
-            if row_parts:
-                rows.append({"label": item.get("name", item["entity"]), "parts": row_parts})
+        rows = await self._week(items, await self._all_states(), datetime.now().astimezone())
         self._history_rows[key] = (time.monotonic(), rows)
         return rows
 
@@ -377,7 +329,8 @@ class HomeAssistantSource(Source):
         each meter's consumption of each day."""
         days = last_days(now)
         start = midnight(now) - timedelta(days=len(days) - 1)
-        parts = [history_parts(item) for item in items]
+        # `week: false` leaves a value out of this table (e.g. a power, keeping its energy).
+        parts = [[part for part in history_parts(item) if part.get("week") is not False] for item in items]
         kinds = {part["entity"]: state_kind(states.get(part["entity"])) for found in parts for part in found}
         measured = sorted(entity for entity, kind in kinds.items() if kind == "range")
         meters = sorted(entity for entity, kind in kinds.items() if kind == "daily")
@@ -393,6 +346,10 @@ class HomeAssistantSource(Source):
         found = {entity: rows for answer in answers for entity, rows in answer.items()}
         rows = []
         for item, item_parts in zip(items, parts):
+            if item.get("on_today") and item.get("week"):
+                # Time on each day (the heating), from the states of the whole week.
+                rows.append(await self._week_on_time(item, states.get(item["entity"]), days, start, now))
+                continue
             row_parts = []
             for part in item_parts:
                 state = states.get(part["entity"]) or {}
@@ -403,11 +360,55 @@ class HomeAssistantSource(Source):
                 elif kind == "daily":
                     row_parts.append({"unit": unit, "daily": week_totals(part, found.get(part["entity"], []), days)})
             if row_parts:
-                rows.append({"label": item.get("name", item["entity"]), "parts": row_parts})
+                rows.append({"label": item.get("week_name", item.get("name", item["entity"])), "parts": row_parts})
         return rows
+
+    async def _week_on_time(
+        self, item: dict[str, Any], state: dict[str, Any] | None, days: list, start: datetime, now: datetime
+    ) -> dict[str, Any]:
+        label = item.get("week_name", item.get("name", item["entity"]))
+        params = {"filter_entity_id": item["entity"], "significant_changes_only": "0", "end_time": now.isoformat()}
+        if "attribute" not in item:
+            params["no_attributes"] = ""
+        try:
+            response = await self.client.get(f"/api/history/period/{quote(start.isoformat())}", params=params)
+            response.raise_for_status()
+        except httpx.HTTPError:
+            return {"label": label, "error": "SIN CONEXIÓN"}
+        series = next(iter(response.json()), [])
+        changes = [
+            (when, raw_state(item, sample))
+            for sample in series
+            if (when := parse_timestamp(sample.get("last_updated") or sample.get("last_changed", ""))) is not None
+        ]
+        if state:
+            latest = parse_timestamp(state.get("last_updated", ""))
+            if latest is not None and (not changes or latest > changes[-1][0]):
+                changes.append((latest, raw_state(item, state)))
+        if not changes:
+            return {"label": label, "error": "SIN DATOS"}
+        cells = []
+        for day in days:
+            day_start = datetime(day.year, day.month, day.day).astimezone()
+            day_end = min(day_start + timedelta(days=1), now)
+            # Nothing known before the first state of the history.
+            if day_end <= changes[0][0]:
+                cells.append(None)
+                continue
+            cells.append({"total": format_duration(minutes_on(item, changes, day_start, day_end))})
+        return {"label": label, "parts": [{"unit": "", "daily": cells}]}
 
     async def close(self) -> None:
         await self.client.aclose()
+
+
+def minutes_on(item: dict[str, Any], changes: list[tuple[datetime, str]], start: datetime, end: datetime) -> float:
+    """Minutes spent on between start and end, from the states in order of time."""
+    total = 0.0
+    for (when, raw), (until, _) in zip(changes, [*changes[1:], (end, "")]):
+        if is_on(item, raw):
+            total += max(0.0, (min(until, end) - max(when, start)).total_seconds())
+    return total / 60
 
 
 def week_ranges(
@@ -551,48 +552,6 @@ def row_time(row: dict[str, Any]) -> datetime:
     return datetime.fromisoformat(start).astimezone()
 
 
-def range_part(
-    part: dict[str, Any], rows: list[dict[str, Any]], unit: str, current: float | None, now: datetime, period: str
-) -> dict[str, Any]:
-    """Max and min of a measured value, with when each happened. Values beyond `valid_max` or
-    `valid_min` (a sensor's glitch) are left out. The statistics lag a little: the current value
-    counts too."""
-    scale = part.get("scale", 1)
-    high_limit, low_limit = part.get("valid_max"), part.get("valid_min")
-    samples = [(row_time(row), row["max"] * scale, row["min"] * scale) for row in rows
-               if row.get("max") is not None and row.get("min") is not None]
-    highs = [(when, value) for when, value, _ in samples if high_limit is None or value <= float(high_limit)]
-    lows = [(when, value) for when, _, value in samples if low_limit is None or value >= float(low_limit)]
-    if current is not None:
-        highs.append((now, current))
-        lows.append((now, current))
-    if not highs or not lows:
-        return {"error": "SIN DATOS", "unit": unit}
-    high, low = max(highs, key=lambda sample: sample[1]), min(lows, key=lambda sample: sample[1])
-    decimals, fmt = part.get("decimals"), WHEN_FORMAT[period]
-    return {"max": format_number(high[1], decimals), "max_at": f"{high[0]:{fmt}}",
-            "min": format_number(low[1], decimals), "min_at": f"{low[0]:{fmt}}", "unit": unit}
-
-
-def daily_part(part: dict[str, Any], rows: list[dict[str, Any]], unit: str, period: str) -> dict[str, Any]:
-    """A meter's consumption per day: today's alone, or the day of most and of least."""
-    # A negative day is the meter being reset or replaced, not consumption.
-    days = [(row_time(row), row["change"] * part.get("scale", 1)) for row in rows
-            if row.get("change") is not None and row["change"] >= 0]
-    decimals = part.get("decimals", 1)
-    if not days:
-        return {"error": "SIN DATOS", "unit": unit}
-    if period == "today":
-        return {"total": format_number(days[-1][1], decimals), "unit": unit}
-    # Today isn't over: it only counts if it's already a record.
-    finished = days[:-1] if days[-1][0].date() == datetime.now().date() and len(days) > 1 else days
-    high = max(days, key=lambda day: day[1])
-    low = min(finished, key=lambda day: day[1])
-    fmt = "%d/%m/%y" if period == "all" else "%d/%m"
-    return {"max": format_number(high[1], decimals), "max_at": f"{high[0]:{fmt}}",
-            "min": format_number(low[1], decimals), "min_at": f"{low[0]:{fmt}}", "unit": f"{unit}/día"}
-
-
 def format_timestamp(raw: str, fmt: str) -> str:
     """ISO timestamp from Home Assistant (usually UTC) -> local time with the given format."""
     if fmt == "auto":
@@ -636,12 +595,7 @@ def is_on(item: dict[str, Any], raw: str) -> bool:
 
 def on_minutes(item: dict[str, Any], changes: list[tuple[datetime, str]], now: datetime) -> float:
     """Minutes spent on since midnight, from the states in order of time."""
-    start = midnight(now)
-    total = 0.0
-    for (when, raw), (until, _) in zip(changes, [*changes[1:], (now, "")]):
-        if is_on(item, raw):
-            total += max(0.0, (min(until, now) - max(when, start)).total_seconds())
-    return total / 60
+    return minutes_on(item, changes, midnight(now), now)
 
 
 def format_duration(minutes: float) -> str:

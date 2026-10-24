@@ -26,7 +26,7 @@ from aiohttp import web
 from .config import Config, ConfigError, PanelConfig, load_config, parse_config
 from .icons import Icons
 from .sources import Source, build_source
-from .sources.base import HISTORY_PERIODS, last_days
+from .sources.base import last_days
 from .sources.dates import DatesSource
 from .sources.pomodoro import PomodoroSource
 
@@ -56,8 +56,9 @@ class Dashboard:
     def pages(panel: PanelConfig) -> list[list[dict[str, Any]]]:
         return [items for _, items in panel.pages] if panel.pages else [panel.items]
 
-    async def history(self, period: str) -> dict[str, Any]:
-        """The `history` command: for each panel with `history`, the rows of its sources' max and min."""
+    async def history(self) -> dict[str, Any]:
+        """The `history` command: for each panel with `history`, its values' max and min (or totals)
+        of each of the last 7 days."""
         async def panel_rows(panel: PanelConfig) -> list[dict[str, Any]]:
             rows: list[dict[str, Any]] = []
             # Consecutive items from the same source go together, as in load().
@@ -71,18 +72,16 @@ class Dashboard:
                 source = self.sources[name]
                 if hasattr(source, "history"):
                     try:
-                        rows += await source.history(items, period)
+                        rows += await source.history(items)
                     except Exception as exc:  # A panel without history doesn't stop the rest.
                         rows.append({"label": name, "error": str(exc)[:40] or "ERROR"})
             return rows
 
         wanted = [(index, panel) for index, panel in enumerate(self.config.panels) if panel.history]
         results = await asyncio.gather(*(panel_rows(panel) for _, panel in wanted))
-        answer = {"period": period, "panels": {str(index): rows for (index, _), rows in zip(wanted, results)}}
-        if period == "7d":
-            # The days of the "7 days" table, oldest first, as its rows.
-            answer["days"] = [day.isoformat() for day in last_days(datetime.now().astimezone())]
-        return answer
+        # The days, oldest first, as the table's rows.
+        days = [day.isoformat() for day in last_days(datetime.now().astimezone())]
+        return {"days": days, "panels": {str(index): rows for (index, _), rows in zip(wanted, results)}}
 
     def date_stores(self) -> dict[str, DatesSource]:
         """The dates sources with a file the page can edit."""
@@ -177,7 +176,6 @@ class Dashboard:
                 for panel in self.config.panels
             ],
             "history_key": self.config.history_key if any(panel.history for panel in self.config.panels) else None,
-            "history_periods": list(HISTORY_PERIODS),
             "date_editors": [{"name": name, "key": source.edit_key} for name, source in self.date_stores().items()],
             "pomodoros": [
                 {"name": name, "start_key": source.start_key, "reset_key": source.reset_key}
@@ -294,12 +292,9 @@ def make_app(dashboard: Dashboard) -> web.Application:
             raise web.HTTPBadRequest() from None
         return data if isinstance(data, dict) else {}
 
-    @routes.get("/api/history/{period}")
+    @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:
-        period = request.match_info["period"]
-        if period not in HISTORY_PERIODS:
-            raise web.HTTPNotFound()
-        return web.json_response(await dashboard.history(period))
+        return web.json_response(await dashboard.history())
 
     @routes.get("/api/dates/{name}")
     async def list_dates(request: web.Request) -> web.Response:

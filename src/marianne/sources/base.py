@@ -125,24 +125,6 @@ def make_fraction(number: float | None, item: dict[str, Any], unit: str) -> floa
     return max(0.0, min(1.0, (number - low) / (high - low)))
 
 
-# The `history` command's periods, and how the time of a max or min reads in each.
-HISTORY_PERIODS = ("today", "7d", "30d", "year", "all")
-WHEN_FORMAT = {"today": "%H:%M", "7d": "%d/%m %Hh", "30d": "%d/%m", "year": "%d/%m", "all": "%d/%m/%y"}
-
-
-def period_start(period: str, now: datetime) -> datetime:
-    """Where a history period starts: midnight, 7 or 30 days ago, 1 January, or ever."""
-    if period == "today":
-        return now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if period == "7d":
-        return now - timedelta(days=7)
-    if period == "30d":
-        return now - timedelta(days=30)
-    if period == "year":
-        return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    return datetime(2000, 1, 1, tzinfo=now.tzinfo)
-
-
 def last_days(now: datetime, count: int = 7) -> list:
     """The last `count` days up to today, oldest first (the history's "7 days", day by day)."""
     return [now.date() - timedelta(days=back) for back in range(count - 1, -1, -1)]

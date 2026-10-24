@@ -1,8 +1,8 @@
 import asyncio
 from datetime import date, datetime, timedelta
 
-from marianne.sources.homeassistant import daily_part, history_parts, range_part, state_kind
-from marianne.sources.openweather import WeatherHistory, daily_summaries, weather_history
+from marianne.sources.homeassistant import history_parts, state_kind, week_totals
+from marianne.sources.openweather import WeatherHistory, daily_summaries, weather_week
 
 NOW = datetime(2026, 10, 24, 14, 0).astimezone()
 
@@ -23,22 +23,11 @@ def test_which_values_have_a_history():
     assert state_kind({"attributes": {}}) is None
 
 
-def test_range_leaves_out_glitches_and_counts_the_current_value():
-    rows = [stat(NOW - timedelta(hours=3), max=250.0, min=40.0),
-            stat(NOW - timedelta(hours=2), max=179919.0, min=60.0),  # the meter's glitch
-            stat(NOW - timedelta(hours=1), max=900.0, min=55.0)]
-    part = range_part({"entity": "sensor.luz", "valid_max": 20000, "decimals": 0}, rows, "W", 30.0, NOW, "today")
-    assert (part["max"], part["max_at"]) == ("900", f"{NOW - timedelta(hours=1):%H:%M}")
-    assert (part["min"], part["min_at"]) == ("30", f"{NOW:%H:%M}")  # right now, not yet in the statistics
-    assert range_part({}, [], "W", None, NOW, "7d") == {"error": "SIN DATOS", "unit": "W"}
-
-
-def test_daily_consumption_ignores_resets_and_an_unfinished_today():
+def test_week_totals_ignore_resets():
     day = lambda n: NOW.replace(hour=0) - timedelta(days=n)
-    rows = [stat(day(3), change=4.4), stat(day(2), change=-198.4), stat(day(1), change=18.9), stat(day(0), change=1.2)]
-    part = daily_part({"decimals": 1}, rows, "kWh", "7d")
-    assert (part["max"], part["min"], part["unit"]) == ("18.9", "4.4", "kWh/día")
-    assert daily_part({"decimals": 1}, rows, "kWh", "today") == {"total": "1.2", "unit": "kWh"}
+    rows = [stat(day(2), change=4.4), stat(day(1), change=-198.4), stat(day(0), change=1.2)]
+    days = [day(n).date() for n in (2, 1, 0)]
+    assert week_totals({"decimals": 1}, rows, days) == [{"total": "4.4"}, None, {"total": "1.2"}]
 
 
 def test_weather_history_keeps_old_days_as_summaries(tmp_path):
@@ -56,11 +45,9 @@ def test_weather_history_keeps_old_days_as_summaries(tmp_path):
     assert set(again.days) == set(history.days) and len(again.samples) == len(history.samples)
     assert daily_summaries(history.samples)["2026-10-22"]["rain"] == 1.0
 
-    rows = {row["label"]: row["parts"][0] for row in weather_history(history, "all", datetime(2026, 10, 24, 23).astimezone())}
-    assert rows["Temperatura"]["max_at"] == "24/10/26" and rows["Lluvia"]["max"] == "1.0"
-    assert rows["Datos desde"]["total"] == "20/10/26"
-    today = {row["label"]: row["parts"][0] for row in weather_history(history, "today", datetime(2026, 10, 24, 23).astimezone())}
-    assert today["Temperatura"]["max_at"] == "15:00" and today["Lluvia"] == {"total": "1.0", "unit": "mm"}
+    week = {row["label"]: row["parts"][0]["daily"] for row in weather_week(history, datetime(2026, 10, 24, 23).astimezone())}
+    assert [cell and cell["max"] for cell in week["Temperatura"]][:2] == [None, None]  # 18 and 19: not observed
+    assert week["Temperatura"][-1]["max"] == "16.1" and week["Lluvia"][-1] == {"total": "1.0"}
 
 
 def test_history_route(tmp_path):
@@ -79,12 +66,11 @@ def test_history_route(tmp_path):
     async def run():
         async with TestClient(TestServer(make_app(dashboard))) as client:
             layout = await (await client.get("/api/layout")).json()
-            assert layout["history_key"] == "h" and layout["history_periods"][0] == "today"
+            assert layout["history_key"] == "h"
             assert [panel["history"] for panel in layout["panels"]] == [True, False]
-            answer = await (await client.get("/api/history/7d")).json()
-            assert answer["period"] == "7d" and list(answer["panels"]) == ["0"]
+            answer = await (await client.get("/api/history")).json()
+            assert len(answer["days"]) == 7 and list(answer["panels"]) == ["0"]
             assert answer["panels"]["0"] == [{"label": "Temperatura", "error": "SIN DATOS"}]  # nothing observed yet
-            assert (await client.get("/api/history/siglo")).status == 404
 
     asyncio.run(run())
 
@@ -103,3 +89,14 @@ def test_week_ranges_by_hour_without_glitches_or_silent_days():
     # A sensor silent since the day before yesterday: the days after are unknown
     silent = {"state": "6.0", "last_reported": (NOW - timedelta(days=2)).isoformat()}
     assert week_ranges({}, rows, days, silent, NOW)[1:] == [None, None]
+
+
+def test_minutes_on_within_a_day():
+    from marianne.sources.homeassistant import minutes_on
+
+    day = datetime(2026, 10, 23).astimezone()
+    item = {"on_states": ["heating"]}
+    changes = [(day - timedelta(hours=1), "heating"), (day + timedelta(hours=1), "idle"),
+               (day + timedelta(hours=7), "heating"), (day + timedelta(hours=7, minutes=30), "idle")]
+    # From midnight (it was already heating) to 1:00, and 7:00 to 7:30
+    assert minutes_on(item, changes, day, day + timedelta(days=1)) == 90

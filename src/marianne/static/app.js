@@ -29,9 +29,8 @@ const CHART_CURSOR = "chart:";
 const CALENDAR_CURSOR = "calendar:";
 let calendarView = null; // { year, month } shown; null, this month
 let calendarDay = null; // "YYYY-MM-DD" picked while going through the days
-// The history command (its key, H): which period is shown, and the max and min of it, by panel.
-let history = null; // { period, data, at } while it's on
-const HISTORY_NAMES = { today: "hoy", "7d": "7 días", "30d": "30 días", year: "este año", all: "siempre" };
+// The history command (its key, H): the last 7 days, day by day, in the panels that have it.
+let history = null; // { data, at } while it's on
 const HISTORY_REFRESH_MS = 5 * 60_000;
 // The "7 days" table: at most this many values a page, which go by on their own.
 const WEEK_COLUMNS = 3;
@@ -95,8 +94,8 @@ async function start() {
 }
 
 async function poll() {
-  if (history && history.data && Date.now() - history.at > HISTORY_REFRESH_MS) loadHistory(history.period);
-  if (history && history.period === "7d" && Date.now() - weekTurned > WEEK_PAGE_MS) {
+  if (history && history.data && Date.now() - history.at > HISTORY_REFRESH_MS) loadHistory();
+  if (history && Date.now() - weekTurned > WEEK_PAGE_MS) {
     weekTurned = Date.now();
     for (const index of Object.keys(weekPages)) weekPages[index] += 1;
   }
@@ -296,7 +295,7 @@ function closeReader() {
 }
 
 function drawPanel(view) {
-  if (history && view.panel.history) return drawHistoryPanel(view);
+  if (history && view.panel.history) return drawWeekPanel(view);
   const { panel, data, title, index } = view;
   const alerting = data.readings.some((reading) => parts(reading).some((part) => part.alert));
   const stale = Boolean(data.error);
@@ -833,10 +832,7 @@ function renderStatus() {
   for (const view of panelViews()) {
     if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
   }
-  if (layout.history_key) {
-    const label = history ? `HISTORIAL ${upper(HISTORY_NAMES[history.period])}` : "HISTORIAL";
-    items.push(key(layout.history_key, label));
-  }
+  if (layout.history_key) items.push(key(layout.history_key, history ? "AHORA" : "HISTORIAL"));
   const weatherKey = chartKey();
   if (weatherKey) items.push(key(weatherKey, chartDay ? "HOY" : "MAÑANA"));
   for (const editor of layout.date_editors || []) items.push(key(editor.key, "FECHAS"));
@@ -957,7 +953,7 @@ function press(key) {
     if (link && link.dataset.reader) return link.click();
     return void window.open(cursor, "_blank", "noopener");
   }
-  if (key === layout.history_key) return nextHistory();
+  if (key === layout.history_key) return toggleHistory();
   if (key === "escape" && history && popup === null && !cursor) {
     history = null;
     return render();
@@ -1104,59 +1100,24 @@ function renderCursor() {
 
 // ---------------------------------------------------------------- history
 
-// Each press goes to the next period (today, 7 days, 30 days, this year, ever) and then back to normal.
-function nextHistory() {
-  const periods = layout.history_periods;
-  const next = history ? periods.indexOf(history.period) + 1 : 0;
-  history = next < periods.length ? { period: periods[next], data: null, at: 0 } : null;
+// H shows the last 7 days in the panels that have `history`, and H again (or Q) goes back.
+function toggleHistory() {
+  history = history ? null : { data: null, at: 0 };
   for (const index of Object.keys(weekPages)) delete weekPages[index];
   weekTurned = Date.now();
   render();
-  if (history) loadHistory(history.period);
+  if (history) loadHistory();
 }
 
-async function loadHistory(period) {
+async function loadHistory() {
   try {
-    const response = await fetch(`/api/history/${period}`, { cache: "no-store" });
+    const response = await fetch("/api/history", { cache: "no-store" });
     const data = await response.json();
-    if (history && history.period === period) Object.assign(history, { data, at: Date.now() });
+    if (history) Object.assign(history, { data, at: Date.now(), failed: false });
   } catch {
-    if (history && history.period === period) Object.assign(history, { data: { panels: {} }, at: Date.now(), failed: true });
+    if (history) Object.assign(history, { data: { panels: {}, days: [] }, at: Date.now(), failed: true });
   }
   render();
-}
-
-// A panel in history mode: each row, the max and min of its values (and when) instead of the value.
-function drawHistoryPanel(view) {
-  if (history.period === "7d" && history.data && history.data.days) return drawWeekPanel(view);
-  const { panel, index } = view;
-  const node = el("section", {
-    class: "panel history",
-    style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}`,
-  });
-  node.append(el("h2", {}, upper(`${panel.title} · ${HISTORY_NAMES[history.period]}`)));
-  const body = el("div", { class: "body" });
-  const rows = history.data && history.data.panels[String(index)];
-  if (!history.data) body.append(el("div", { class: "waiting" }, "CARGANDO HISTORIAL"));
-  else if (history.failed) body.append(el("div", { class: "error" }, "SIN CONEXIÓN CON EL SERVIDOR"));
-  else if (!rows || !rows.length) body.append(el("div", { class: "waiting" }, "SIN DATOS"));
-  for (const row of rows || []) {
-    const several = (row.parts || []).length > 1;
-    // Nothing for any of its values: said once.
-    const error = row.error || (row.parts.every((part) => part.error) && row.parts[0].error);
-    const values = error
-      ? [el("span", { class: "error" }, upper(error))]
-      : row.parts.map((part) => historyPart(part, several));
-    const times = (row.parts || []).filter((part) => part.max_at)
-      .map((part) => `▲ ${part.max} ${part.unit} ${part.max_at}  ▼ ${part.min} ${part.unit} ${part.min_at}`).join("   ");
-    body.append(el("div", { class: "row", title: times || null },
-      el("span", { class: "label" }, upper(row.label)),
-      el("span", { class: "leader" }),
-      el("span", { class: "values" }, values.flatMap((value, at) => (at ? ["  ", value] : [value])))));
-  }
-  node.append(body);
-  if (history.at) node.append(el("div", { class: "subtitle" }, new Date(history.at).toTimeString().slice(0, 8)));
-  return node;
 }
 
 // The "7 days": a row a day, a column a value with that day's max and min (a meter's or the rain's,
@@ -1164,6 +1125,12 @@ function drawHistoryPanel(view) {
 // temperature and humidity stay together); a click on the title turns the page.
 function drawWeekPanel(view) {
   const { panel, index } = view;
+  if (!history.data || history.failed) {
+    const message = history.failed ? "SIN CONEXIÓN CON EL SERVIDOR" : "CARGANDO HISTORIAL";
+    return el("section", { class: "panel history", style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}` },
+      el("h2", {}, upper(`${panel.title} · 7 días`)),
+      el("div", { class: "body" }, el("div", { class: history.failed ? "error" : "waiting" }, message)));
+  }
   const rows = history.data.panels[String(index)] || [];
   const columns = [];
   for (const row of rows) {
@@ -1222,30 +1189,6 @@ function drawWeekPanel(view) {
   node.append(body);
   if (history.at) node.append(el("div", { class: "subtitle" }, new Date(history.at).toTimeString().slice(0, 8)));
   return node;
-}
-
-// One value's max and min. Alone in its row it says when each was; sharing it, only the numbers
-// (the times are in the row's tooltip).
-function historyPart(part, short) {
-  const out = document.createDocumentFragment();
-  if (part.error) {
-    out.append(el("span", { class: "error" }, upper(part.error)));
-    return out;
-  }
-  const unit = part.unit ? el("span", { class: "unit" }, ` ${part.unit}`) : "";
-  if (part.total !== undefined) {
-    out.append(el("span", { class: "value" }, part.total), unit);
-    return out;
-  }
-  if (short) {
-    out.append(el("span", { class: "dim" }, "▲"), el("span", { class: "value" }, part.max), " ",
-      el("span", { class: "dim" }, "▼"), el("span", { class: "value" }, part.min), unit);
-    return out;
-  }
-  out.append(el("span", { class: "dim" }, "▲ "), el("span", { class: "value" }, part.max), unit,
-    el("span", { class: "dim" }, ` ${part.max_at}  ▼ `), el("span", { class: "value" }, part.min), unit,
-    el("span", { class: "dim" }, ` ${part.min_at}`));
-  return out;
 }
 
 // ---------------------------------------------------------------- date editor
