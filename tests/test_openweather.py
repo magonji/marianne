@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -197,3 +197,41 @@ def test_next_rain():
     later = datetime(2026, 10, 18, 20, 0, tzinfo=timezone.utc)
     reading = field_reading({"field": "next_rain"}, FORECAST, later)
     assert (reading.label, reading.value) == ("Próxima lluvia", "☂ mañana 13h · 60 %")
+
+
+def test_chart_observed_hours_then_forecast(tmp_path):
+    from marianne.sources.openweather import WeatherHistory, chart_day, chart_reading
+
+    utc = timezone.utc
+    day = datetime(2026, 10, 24, tzinfo=utc)
+    now = day + timedelta(hours=13, minutes=20)
+    history = WeatherHistory(tmp_path / "tiempo.json")
+    # Observed every 20 min from 10:00: -1 °C then warmer, and 2 mm/h of rain at 11.
+    for minutes in range(0, 200, 20):
+        t = day + timedelta(hours=10, minutes=minutes)
+        rain = {"1h": 2.0} if t.hour == 11 else {}
+        history.add({"dt": int(t.timestamp()), "main": {"temp": -1 + minutes / 40}, "wind": {"speed": 5},
+                     "clouds": {"all": 40}, "rain": rain})
+    history.add({"dt": int((day + timedelta(hours=10)).timestamp()), "main": {"temp": 99}})  # repeated: ignored
+    assert len(WeatherHistory(tmp_path / "tiempo.json").samples) == 10  # kept in the file
+
+    slot = lambda hour, temp, rain=0.0, pop=0.0: {
+        "dt": int((day + timedelta(hours=hour)).timestamp()), "main": {"temp": temp}, "wind": {"speed": 10},
+        "clouds": {"all": 80}, "pop": pop, **({"rain": {"3h": rain}} if rain else {})}
+    forecast = {"city": {"timezone": 0}, "list": [slot(12, 3), slot(15, 2, rain=15, pop=0.8), slot(18, -2), slot(24, -4)]}
+
+    today = chart_day(day.date(), forecast, history.samples, now, utc)
+    observed = [point for point in today["points"] if point["observed"]]
+    forecasted = [point for point in today["points"] if not point["observed"]]
+    assert [int((p["t"] - today["start"]) // 3600) for p in observed] == [10, 11, 12, 13]
+    assert observed[0]["temp"] == pytest.approx(-0.5) and observed[0]["wind"] == pytest.approx(18)
+    # Only the forecast still to come, up to the slot after midnight so the line reaches the edge
+    assert [int((p["t"] - today["start"]) // 3600) for p in forecasted] == [15, 18, 24]
+    rain = {(int((b["from"] - today["start"]) // 3600), b["observed"]): b for b in today["bars"]}
+    assert rain[(11, True)]["rain"] == pytest.approx(2.0) and rain[(11, True)]["pop"] == 1.0
+    assert rain[(15, False)]["rain"] == pytest.approx(5.0) and rain[(15, False)]["pop"] == 0.8
+    assert today["pop"] == pytest.approx(80) and today["min"] == pytest.approx(-2)
+
+    reading = chart_reading({"field": "chart"}, "El tiempo", forecast, now, {"main": {"temp": 2.5}}, history.samples)
+    assert reading.chart["key"] == "d" and reading.chart["heavy_rain"] == 4.0 and reading.chart["temp"] == 2.5
+    assert [day["date"] for day in reading.chart["days"]] == ["2026-10-24", "2026-10-25"]

@@ -588,6 +588,115 @@ a.tile.cursor > span {
   fill: var(--accent);
 }
 
+/* ---- weather chart ---- */
+
+.chart-box {
+  cursor: pointer;
+}
+
+.chart-plot {
+  display: grid;
+  grid-template-columns: 3ch 1fr 4ch;
+  gap: 0 0.5ch;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: 4.6em;
+}
+
+.chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  color: var(--dim);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.chart-axis.right {
+  text-align: left;
+}
+
+/* The hours under the drawing: one label every 3, at the start of each eighth of the day. */
+.chart-hours {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  margin: 0 calc(4ch + 0.5ch) 0 calc(3ch + 0.5ch);
+  color: var(--dim);
+  font-size: 0.85rem;
+  line-height: 1.1;
+}
+
+.chart-hours span {
+  transform: translateX(-50%);
+}
+
+.chart-hours span:first-child {
+  transform: none;
+}
+
+.chart .tick {
+  stroke: color-mix(in srgb, var(--foreground) 16%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .zero {
+  stroke: var(--error);
+  opacity: 0.5;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .now {
+  stroke: var(--soft);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The solid colour with opacity: color-mix() isn't always painted well in SVG fills. */
+.chart .rain {
+  fill: var(--primary);
+  opacity: 0.55;
+}
+
+.chart .rain.heavy {
+  fill: var(--error);
+  opacity: 0.9;
+}
+
+.chart .clouds,
+.chart .wind {
+  fill: none;
+  stroke: var(--soft);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .temp {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart .temp.cold {
+  stroke: var(--error);
+}
+
+.chart-caption {
+  text-align: center;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sun .faint {
   fill: var(--dim);
 }

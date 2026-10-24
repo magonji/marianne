@@ -39,6 +39,7 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             api_key=secret(spec.get("api_key", "${OPENWEATHER_KEY}")),
             city=spec.get("city", "Glasgow,GB"),
             lang=spec.get("lang", "es"),
+            history_file=spec.get("history"),
         )
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),

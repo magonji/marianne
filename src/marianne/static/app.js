@@ -19,6 +19,8 @@ let reader = null; // the story open in the reader: its reading, the title of it
 const READER_CHOICES = ["read", "close"];
 // The date editor (its key, F by default): the dates of one source, and the form when one is open.
 let dates = null;
+// Which day the weather chart shows: 0 today, 1 tomorrow (its key, D by default, switches).
+let chartDay = 0;
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -308,6 +310,10 @@ function drawPanel(view) {
         if (reading === firstSun) body.append(drawSun(sun));
         continue;
       }
+      if (reading.chart) {
+        body.append(drawChart(reading.chart), el("div", { class: "rule" }));
+        continue;
+      }
       body.append(drawRow(panel, reading, { labelWidth, valueWidth }));
     }
   }
@@ -418,6 +424,118 @@ function drawBig(panel, reading) {
       reading.note ? el("span", { class: reading.error ? "error" : null }, `  ${reading.note}`) : ""));
 }
 
+// The day's weather: temperature (thick line, in red below 0 °C), wind (thin line), rain (bars as
+// high as the mm an hour and as wide as the chance of it; red when heavy) and clouds (a row of
+// double chevrons at their %). Hours gone show what was observed; the rest, the forecast.
+function drawChart(chart) {
+  const day = chart.days[Math.min(chartDay, chart.days.length - 1)];
+  // The drawing stretches to the panel's width; the numbers go around it, in HTML, so they don't.
+  const W = 240, top = 3, bottom = 100;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "chart");
+  svg.setAttribute("viewBox", `0 0 ${W} ${bottom}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  const draw = (tag, attrs) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    svg.append(node);
+    return node;
+  };
+  const x = (t) => ((t - day.start) / (day.end - day.start)) * W;
+  const height = bottom - top;
+  const points = day.points;
+  const temps = points.map((point) => point.temp);
+  let low = Math.floor(Math.min(...temps)) - 1, high = Math.ceil(Math.max(...temps)) + 1;
+  if (!temps.length) [low, high] = [0, 10];
+  if (high - low < 6) [low, high] = [Math.floor((low + high) / 2 - 3), Math.ceil((low + high) / 2 + 3)];
+  const yTemp = (value) => bottom - ((value - low) / (high - low)) * height;
+  const windTop = Math.round(Math.max(30, ...points.map((point) => point.wind)) * 1.1);
+  const yWind = (value) => bottom - (value / windTop) * height;
+  const rainTop = Math.max(chart.heavy_rain * 2, ...day.bars.map((bar) => bar.rain));
+  const yClouds = (value) => bottom - (value / 100) * height;
+
+  for (let hour = 3; hour < 24; hour += 3) {
+    const at = x(day.start + hour * 3600);
+    draw("line", { class: "tick", x1: at, y1: top, x2: at, y2: bottom });
+  }
+  if (low < 0 && high > 0) draw("line", { class: "zero", x1: 0, y1: yTemp(0), x2: W, y2: yTemp(0) });
+
+  // Rain: as high as the mm an hour, as wide (centred in its slot) as the chance of it.
+  for (const bar of day.bars) {
+    const from = x(bar.from), to = x(bar.to), width = Math.max(1, (to - from) * Math.max(0.15, bar.pop));
+    const tall = Math.max(1.5, Math.min(1, bar.rain / rainTop) * height);
+    draw("rect", {
+      class: `rain${bar.rain >= chart.heavy_rain ? " heavy" : ""}`,
+      x: (from + to - width) / 2, y: bottom - tall, width, height: tall,
+    });
+  }
+
+  // Clouds: a double chevron every hour at the % of sky covered, interpolated between points.
+  const interpolate = (t, key) => {
+    const after = points.findIndex((point) => point.t >= t);
+    if (after < 0 || (after === 0 && points[0].t > t)) return null;
+    if (points[after].t === t) return points[after][key];
+    const a = points[after - 1], b = points[after];
+    return a[key] + ((b[key] - a[key]) * (t - a.t)) / (b.t - a.t);
+  };
+  for (let hour = 0; hour < 24; hour += 1) {
+    const t = day.start + hour * 3600 + 1800;
+    const clouds = interpolate(t, "clouds");
+    if (clouds === null) continue;
+    const cx = x(t), cy = Math.max(top + 3, Math.min(bottom - 6, yClouds(clouds)));
+    draw("path", { class: "clouds", d: `M ${cx - 3} ${cy + 1.5} L ${cx} ${cy - 1.5} L ${cx + 3} ${cy + 1.5} M ${cx - 3} ${cy + 4.5} L ${cx} ${cy + 1.5} L ${cx + 3} ${cy + 4.5}` });
+  }
+
+  // Wind, thin; then the temperature, thick, split where it crosses 0 °C to paint the cold in red.
+  const line = (key, y) => points.map((point) => `${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`).join(" ");
+  if (points.length > 1) draw("polyline", { class: "wind", points: line("wind", yWind) });
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1], b = points[index];
+    const pieces = [[a.t, a.temp]];
+    if ((a.temp < 0) !== (b.temp < 0)) pieces.push([a.t + ((0 - a.temp) * (b.t - a.t)) / (b.temp - a.temp), 0]);
+    pieces.push([b.t, b.temp]);
+    for (let piece = 1; piece < pieces.length; piece += 1) {
+      const [t1, v1] = pieces[piece - 1], [t2, v2] = pieces[piece];
+      draw("line", { class: `temp${(v1 + v2) / 2 < 0 ? " cold" : ""}`, x1: x(t1), y1: yTemp(v1), x2: x(t2), y2: yTemp(v2) });
+    }
+  }
+
+  // Now, on today's chart: left of it what was observed, right of it the forecast.
+  if (chart.now >= day.start && chart.now < day.end) {
+    draw("line", { class: "now", x1: x(chart.now), y1: top, x2: x(chart.now), y2: bottom });
+  }
+
+  const value = (number, unit = "°") => (number === null || number === undefined ? "--" : `${number.toFixed(0)}${unit}`);
+  const caption = [
+    chartDay ? upper("Mañana") : `${upper("Ahora")} ${chart.temp === null ? "--" : chart.temp.toFixed(1) + "°C"}`,
+    `▲ ${value(day.max)}`, `▼ ${value(day.min)}`, `☂ ${value(day.pop, "%")}`,
+  ].join("  ");
+  // Midnight at the left edge needs no label; then one every 3 hours.
+  const hours = [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => el("span", {}, hour ? String(hour).padStart(2, "0") : ""));
+  return el("div", { class: "chart-box", title: upper(chartDay ? "Ver hoy" : "Ver mañana"), onclick: toggleChartDay },
+    el("div", { class: "chart-plot" },
+      el("div", { class: "chart-axis" }, el("span", {}, `${high}°`), el("span", {}, `${low}°`)),
+      svg,
+      el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
+    el("div", { class: "chart-hours" }, hours),
+    el("div", { class: "chart-caption" }, caption));
+}
+
+function toggleChartDay() {
+  chartDay = chartDay ? 0 : 1;
+  render();
+}
+
+// The weather chart's key, if a panel has one.
+function chartKey() {
+  for (const { data } of panelViews()) {
+    const reading = data.readings.find((reading) => reading.chart);
+    if (reading) return reading.chart.key;
+  }
+  return null;
+}
+
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.
 function drawSun(readings) {
   const value = (role) => (readings[role] && !readings[role].error ? `${readings[role].value}${readings[role].unit}` : "");
@@ -488,6 +606,8 @@ function renderStatus() {
   for (const view of panelViews()) {
     if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
   }
+  const weatherKey = chartKey();
+  if (weatherKey) items.push(key(weatherKey, chartDay ? "HOY" : "MAÑANA"));
   for (const editor of layout.date_editors || []) items.push(key(editor.key, "FECHAS"));
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
@@ -597,6 +717,7 @@ function press(key) {
   if (key === "a") return acknowledge();
   const editor = (layout.date_editors || []).find((editor) => editor.key === key);
   if (editor) return openDates(editor.name);
+  if (key === chartKey()) return toggleChartDay();
   for (const pomodoro of layout.pomodoros) {
     if (key === pomodoro.start_key) return post(`/api/pomodoro/${pomodoro.name}/toggle`);
     if (key === pomodoro.reset_key) return post(`/api/pomodoro/${pomodoro.name}/reset`);

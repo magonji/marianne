@@ -50,6 +50,7 @@ sources:
     type: openweather                   # api gratuita de previsión de openweathermap.org
     api_key: ${OPENWEATHER_KEY}
     city: Glasgow,GB
+    history: data/tiempo.json           # opcional: guarda lo observado, para las horas pasadas de la gráfica
 
 panels:
   - title: Clima
@@ -143,8 +144,12 @@ panels:
   - title: El tiempo
     source: tiempo
     refresh: 600
-    big: true
+    big: true                           # sin la gráfica: la temperatura actual en grande
     items:
+      # O, en lugar de la temperatura grande (y sin big: true), la gráfica del día:
+      # - field: chart                  # temperatura, viento, lluvia y nubes por horas
+      #   day_key: d                    # la tecla D (o un clic) pasa a mañana y vuelve
+      #   heavy_rain: 4                 # mm/h desde los que la lluvia sale en rojo
       - field: now                      # temperatura actual, en grande
         also: [max, min]                # máxima y mínima de hoy, en pequeño al lado
       - field: summary

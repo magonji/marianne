@@ -28,7 +28,9 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   abren con una tecla, y su opción del menú parpadea si tienen alguna alerta.
 - **Home Assistant**: traducción de estados, horas en tu zona horaria, tendencia ▲▼ y
   máxima/mínima del día desde el historial, y aviso de sensores que han dejado de informar.
-- **El tiempo** de OpenWeather (API gratuita): temperatura actual, resumen del día, máxima, mínima, lluvia,
+- **El tiempo** de OpenWeather (API gratuita): una gráfica del día (temperatura, viento,
+  lluvia y nubes por horas, con lo observado en las horas ya pasadas y la previsión en las que
+  faltan, y la tecla `D` para ver mañana), temperatura actual, resumen del día, máxima, mínima, lluvia,
   viento, próximas horas y si mañana hará buen día.
 - **Esquema del sol**: el arco del día con el sol encima, las horas de alba, salida,
   mediodía, puesta y anochecer, y la elevación y el azimut.
@@ -66,6 +68,7 @@ uv run marianne --demo --theme phosphor
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares). En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
+| `D` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Esc` para volver) |
 | `Esc` | Cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente |
 
@@ -164,7 +167,7 @@ panels:
 | `type` | Qué es | Elementos |
 |---|---|---|
 | `homeassistant` | REST API de Home Assistant (`url`, `token`, `verify_ssl`) | `entity:` |
-| `openweather` | Previsión gratuita de openweathermap.org (`api_key`, `city`, `lang`) | `field:` `now` (temperatura actual, con un dibujo del tiempo que hace si va en grande), `summary`, `max`, `min`, `rain_probability`, `rain`, `next_rain` (cuándo vuelve a llover), `wind`, `hours`, `good_day` |
+| `openweather` | Previsión gratuita de openweathermap.org (`api_key`, `city`, `lang`) | `field:` `chart` (gráfica del día, ver abajo), `now` (temperatura actual, con un dibujo del tiempo que hace si va en grande), `summary`, `max`, `min`, `rain_probability`, `rain`, `next_rain` (cuándo vuelve a llover), `wind`, `hours`, `good_day` |
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`; con `wud: <url>` pregunta además a What's Up Docker qué contenedores tienen actualización, y el icono de su servicio sale en rojo): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `link` (adónde lleva un clic, si no es la misma `url`), `container` o `containers` (sus contenedores en What's Up Docker), `alert: false`, `alarm_after`, `alarm_text` |
@@ -172,6 +175,23 @@ panels:
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`) |
+
+### La gráfica del tiempo
+
+`field: chart` en un panel de OpenWeather dibuja el día de 00 a 24 h:
+
+- **Temperatura**: línea gruesa; en rojo por debajo de 0 °C (y una raya roja discontinua en el 0).
+- **Viento**: línea fina, con su escala en km/h a la derecha.
+- **Lluvia**: una barra por tramo, tan alta como los mm por hora y tan ancha como la probabilidad;
+  en rojo desde `heavy_rain` mm/h (4 por defecto, la "lluvia intensa" del Met Office).
+- **Nubes**: un doble chevron (︽) por hora, a la altura de su porcentaje (0 % abajo, 100 % arriba).
+
+A la izquierda de la raya de "ahora", lo observado; a la derecha, la previsión (en tramos de 3
+horas). El plan gratuito de OpenWeather no da el pasado, así que Marianne guarda las condiciones
+de cada consulta (cada 10 minutos) en el fichero `history` de la fuente; las horas en las que no
+estaba en marcha quedan en blanco. La tecla `day_key` (`D`), el botón de la barra o un clic en la
+gráfica pasan a mañana y vuelven. Debajo va la temperatura de ahora, la máxima, la mínima y la
+probabilidad de lluvia.
 
 ### Opciones de panel
 
