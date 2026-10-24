@@ -39,7 +39,8 @@ class DatesSource(Source):
         self.mark_ok()
         now = datetime.now()
         bars = [progress_reading(item, now) for item in items if "progress" in item]
-        dates = [item for item in items if "progress" not in item]
+        calendars = [item for item in items if item.get("calendar")]
+        dates = [item for item in items if "progress" not in item and not item.get("calendar")]
         if self.store:
             try:
                 dates += self.store.load()
@@ -49,8 +50,9 @@ class DatesSource(Source):
         if self.sort:
             # Coming dates first, nearest on top; past one-off dates at the end.
             pairs.sort(key=lambda pair: (pair[0] < 0, abs(pair[0])))
-        # Progress bars stay on top, in the order they were written.
-        return bars + [reading for _, reading in pairs]
+        # Progress bars stay on top, in the order they were written; the calendar goes beside them.
+        month = [Reading(item.get("name", ""), "", calendar=month_calendar(now.date(), dates)) for item in calendars]
+        return bars + [reading for _, reading in pairs] + month
 
 
 def parse_date(value: Any) -> tuple[int | None, int, int]:
@@ -196,6 +198,23 @@ def clean_date(raw: Any, decide_yearly: bool = False, today: date | None = None)
         entry["yearly"] = True
     entry["soon"] = soon
     return entry
+
+
+def month_calendar(today: date, dates: list[dict[str, Any]]) -> dict[str, Any]:
+    """This month for the calendar: its first weekday (0 Monday), its length, today, and the days
+    that one of the dates falls on, with their names."""
+    first = today.replace(day=1)
+    length = ((first + timedelta(days=32)).replace(day=1) - first).days
+    marked: dict[int, list[str]] = {}
+    for item in dates:
+        try:
+            when = next_occurrence(item, first)
+        except (ValueError, KeyError):
+            continue
+        if when.year == today.year and when.month == today.month:
+            marked.setdefault(when.day, []).append(str(item.get("name", "")))
+    return {"year": today.year, "month": today.month, "first_weekday": first.weekday(), "days": length,
+            "today": today.day, "marked": {str(day): names for day, names in marked.items()}}
 
 
 def as_datetime(value: Any) -> datetime:

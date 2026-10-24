@@ -269,6 +269,64 @@ button {
   color: var(--dim);
 }
 
+/* ---- calendar, in a column beside the rows ---- */
+
+.panel > .body.with-calendar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 1.5ch;
+  align-items: start;
+}
+
+.calendar-rows {
+  min-width: 0;
+}
+
+.calendar {
+  text-align: right;
+}
+
+.calendar-title {
+  text-align: center;
+  color: var(--soft);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 2.5ch);
+  justify-content: end;
+  line-height: 1.15;
+}
+
+.calendar-grid span {
+  text-align: right;
+  padding-right: 0.3ch;
+}
+
+.calendar-grid .weekday {
+  color: var(--dim);
+}
+
+.calendar-grid .day {
+  color: var(--foreground);
+}
+
+.calendar-grid .weekend {
+  color: var(--soft);
+}
+
+/* A special date: in the accent colour and underlined; its name is in the tooltip. */
+.calendar-grid .marked {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.calendar-grid .today {
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: none;
+}
+
 /* ---- grid of icons (services) ---- */
 
 .icons {
@@ -1059,6 +1117,16 @@ a.tile.cursor > span {
     white-space: normal;
     gap: 0 1.4ch;
     font-size: 0.9rem;
+  }
+
+  /* The calendar under the rows: beside them there's no room on a phone. */
+  .panel > .body.with-calendar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem 0;
+  }
+
+  .calendar-grid {
+    justify-content: center;
   }
 
   /* Big enough for a finger. */

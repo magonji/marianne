@@ -189,7 +189,7 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
                 raise ConfigError(f"Panel '{title}': 'progress' debe ser uno de {', '.join(sorted(PROGRESS))}")
             if item["progress"] == "life" and not {"birth", "end"} <= item.keys():
                 raise ConfigError(f"Panel '{title}': la barra de vida necesita 'birth' y 'end'")
-        elif kind == "dates" and "date" not in item:
+        elif kind == "dates" and "date" not in item and not item.get("calendar"):
             raise ConfigError(f"Panel '{title}': cada fecha necesita 'date' (2026-12-25, o 12-25 para todos los años)")
         if "icon" in item and parse_icon(item["icon"]) is None:
             raise ConfigError(f"Panel '{title}': 'icon' debe ser mdi:nombre o si:nombre (como en Glance), no '{item['icon']}'")

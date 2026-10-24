@@ -297,8 +297,10 @@ function drawPanel(view) {
   node.append(el("h2", {}, heading));
   const body = el("div", { class: "body" });
 
-  const shown = data.readings.filter((reading) => !reading.hidden);
-  if (!shown.length) {
+  // A calendar goes in a column of its own, to the right of the rows.
+  const calendar = data.readings.find((reading) => reading.calendar);
+  const shown = data.readings.filter((reading) => !reading.hidden && !reading.calendar);
+  if (!shown.length && !calendar) {
     body.append(el("div", { class: "waiting" }, "ESPERANDO DATOS"));
   } else {
     let rows = shown;
@@ -326,6 +328,11 @@ function drawPanel(view) {
       }
       body.append(drawRow(panel, reading, { labelWidth, valueWidth }));
     }
+  }
+  if (calendar) {
+    const rows = el("div", { class: "calendar-rows" }, ...body.childNodes);
+    body.classList.add("with-calendar");
+    body.append(rows, drawCalendar(calendar.calendar));
   }
   node.append(body);
   const subtitle = stale ? `✖ ${data.error}` : data.updated;
@@ -432,6 +439,24 @@ function drawBig(panel, reading) {
   return el("div", { class: "big" }, row,
     el("div", { class: "caption" }, upper(reading.label),
       reading.note ? el("span", { class: reading.error ? "error" : null }, `  ${reading.note}`) : ""));
+}
+
+// A month like the terminal's `cal`: today in reverse video, the special dates highlighted (their
+// names in the tooltip) and the weekend dimmer.
+function drawCalendar(month) {
+  const names = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const cells = [];
+  for (const day of ["lu", "ma", "mi", "ju", "vi", "sá", "do"]) cells.push(el("span", { class: "weekday" }, upper(day)));
+  for (let blank = 0; blank < month.first_weekday; blank += 1) cells.push(el("span", {}));
+  for (let day = 1; day <= month.days; day += 1) {
+    const weekend = (month.first_weekday + day - 1) % 7 >= 5;
+    const marked = month.marked[String(day)];
+    const classes = ["day", weekend ? "weekend" : "", marked ? "marked" : "", day === month.today ? "today" : ""].filter(Boolean);
+    cells.push(el("span", { class: classes.join(" "), title: marked ? marked.join(", ") : null }, String(day)));
+  }
+  return el("div", { class: "calendar" },
+    el("div", { class: "calendar-title" }, upper(`${names[month.month - 1]} ${month.year}`)),
+    el("div", { class: "calendar-grid" }, cells));
 }
 
 // The day's weather: temperature (thick line, in red below 0 °C), wind (thin line), rain (bars as

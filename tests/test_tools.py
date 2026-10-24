@@ -198,3 +198,22 @@ def test_row_heights():
     for wrong in ([0, 1], ["alto"], 2):
         with pytest.raises(ConfigError):
             parse_config({"sources": {}, "panels": [], "row_heights": wrong}, None)
+
+
+def test_month_calendar_marks_today_and_the_special_dates():
+    from marianne.sources.dates import month_calendar
+
+    dates = [{"name": "Halloween", "date": "10-31"}, {"name": "Cumple", "date": date(1990, 10, 3), "yearly": True},
+             {"name": "Navidad", "date": "12-25"}, {"name": "Viaje pasado", "date": date(2025, 10, 5)}]
+    month = month_calendar(date(2026, 10, 24), dates)
+    assert (month["first_weekday"], month["days"], month["today"]) == (3, 31, 24)  # 1 Oct 2026 is a Thursday
+    assert month["marked"] == {"31": ["Halloween"], "3": ["Cumple"]}
+    assert month_calendar(date(2028, 2, 10), [])["days"] == 29
+
+
+def test_calendar_item_in_a_dates_panel():
+    source = DatesSource("fechas")
+    readings = asyncio.run(source.fetch([{"progress": "day"}, {"calendar": True}, {"name": "Navidad", "date": "12-25"}]))
+    assert [bool(reading.calendar) for reading in readings] == [False, False, True]
+    data = {"sources": {"fechas": {"type": "dates"}}, "panels": [{"title": "F", "source": "fechas", "items": [{"calendar": True}]}]}
+    assert parse_config(data, None).panels[0].items == [{"calendar": True, "source": "fechas"}]
