@@ -66,7 +66,7 @@ uv run marianne --demo --theme phosphor
 | `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `M`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
-| `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares). En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
+| `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares) y la gráfica del tiempo, donde `←` `→` van de hora en hora. En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
 | `D` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Esc` para volver) |
@@ -189,9 +189,14 @@ panels:
 A la izquierda de la raya de "ahora", lo observado; a la derecha, la previsión (en tramos de 3
 horas). El plan gratuito de OpenWeather no da el pasado, así que Marianne guarda las condiciones
 de cada consulta (cada 10 minutos) en el fichero `history` de la fuente; las horas en las que no
-estaba en marcha quedan en blanco. La tecla `day_key` (`D`), el botón de la barra o un clic en la
-gráfica pasan a mañana y vuelven. Debajo va la temperatura de ahora, la máxima, la mínima y la
-probabilidad de lluvia.
+estaba en marcha quedan en blanco. La tecla `day_key` (`D`) o el botón de la barra pasan a mañana y
+vuelven. Debajo va la temperatura de ahora, la máxima, la mínima y la probabilidad de lluvia.
+
+Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o lleva
+hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
+(sin perder la hora) y `↑` `↓` o `Esc` salen. Debajo de la gráfica se lee entonces la hora, la
+temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
+observado o lo previsto.
 
 ### Opciones de panel
 

@@ -21,6 +21,10 @@ const READER_CHOICES = ["read", "close"];
 let dates = null;
 // Which day the weather chart shows: 0 today, 1 tomorrow (its key, D by default, switches).
 let chartDay = 0;
+// The hour picked on the chart (0-23) to read its conditions: by the cursor, the mouse or a tap.
+let chartHour = null;
+// The chart's place in the link cursor: it takes the cursor like a link, and then ← → pick the hour.
+const CHART_CURSOR = "chart:";
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -505,21 +509,69 @@ function drawChart(chart) {
   if (chart.now >= day.start && chart.now < day.end) {
     draw("line", { class: "now", x1: x(chart.now), y1: top, x2: x(chart.now), y2: bottom });
   }
+  const inspected = chartHour === null ? null : day.start + chartHour * 3600;
+  if (inspected !== null) draw("line", { class: "inspect", x1: x(inspected), y1: top, x2: x(inspected), y2: bottom });
 
   const value = (number, unit = "°") => (number === null || number === undefined ? "--" : `${number.toFixed(0)}${unit}`);
   const caption = [
     chartDay ? upper("Mañana") : `${upper("Ahora")} ${chart.temp === null ? "--" : chart.temp.toFixed(1) + "°C"}`,
     `▲ ${value(day.max)}`, `▼ ${value(day.min)}`, `☂ ${value(day.pop, "%")}`,
   ].join("  ");
+  const readout = inspected === null ? caption : conditionsAt(chart, day, inspected, interpolate);
   // Midnight at the left edge needs no label; then one every 3 hours.
   const hours = [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => el("span", {}, hour ? String(hour).padStart(2, "0") : ""));
-  return el("div", { class: "chart-box", title: upper(chartDay ? "Ver hoy" : "Ver mañana"), onclick: toggleChartDay },
+  // Hovering (or a tap on a phone) picks the hour under the pointer.
+  const pick = (event) => {
+    const box = svg.getBoundingClientRect();
+    const hour = Math.max(0, Math.min(23, Math.round(((event.clientX - box.left) / box.width) * 24)));
+    if (hour !== chartHour) {
+      chartHour = hour;
+      render();
+    }
+  };
+  svg.addEventListener("pointermove", pick);
+  svg.addEventListener("pointerdown", pick);
+  svg.addEventListener("pointerleave", (event) => {
+    if (event.pointerType === "mouse" && cursor !== CHART_CURSOR && chartHour !== null) {
+      chartHour = null;
+      render();
+    }
+  });
+  return el("div", { class: "chart-box", "data-cursor": CHART_CURSOR },
     el("div", { class: "chart-plot" },
       el("div", { class: "chart-axis" }, el("span", {}, `${high}°`), el("span", {}, `${low}°`)),
       svg,
       el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
     el("div", { class: "chart-hours" }, hours),
-    el("div", { class: "chart-caption" }, caption));
+    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout));
+}
+
+// The conditions at one moment of the chart: observed if it has gone by, forecast if not.
+function conditionsAt(chart, day, t, interpolate) {
+  const hour = `${String(Math.round((t - day.start) / 3600)).padStart(2, "0")}:00`;
+  const temp = interpolate(t, "temp");
+  if (temp === null) return upper(`${hour}  sin datos`);
+  const wind = interpolate(t, "wind"), clouds = interpolate(t, "clouds");
+  const bar = day.bars.find((bar) => bar.from <= t && t < bar.to);
+  const rain = bar ? `☂ ${bar.rain.toFixed(1)} mm/h${bar.observed ? "" : ` ${Math.round(bar.pop * 100)}%`}` : "☂ 0";
+  const when = t < chart.now ? "observado" : "previsto";
+  return upper([hour, `${temp.toFixed(1)}°C`, `${Math.round(wind)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
+}
+
+// Where the hour starts when the cursor lands on the chart: now on today's (in the city's time,
+// as the chart is), midday on tomorrow's.
+function startHour() {
+  if (chartDay) return 12;
+  for (const { data } of panelViews()) {
+    const reading = data.readings.find((reading) => reading.chart);
+    if (reading) return Math.max(0, Math.min(23, Math.floor((reading.chart.now - reading.chart.days[0].start) / 3600)));
+  }
+  return 12;
+}
+
+function moveChartHour(step) {
+  chartHour = Math.max(0, Math.min(23, (chartHour ?? startHour()) + step));
+  render();
 }
 
 function toggleChartDay() {
@@ -615,7 +667,8 @@ function renderStatus() {
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
     items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
   }
-  if (cursor && !reader) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
+  if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("escape", "SALIR"));
+  else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("escape", "SALIR"));
   if (!audio || audio.state !== "running") items.push(el("span", { class: "sound-hint" }, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -702,13 +755,15 @@ function press(key) {
     }
   }
   if (Object.hasOwn(ARROWS, key)) return moveCursor(ARROWS[key]);
+  if (key === "enter" && cursor === CHART_CURSOR) return toggleChartDay();
   if (key === "enter" && cursor) {
-    const link = visibleLinks().find((node) => node.getAttribute("href") === cursor);
+    const link = visibleLinks().find((node) => cursorId(node) === cursor);
     if (link && link.dataset.reader) return link.click();
     return void window.open(cursor, "_blank", "noopener");
   }
   if (key === "escape" && cursor) {
     cursor = null;
+    chartHour = null;
     return render();
   }
   if (key === "escape" && popup !== null) return togglePopup(popup);
@@ -779,10 +834,14 @@ function setSegments(node, text) {
 const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
 const KEY_NAMES = { enter: "↵", escape: "ESC" };
 
-// The links that can be seen: those of the open pop-up, or else of the grid, and not cut off by a panel.
+// What the cursor is on: a link's address, or CHART_CURSOR for the weather chart.
+const cursorId = (node) => node.getAttribute("href") || node.dataset.cursor;
+
+// The links that can be seen: those of the open pop-up, or else of the grid, and not cut off by a
+// panel; the weather chart counts as one.
 function visibleLinks() {
   const root = document.getElementById(popup !== null ? "popup" : "panels");
-  return [...root.querySelectorAll("a[href]")].filter((link) => {
+  return [...root.querySelectorAll("a[href], [data-cursor]")].filter((link) => {
     const box = link.getBoundingClientRect();
     const body = link.closest(".body");
     if (!box.width || !box.height || !body) return Boolean(box.width && box.height);
@@ -796,7 +855,9 @@ function visibleLinks() {
 // the two overlap, so a column of headlines or of icons is followed straight down.
 function moveCursor([dx, dy]) {
   const links = visibleLinks();
-  const current = links.find((link) => link.getAttribute("href") === cursor);
+  const current = links.find((link) => cursorId(link) === cursor);
+  // On the chart, left and right move along its hours, up and down leave it.
+  if (current && cursor === CHART_CURSOR && dx) return moveChartHour(dx);
   let target = current ? null : links[0];
   if (current) {
     const from = current.getBoundingClientRect();
@@ -813,19 +874,23 @@ function moveCursor([dx, dy]) {
     }
   }
   if (!target) return;
-  cursor = target.getAttribute("href");
+  cursor = cursorId(target);
+  chartHour = cursor === CHART_CURSOR ? startHour() : null;
   render();
-  target = visibleLinks().find((link) => link.getAttribute("href") === cursor);
-  if (target) target.scrollIntoView({ block: "nearest" });
+  target = visibleLinks().find((link) => cursorId(link) === cursor);
+  // Only where the page scrolls (a phone, one column): on a screen it's all in sight, and scrolling
+  // it would shift the whole dashboard.
+  if (target && getComputedStyle(document.body).overflow !== "hidden") target.scrollIntoView({ block: "nearest" });
 }
 
 // Panels are drawn again every second: put the cursor back on its link, or drop it if it's gone.
 function renderCursor() {
   if (!cursor) return;
-  const link = visibleLinks().find((node) => node.getAttribute("href") === cursor);
+  const link = visibleLinks().find((node) => cursorId(node) === cursor);
   if (link) link.classList.add("cursor");
   else {
     cursor = null;
+    chartHour = null;
     renderStatus();
   }
 }

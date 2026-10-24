@@ -591,7 +591,9 @@ a.tile.cursor > span {
 /* ---- weather chart ---- */
 
 .chart-box {
-  cursor: pointer;
+  cursor: crosshair;
+  /* A finger on the chart picks an hour, it doesn't scroll the page sideways. */
+  touch-action: pan-y;
 }
 
 .chart-plot {
@@ -688,6 +690,22 @@ a.tile.cursor > span {
 
 .chart .temp.cold {
   stroke: var(--error);
+}
+
+.chart .inspect {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The link cursor on the chart: a frame in reverse video's colour (the chart can't be inverted). */
+.chart-box.cursor {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.chart-caption.inspecting {
+  color: var(--accent);
 }
 
 .chart-caption {
