@@ -17,6 +17,10 @@ from .base import Reading, Source, check_alert, format_number, make_fraction
 
 API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
+# Hourly forecast for the chart (OpenWeather's free one comes in slots of 3 hours). Free, no key,
+# from the national weather services' models; data CC BY 4.0, Open-Meteo.com.
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_FIELDS = "temperature_2m,wind_speed_10m,precipitation,precipitation_probability,cloud_cover"
 # The forecast only changes every few hours; the free plan allows 1000 calls a day.
 CACHE_SECONDS = 600.0
 
@@ -77,6 +81,7 @@ class OpenWeatherSource(Source):
         lang: str = "es",
         timeout: float = 15,
         history_file: str | None = None,
+        hourly: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         super().__init__(name)
@@ -92,6 +97,12 @@ class OpenWeatherSource(Source):
         self._lock = asyncio.Lock()
         # The weather observed through the day, for the hours already gone in the chart.
         self.history = WeatherHistory(Path(history_file) if history_file else None)
+        # "open-meteo": the chart's forecast hour by hour, at the city OpenWeather has found.
+        if hourly not in (None, "open-meteo"):
+            raise ValueError(f"source '{name}': 'hourly' solo puede ser open-meteo")
+        self.hourly = hourly
+        self._hours: list[dict[str, Any]] = []
+        self._hours_at = 0.0
 
     def describe(self) -> str:
         return f"openweather {self.city}"
@@ -118,6 +129,24 @@ class OpenWeatherSource(Source):
                 self.history.add(self._current)
             return self._current
 
+    async def _get_hours(self, forecast: dict[str, Any]) -> list[dict[str, Any]]:
+        """Open-Meteo's hours (yesterday to the day after tomorrow); none if it doesn't answer, and
+        then the chart makes do with OpenWeather's 3-hour slots."""
+        coord = forecast.get("city", {}).get("coord")
+        if self.hourly != "open-meteo" or not coord:
+            return []
+        if time.monotonic() - self._hours_at > CACHE_SECONDS:
+            params = {"latitude": coord["lat"], "longitude": coord["lon"], "hourly": OPEN_METEO_FIELDS,
+                      "past_days": 1, "forecast_days": 3, "wind_speed_unit": "kmh", "timeformat": "unixtime"}
+            try:
+                response = await self.client.get(OPEN_METEO_URL, params=params)
+                response.raise_for_status()
+                self._hours = open_meteo_hours(response.json())
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                self._hours = []
+            self._hours_at = time.monotonic()
+        return self._hours
+
     async def fetch(self, items: list[dict[str, Any]]) -> list[Reading]:
         try:
             forecast = await self._get_forecast()
@@ -127,11 +156,12 @@ class OpenWeatherSource(Source):
         except Exception as exc:
             self.mark_error(exc)
             raise
+        hours = await self._get_hours(forecast) if "chart" in fields else []
         self.mark_ok()
         now = datetime.now(timezone.utc)
         readings = []
         for item in items:
-            reading = field_reading(item, forecast, now, current, self.history.samples)
+            reading = field_reading(item, forecast, now, current, self.history.samples, hours)
             for extra in item.get("also", []):
                 extra = {"name": EXTRA_LABELS.get(extra["field"], LABELS[extra["field"]]), **extra}
                 extra_reading = field_reading(extra, forecast, now, current)
@@ -190,11 +220,12 @@ def field_reading(
     now: datetime,
     current: dict[str, Any] | None = None,
     history: list[dict[str, Any]] | None = None,
+    hours: list[dict[str, Any]] | None = None,
 ) -> Reading:
     field = item["field"]
     label = item.get("name", LABELS[field])
     if field == "chart":
-        return chart_reading(item, label, forecast, now, current or {}, history or [])
+        return chart_reading(item, label, forecast, now, current or {}, history or [], hours or [])
     if field == "good_day":
         return good_day(item, label, forecast, now)
     if field == "next_rain":
@@ -363,14 +394,16 @@ def chart_reading(
     now: datetime,
     current: dict[str, Any],
     history: list[dict[str, Any]],
+    hours: list[dict[str, Any]] | None = None,
 ) -> Reading:
     """The day in a chart (today and tomorrow): what was observed up to now, the forecast after."""
     offset = timezone(timedelta(seconds=forecast.get("city", {}).get("timezone", 0)))
     today = now.astimezone(offset).date()
-    days = [chart_day(day, forecast, history, now, offset) for day in (today, today + timedelta(days=1))]
+    days = [chart_day(day, forecast, history, now, offset, hours) for day in (today, today + timedelta(days=1))]
     temperature = current.get("main", {}).get("temp")
     chart = {
         "key": str(item.get("day_key", "d")).lower(),
+        "hourly": bool(hours),
         "heavy_rain": float(item.get("heavy_rain", HEAVY_RAIN)),
         "now": now.timestamp(),
         "temp": temperature,
@@ -384,13 +417,40 @@ def chart_reading(
     return Reading(label, "", chart=chart)
 
 
+def open_meteo_hours(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Open-Meteo's hourly arrays as one dict per hour. Its precipitation is what falls in the
+    hour *before* each time."""
+    hourly = data["hourly"]
+    hours = []
+    for index, t in enumerate(hourly["time"]):
+        values = {key: hourly[key][index] for key in OPEN_METEO_FIELDS.split(",")}
+        if values["temperature_2m"] is None:
+            continue
+        hours.append({
+            "t": int(t),
+            "temp": values["temperature_2m"],
+            "wind": values["wind_speed_10m"] or 0,
+            "clouds": values["cloud_cover"] or 0,
+            "rain": values["precipitation"] or 0,
+            "pop": (values["precipitation_probability"] or 0) / 100,
+        })
+    return hours
+
+
 def chart_day(
-    day: date, forecast: dict[str, Any], history: list[dict[str, Any]], now: datetime, offset: timezone
+    day: date,
+    forecast: dict[str, Any],
+    history: list[dict[str, Any]],
+    now: datetime,
+    offset: timezone,
+    hours: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The points (temperature, wind, clouds) and rain bars of one day, in the city's time.
 
-    Hours already gone: the hourly means of what was observed. From now on: the forecast, in
-    slots of 3 hours, with those just outside the day so the lines reach its edges.
+    Hours already gone: the hourly means of what was observed, and where nothing was (marianne
+    wasn't running), Open-Meteo's estimate. From now on: the forecast, hour by hour from
+    Open-Meteo or else in OpenWeather's slots of 3 hours, with those just outside the day so the
+    lines reach its edges.
     """
     start = datetime(day.year, day.month, day.day, tzinfo=offset).timestamp()
     end = start + 86400
@@ -398,11 +458,11 @@ def chart_day(
     points: list[dict[str, Any]] = []
     bars: list[dict[str, Any]] = []
 
-    hours: dict[int, list[dict[str, Any]]] = {}
+    by_hour: dict[int, list[dict[str, Any]]] = {}
     for sample in history:
         if start <= sample["t"] < min(end, moment):
-            hours.setdefault(int((sample["t"] - start) // 3600), []).append(sample)
-    for hour, samples in sorted(hours.items()):
+            by_hour.setdefault(int((sample["t"] - start) // 3600), []).append(sample)
+    for hour, samples in sorted(by_hour.items()):
         mean = {key: sum(sample[key] for sample in samples) / len(samples) for key in ("t", "temp", "wind", "clouds", "rain")}
         # At the samples' mean time: the middle of a full hour, earlier for the one under way.
         points.append({"t": mean["t"], "temp": mean["temp"], "wind": mean["wind"],
@@ -418,7 +478,32 @@ def chart_day(
         points.append({"t": latest["t"], "temp": latest["temp"], "wind": latest["wind"],
                        "clouds": latest["clouds"], "observed": True})
 
-    for slot in forecast.get("list", []):
+    if hours:
+        observed_hours = set(by_hour)
+        for hour in hours:
+            t = hour["t"]
+            if t < start - 3600 or t > end + 3600:
+                continue
+            point = {"t": t, "temp": hour["temp"], "wind": hour["wind"], "clouds": hour["clouds"], "observed": False}
+            if t <= moment:
+                # Gone by: only to fill an hour nothing was observed in.
+                if start <= t < end and int((t - start) // 3600) not in observed_hours:
+                    points.append({**point, "estimated": True})
+            else:
+                points.append(point)
+            # Its rain fell in the hour before t.
+            rain_from, rain_to = max(t - 3600, start), min(t, end)
+            if hour["rain"] <= 0 or rain_to <= rain_from:
+                continue
+            if rain_to <= moment:
+                if int((rain_from - start) // 3600) not in observed_hours:
+                    bars.append({"from": rain_from, "to": rain_to, "rain": hour["rain"], "pop": 1.0,
+                                 "observed": False, "estimated": True})
+            else:
+                bars.append({"from": max(rain_from, moment), "to": rain_to, "rain": hour["rain"],
+                             "pop": hour["pop"], "observed": False})
+
+    for slot in forecast.get("list", []) if not hours else []:
         slot_end = slot["dt"] + 3 * 3600
         if slot_end <= max(moment, start - 3 * 3600) or slot["dt"] > end + 3 * 3600:
             continue
@@ -433,7 +518,7 @@ def chart_day(
     points.sort(key=lambda point: point["t"])
     # The day's max and min: midnight at its end is already the next day's.
     inside = [point for point in points if start <= point["t"] < end] or points
-    pops = [bar["pop"] for bar in bars if not bar["observed"]]
+    pops = [bar["pop"] for bar in bars if not bar["observed"] and not bar.get("estimated")]
     return {
         "date": day.isoformat(),
         "start": start,

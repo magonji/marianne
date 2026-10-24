@@ -51,6 +51,7 @@ sources:
     api_key: ${OPENWEATHER_KEY}
     city: Glasgow,GB
     history: data/tiempo.json           # opcional: guarda lo observado, para las horas pasadas de la gráfica
+    hourly: open-meteo                  # opcional: la gráfica hora a hora con Open-Meteo (gratis, sin clave)
 
 panels:
   - title: Clima

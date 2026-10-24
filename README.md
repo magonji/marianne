@@ -187,10 +187,16 @@ panels:
   intensa" del Met Office).
 - **Nubes**: un doble chevron (︽) por hora, a la altura de su porcentaje (0 % abajo, 100 % arriba).
 
-A la izquierda de la raya de "ahora", lo observado; a la derecha, la previsión (en tramos de 3
-horas). El plan gratuito de OpenWeather no da el pasado, así que Marianne guarda las condiciones
-de cada consulta (cada 10 minutos) en el fichero `history` de la fuente; las horas en las que no
-estaba en marcha quedan en blanco. Las líneas y los chevrones llevan un fino borde negro para que se distingan sobre las barras. La
+A la izquierda de la raya de "ahora", lo observado; a la derecha, la previsión. El plan gratuito
+de OpenWeather no da el pasado, así que Marianne guarda las condiciones de cada consulta (cada 10
+minutos) en el fichero `history` de la fuente.
+
+La previsión gratuita de OpenWeather va en tramos de 3 horas. Con `hourly: open-meteo` en la
+fuente, la gráfica usa la de [Open-Meteo](https://open-meteo.com), hora a hora (gratis, sin clave,
+de los modelos de los servicios meteorológicos nacionales; datos CC BY 4.0), en las coordenadas
+de la ciudad que da OpenWeather; también rellena, como "estimado", las horas pasadas en las que
+Marianne no observó nada. Si Open-Meteo no responde, vuelve a los tramos de 3 horas. El resto de
+campos sigue con OpenWeather. Las líneas y los chevrones llevan un fino borde negro para que se distingan sobre las barras. La
 tecla `day_key` (`D`) o el botón de la barra pasan a mañana y vuelven. Debajo van dos líneas: las
 condiciones de ahora (temperatura, viento, lluvia y nubes) y el día en cifras (máxima, mínima,
 probabilidad de lluvia y litros por m² de todo el día).
@@ -199,7 +205,7 @@ Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala e
 hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
 (sin perder la hora) y `↑` `↓` o `Esc` salen. En la primera línea se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
-observado o lo previsto.
+observado, lo estimado o lo previsto.
 
 ### Opciones de panel
 

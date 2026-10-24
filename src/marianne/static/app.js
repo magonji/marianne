@@ -551,7 +551,9 @@ function drawChart(chart) {
       render();
     }
   });
-  return el("div", { class: "chart-box", "data-cursor": CHART_CURSOR },
+  // Open-Meteo's data is CC BY 4.0: it's credited where the chart shows it.
+  const credit = chart.hourly ? "Previsión por horas: Open-Meteo.com (CC BY 4.0)" : null;
+  return el("div", { class: "chart-box", "data-cursor": CHART_CURSOR, title: credit },
     el("div", { class: "chart-plot" },
       el("div", { class: "chart-axis" }, el("span", {}, `${high}°`), el("span", {}, `${low}°`)),
       svg,
@@ -569,7 +571,9 @@ function conditionsAt(chart, day, t, interpolate) {
   const wind = interpolate(t, "wind"), clouds = interpolate(t, "clouds");
   const bar = day.bars.find((bar) => bar.from <= t && t < bar.to);
   const rain = bar ? `☂ ${bar.rain.toFixed(1)} mm/h${bar.observed ? "" : ` ${Math.round(bar.pop * 100)}%`}` : "☂ 0";
-  const when = t < chart.now ? "observado" : "previsto";
+  // Gone by: observed, or estimated by Open-Meteo where nothing was observed.
+  const nearest = day.points.reduce((best, point) => (Math.abs(point.t - t) < Math.abs(best.t - t) ? point : best), day.points[0]);
+  const when = t >= chart.now ? "previsto" : nearest && nearest.estimated ? "estimado" : "observado";
   return upper([hour, `${temp.toFixed(1)}°C`, `${Math.round(wind)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
 }
 

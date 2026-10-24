@@ -40,6 +40,7 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             city=spec.get("city", "Glasgow,GB"),
             lang=spec.get("lang", "es"),
             history_file=spec.get("history"),
+            hourly=spec.get("hourly"),
         )
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),

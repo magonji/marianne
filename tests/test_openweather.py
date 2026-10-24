@@ -240,3 +240,64 @@ def test_chart_observed_hours_then_forecast(tmp_path):
     now_weather = {"dt": int(now.timestamp()), "main": {"temp": 2.5}, "wind": {"speed": 5}, "clouds": {"all": 75}}
     current = chart_reading({"field": "chart"}, "El tiempo", forecast, now, now_weather, history.samples).chart["current"]
     assert current == {"t": int(now.timestamp()), "temp": 2.5, "wind": 18.0, "clouds": 75, "rain": 0}
+
+
+def test_chart_hour_by_hour_from_open_meteo():
+    from marianne.sources.openweather import chart_day, open_meteo_hours
+
+    utc = timezone.utc
+    day = datetime(2026, 10, 24, tzinfo=utc)
+    now = day + timedelta(hours=10, minutes=30)
+    times = [int((day + timedelta(hours=h)).timestamp()) for h in range(-1, 26)]
+    data = {"hourly": {
+        "time": times,
+        "temperature_2m": [5 + h * 0.5 for h in range(len(times))],
+        "wind_speed_10m": [10] * len(times),
+        "cloud_cover": [50] * len(times),
+        "precipitation": [2.0 if h in (6, 13) else 0 for h in range(-1, 26)],
+        "precipitation_probability": [80] * len(times),
+    }}
+    hours = open_meteo_hours(data)
+    # Observed only from 8:00 to 9:59: those hours keep what was observed, the rest of the morning is estimated
+    history = [{"t": int((day + timedelta(hours=8, minutes=m)).timestamp()), "temp": 1.0, "wind": 5, "clouds": 10, "rain": 0}
+               for m in range(0, 120, 20)]
+    chart = chart_day(day.date(), {"list": []}, history, now, utc, hours)
+    hour = lambda p: (p["t"] - chart["start"]) / 3600
+    observed = [hour(p) for p in chart["points"] if p["observed"]]
+    estimated = [hour(p) for p in chart["points"] if p.get("estimated")]
+    forecast = [hour(p) for p in chart["points"] if not p["observed"] and not p.get("estimated")]
+    # The two hourly means, and the last observation itself (9:40), which the line goes on from
+    assert all(8 <= h < 10 for h in observed) and len(observed) == 3
+    assert estimated == [0, 1, 2, 3, 4, 5, 6, 7, 10]
+    assert forecast == list(range(11, 26))  # every hour, up to the one after midnight
+    # 2 mm in the hour before 6:00 (gone by, estimated, certain) and before 13:00 (forecast, 80 %)
+    bars = [((b["from"] - chart["start"]) / 3600, b["pop"], b.get("estimated", False)) for b in chart["bars"]]
+    assert bars == [(5, 1.0, True), (12, 0.8, False)]
+    assert chart["rain"] == pytest.approx(4) and chart["pop"] == pytest.approx(80)
+
+
+def test_chart_falls_back_to_openweather_when_open_meteo_fails():
+    import time as clock
+
+    now = int(clock.time())
+    forecast = {"city": {"timezone": 0, "coord": {"lat": 55.86, "lon": -4.26}},
+                "list": [{"dt": now + h * 3600, "main": {"temp": 5.0, "temp_min": 4, "temp_max": 6},
+                          "weather": [{"id": 800, "description": "cielo claro"}], "wind": {"speed": 3},
+                          "clouds": {"all": 10}, "pop": 0} for h in (1, 4, 7, 10)]}
+    current = {"dt": now, "main": {"temp": 4.5}, "wind": {"speed": 2}, "clouds": {"all": 20},
+               "weather": [{"id": 800, "icon": "01d"}]}
+    asked = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.host)
+        if request.url.host == "api.open-meteo.com":
+            return httpx.Response(503)
+        return httpx.Response(200, json=forecast if request.url.path.endswith("/forecast") else current)
+
+    source = OpenWeatherSource("ow", "key", "Glasgow,GB", hourly="open-meteo", transport=httpx.MockTransport(handler))
+    (reading,) = asyncio.run(source.fetch([{"field": "chart"}]))
+    assert "api.open-meteo.com" in asked
+    # Plan B: OpenWeather's 3-hour slots, and the source itself is fine
+    assert reading.chart["hourly"] is False and source.ok
+    points = [p for day in reading.chart["days"] for p in day["points"] if not p["observed"]]
+    assert {p["t"] for p in points} <= {now + h * 3600 for h in (1, 4, 7, 10)} and points
