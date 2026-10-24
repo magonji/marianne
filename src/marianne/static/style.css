@@ -775,10 +775,6 @@ a.tile.cursor > span {
   padding: 0 0.5ch;
 }
 
-#status .source.waiting-source {
-  opacity: 0.6;
-}
-
 #status .flashing {
   animation: invert-status 1s steps(1) infinite;
 }
@@ -1045,9 +1041,8 @@ a.tile.cursor > span {
     padding: 0.3rem 0;
   }
 
-  /* On a phone only the keys: the sources that are fine, the sound hint (any tap turns it on)
-     and READY stay out. A source that fails is still shown. */
-  #status .source:not(.bad),
+  /* On a phone only the keys (and a failing source): the sound hint (any tap turns it on) and
+     READY stay out. */
   #status .sound-hint,
   #status .ready {
     display: none;

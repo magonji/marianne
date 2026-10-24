@@ -664,10 +664,9 @@ function renderStatus() {
   const bar = document.getElementById("status");
   const items = [];
   if (state && state.offline) items.push(el("span", { class: "source bad" }, "✖ SIN CONEXIÓN CON EL SERVIDOR"));
+  // Only the sources that fail: those that work (or haven't answered yet) need no room.
   for (const source of (state && state.sources) || []) {
-    const mark = source.ok === null ? "◌" : source.ok ? "■" : "✖";
-    const cls = source.ok === null ? " waiting-source" : source.ok ? "" : " bad";
-    items.push(el("span", { class: `source${cls}` }, `${mark} ${source.name.toUpperCase()}`));
+    if (source.ok === false) items.push(el("span", { class: "source bad" }, `✖ ${source.name.toUpperCase()}`));
   }
   // A click on one of these does the same as pressing its key (see the listener on #status).
   const key = (letter, text, flashing = false) =>
