@@ -704,6 +704,31 @@ a.tile.cursor > span {
   stroke: var(--error);
 }
 
+.chart-area {
+  position: relative;
+  min-width: 0;
+}
+
+/* The day's max and min, just above and below their point on the temperature line. */
+.chart-mark {
+  position: absolute;
+  transform: translate(-50%, -115%);
+  padding: 0 0.2ch;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--background) 70%, transparent);
+  pointer-events: none;
+}
+
+.chart-mark.below {
+  transform: translate(-50%, 20%);
+}
+
+.chart-mark.cold {
+  color: var(--error);
+}
+
 .chart .inspect {
   stroke: var(--accent);
   stroke-width: 1.5;

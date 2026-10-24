@@ -180,7 +180,8 @@ panels:
 
 `field: chart` en un panel de OpenWeather dibuja el día de 00 a 24 h:
 
-- **Temperatura**: línea gruesa; en rojo por debajo de 0 °C (y una raya roja discontinua en el 0).
+- **Temperatura**: línea gruesa, con la máxima y la mínima escritas; en rojo por debajo de 0 °C
+  (y una raya roja discontinua en el 0). Rayas horizontales tenues en las temperaturas redondas.
 - **Viento**: línea fina, con su escala en km/h a la derecha.
 - **Lluvia**: una barra por tramo, tan alta como los mm por hora y tanto más sólida cuanto más
   probable (la observada, del todo); en rojo desde `heavy_rain` mm/h (4 por defecto, la "lluvia
@@ -197,13 +198,13 @@ de los modelos de los servicios meteorológicos nacionales; datos CC BY 4.0), en
 de la ciudad que da OpenWeather; también rellena, como "estimado", las horas pasadas en las que
 Marianne no observó nada. Si Open-Meteo no responde, vuelve a los tramos de 3 horas. El resto de
 campos sigue con OpenWeather. Las líneas y los chevrones llevan un fino borde negro para que se distingan sobre las barras. La
-tecla `day_key` (`D`) o el botón de la barra pasan a mañana y vuelven. Debajo van dos líneas: las
-condiciones de ahora (temperatura, viento, lluvia y nubes) y el día en cifras (máxima, mínima,
-probabilidad de lluvia y litros por m² de todo el día).
+tecla `day_key` (`D`) o el botón de la barra pasan a mañana y vuelven. La máxima y la mínima del
+día van escritas sobre la línea de temperatura, y debajo de la gráfica, las condiciones de ahora
+(temperatura, viento, lluvia y nubes).
 
 Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o lleva
 hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
-(sin perder la hora) y `↑` `↓` o `Esc` salen. En la primera línea se lee entonces la hora, la
+(sin perder la hora) y `↑` `↓` o `Esc` salen. Debajo se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado, lo estimado o lo previsto.
 

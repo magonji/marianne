@@ -463,6 +463,12 @@ function drawChart(chart) {
     const at = x(day.start + hour * 3600);
     draw("line", { class: "tick", x1: at, y1: top, x2: at, y2: bottom });
   }
+  // And across, at round temperatures: every 1, 2, 5 or 10 degrees, the smallest step that gives
+  // 5 lines at most (0 °C has its own red one).
+  const step = [1, 2, 5, 10].find((size) => (high - low) / size <= 5) || 10;
+  for (let degrees = Math.ceil((low + 0.01) / step) * step; degrees < high; degrees += step) {
+    if (degrees !== 0) draw("line", { class: "tick", x1: 0, y1: yTemp(degrees), x2: W, y2: yTemp(degrees) });
+  }
   if (low < 0 && high > 0) draw("line", { class: "zero", x1: 0, y1: yTemp(0), x2: W, y2: yTemp(0) });
 
   // Rain: as high as the mm an hour across its whole slot, as solid as the chance of it
@@ -522,16 +528,29 @@ function drawChart(chart) {
   const inspected = chartHour === null ? null : day.start + chartHour * 3600;
   if (inspected !== null) draw("line", { class: "inspect", x1: x(inspected), y1: top, x2: x(inspected), y2: bottom });
 
-  // Under it: the conditions now (or at the hour picked), and the day in figures.
-  const value = (number, unit = "°") => (number === null || number === undefined ? "--" : `${number.toFixed(0)}${unit}`);
+  // Under it: the conditions now, or at the hour picked.
   let readout;
   if (inspected !== null) readout = conditionsAt(chart, day, inspected, interpolate);
   else if (!chartDay && chart.current) readout = conditionsNow(chart.current);
   else readout = conditionsAt(chart, day, day.start + 12 * 3600, interpolate);
-  const summary = upper([
-    chartDay ? "Mañana" : "Hoy", `▲ ${value(day.max)}`, `▼ ${value(day.min)}`,
-    `☂ ${value(day.pop, "%")}`, `${(day.rain || 0).toFixed(1)} mm`,
-  ].join("  "));
+  // The day's highest and lowest temperature, written on the line itself (in HTML over the
+  // drawing, so the stretching doesn't distort them).
+  const inDay = points.filter((point) => point.t >= day.start && point.t < day.end);
+  const marks = [];
+  if (inDay.length > 1) {
+    const hottest = inDay.reduce((best, point) => (point.temp > best.temp ? point : best));
+    const coldest = inDay.reduce((best, point) => (point.temp < best.temp ? point : best));
+    for (const [point, kind] of [[hottest, "max"], [coldest, "min"]]) {
+      const left = Math.max(3, Math.min(97, (x(point.t) / W) * 100));
+      const topPercent = (yTemp(point.temp) / bottom) * 100;
+      // Above the max and below the min, unless that would leave the chart: then the other side.
+      const below = kind === "max" ? topPercent < 20 : topPercent < 80;
+      marks.push(el("span", {
+        class: `chart-mark ${below ? "below" : "above"}${point.temp < 0 ? " cold" : ""}`,
+        style: `left: ${left.toFixed(1)}%; top: ${topPercent.toFixed(1)}%`,
+      }, `${Math.round(point.temp)}°`));
+    }
+  }
   // Midnight at the left edge needs no label; then one every 3 hours.
   const hours = [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => el("span", {}, hour ? String(hour).padStart(2, "0") : ""));
   // Hovering (or a tap on a phone) picks the hour under the pointer.
@@ -556,11 +575,10 @@ function drawChart(chart) {
   return el("div", { class: "chart-box", "data-cursor": CHART_CURSOR, title: credit },
     el("div", { class: "chart-plot" },
       el("div", { class: "chart-axis" }, el("span", {}, `${high}°`), el("span", {}, `${low}°`)),
-      svg,
+      el("div", { class: "chart-area" }, svg, marks),
       el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
     el("div", { class: "chart-hours" }, hours),
-    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout),
-    el("div", { class: "chart-caption dim" }, summary));
+    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout));
 }
 
 // The conditions at one moment of the chart: observed if it has gone by, forecast if not.
