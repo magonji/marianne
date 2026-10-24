@@ -141,3 +141,8 @@ def period_start(period: str, now: datetime) -> datetime:
     if period == "year":
         return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     return datetime(2000, 1, 1, tzinfo=now.tzinfo)
+
+
+def last_days(now: datetime, count: int = 7) -> list:
+    """The last `count` days up to today, oldest first (the history's "7 days", day by day)."""
+    return [now.date() - timedelta(days=back) for back in range(count - 1, -1, -1)]

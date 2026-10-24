@@ -87,3 +87,19 @@ def test_history_route(tmp_path):
             assert (await client.get("/api/history/siglo")).status == 404
 
     asyncio.run(run())
+
+
+def test_week_ranges_by_hour_without_glitches_or_silent_days():
+    from marianne.sources.homeassistant import week_ranges
+
+    days = [NOW.date() - timedelta(days=n) for n in (2, 1, 0)]
+    hour = lambda day, h: datetime(day.year, day.month, day.day, h).astimezone()
+    rows = [stat(hour(days[0], 3), max=300.0, min=40.0), stat(hour(days[0], 4), max=179919.0, min=50.0),
+            stat(hour(days[1], 9), max=900.0, min=45.0)]
+    state = {"state": "120", "last_reported": NOW.isoformat()}
+    cells = week_ranges({"valid_max": 20000, "decimals": 0}, rows, days, state, NOW)
+    # The glitch only takes out its hour; today, nothing in the statistics yet but the current value
+    assert cells == [{"max": "300", "min": "40"}, {"max": "900", "min": "45"}, {"max": "120", "min": "120"}]
+    # A sensor silent since the day before yesterday: the days after are unknown
+    silent = {"state": "6.0", "last_reported": (NOW - timedelta(days=2)).isoformat()}
+    assert week_ranges({}, rows, days, silent, NOW)[1:] == [None, None]

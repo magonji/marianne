@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from .base import WHEN_FORMAT, Reading, Source, check_alert, format_number, make_fraction, period_start
+from .base import WHEN_FORMAT, Reading, Source, check_alert, format_number, last_days, make_fraction, period_start
 
 API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
@@ -418,6 +418,8 @@ def daily_summaries(samples: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 def weather_history(history: WeatherHistory, period: str, now: datetime) -> list[dict[str, Any]]:
     """The `history` command's rows from what was observed: temperature, wind, and rain per day."""
+    if period == "7d":
+        return weather_week(history, now)
     start = period_start(period, now).date().isoformat()
     days = {day: summary for day, summary in sorted(history.all_days().items()) if day >= start}
     if not days:
@@ -462,6 +464,23 @@ def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
         "clouds": current.get("clouds", {}).get("all", 0),
         "rain": current.get("rain", {}).get("1h", 0) + current.get("snow", {}).get("1h", 0),
     }
+
+
+def weather_week(history: WeatherHistory, now: datetime) -> list[dict[str, Any]]:
+    """The history's "7 days", day by day: each day's highest and lowest temperature and wind, and
+    its rain (None for a day Marianne didn't observe)."""
+    summaries = history.all_days()
+    days = [summaries.get(day.isoformat()) for day in last_days(now)]
+    if not any(days):
+        return [{"label": "Temperatura", "error": "SIN DATOS"}]
+    rows = []
+    for key, label, unit, decimals in (("temp", "Temperatura", "°C", 1), ("wind", "Viento", "km/h", 0)):
+        cells = [None if day is None else {"max": format_number(day[f"{key}_max"], decimals),
+                                            "min": format_number(day[f"{key}_min"], decimals)} for day in days]
+        rows.append({"label": label, "parts": [{"unit": unit, "daily": cells}]})
+    rain = [None if day is None else {"total": format_number(day["rain"], 1)} for day in days]
+    rows.append({"label": "Lluvia", "parts": [{"unit": "mm", "daily": rain}]})
+    return rows
 
 
 def chart_reading(

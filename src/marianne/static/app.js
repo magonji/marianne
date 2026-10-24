@@ -33,6 +33,11 @@ let calendarDay = null; // "YYYY-MM-DD" picked while going through the days
 let history = null; // { period, data, at } while it's on
 const HISTORY_NAMES = { today: "hoy", "7d": "7 días", "30d": "30 días", year: "este año", all: "siempre" };
 const HISTORY_REFRESH_MS = 5 * 60_000;
+// The "7 days" table: at most this many values a page, which go by on their own.
+const WEEK_COLUMNS = 3;
+const WEEK_PAGE_MS = 10_000;
+const weekPages = {}; // page shown, by panel
+let weekTurned = 0;
 let audio = null;
 
 // Per viewer: the page shown in each panel with pages, the theme, and the alerts already seen.
@@ -91,6 +96,10 @@ async function start() {
 
 async function poll() {
   if (history && history.data && Date.now() - history.at > HISTORY_REFRESH_MS) loadHistory(history.period);
+  if (history && history.period === "7d" && Date.now() - weekTurned > WEEK_PAGE_MS) {
+    weekTurned = Date.now();
+    for (const index of Object.keys(weekPages)) weekPages[index] += 1;
+  }
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(response.statusText);
@@ -1100,6 +1109,8 @@ function nextHistory() {
   const periods = layout.history_periods;
   const next = history ? periods.indexOf(history.period) + 1 : 0;
   history = next < periods.length ? { period: periods[next], data: null, at: 0 } : null;
+  for (const index of Object.keys(weekPages)) delete weekPages[index];
+  weekTurned = Date.now();
   render();
   if (history) loadHistory(history.period);
 }
@@ -1117,6 +1128,7 @@ async function loadHistory(period) {
 
 // A panel in history mode: each row, the max and min of its values (and when) instead of the value.
 function drawHistoryPanel(view) {
+  if (history.period === "7d" && history.data && history.data.days) return drawWeekPanel(view);
   const { panel, index } = view;
   const node = el("section", {
     class: "panel history",
@@ -1141,6 +1153,71 @@ function drawHistoryPanel(view) {
       el("span", { class: "label" }, upper(row.label)),
       el("span", { class: "leader" }),
       el("span", { class: "values" }, values.flatMap((value, at) => (at ? ["  ", value] : [value])))));
+  }
+  node.append(body);
+  if (history.at) node.append(el("div", { class: "subtitle" }, new Date(history.at).toTimeString().slice(0, 8)));
+  return node;
+}
+
+// The "7 days": a row a day, a column a value with that day's max and min (a meter's or the rain's,
+// its total). The values go in pages of WEEK_COLUMNS, never splitting a row's values (a room's
+// temperature and humidity stay together); a click on the title turns the page.
+function drawWeekPanel(view) {
+  const { panel, index } = view;
+  const rows = history.data.panels[String(index)] || [];
+  const columns = [];
+  for (const row of rows) {
+    if (row.error || !row.parts) continue;
+    const several = row.parts.length > 1;
+    columns.push(row.parts.map((part) => ({ label: row.label, unit: part.unit, daily: part.daily, several })));
+  }
+  const pages = [];
+  for (const group of columns) {
+    const last = pages[pages.length - 1];
+    if (last && last.length + group.length <= WEEK_COLUMNS) last.push(...group);
+    else pages.push([...group]);
+  }
+  weekPages[index] = weekPages[index] ?? 0;
+  const page = pages.length ? weekPages[index] % pages.length : 0;
+  const shown = pages[page] || [];
+  const turn = () => {
+    weekPages[index] = (weekPages[index] || 0) + 1;
+    weekTurned = Date.now();
+    render();
+  };
+  const node = el("section", {
+    class: "panel history week",
+    style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}`,
+  });
+  const title = `${panel.title} · 7 días${pages.length > 1 ? ` · ${page + 1}/${pages.length}` : ""}`;
+  node.append(el("h2", {}, pages.length > 1 ? el("button", { title: "Siguiente página", onclick: turn }, upper(title)) : upper(title)));
+  const body = el("div", { class: "body" });
+  const errors = rows.filter((row) => row.error);
+  if (!shown.length) body.append(el("div", { class: errors.length ? "error" : "waiting" }, upper(errors.length ? errors[0].error : "SIN DATOS")));
+  else {
+    const table = el("div", { class: "week-table", style: `grid-template-columns: auto repeat(${shown.length}, minmax(0, 1fr))` });
+    table.append(el("span", {}));
+    // A row's first value is named after it; the others (a room's humidity), only by their unit.
+    shown.forEach((column, at) => {
+      const named = !column.several || at === 0 || shown[at - 1].label !== column.label;
+      table.append(el("span", { class: "week-head", title: `${column.label} ${column.unit}` },
+        upper(named ? column.label : ""), column.unit ? el("span", { class: "unit" }, ` ${column.unit}`) : ""));
+    });
+    const weekdays = ["do", "lu", "ma", "mi", "ju", "vi", "sá"];
+    history.data.days.forEach((iso, day) => {
+      const date = fromIso(iso);
+      table.append(el("span", { class: `week-day${day === history.data.days.length - 1 ? " today" : ""}` },
+        upper(`${weekdays[date.getDay()]} ${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}`)));
+      for (const column of shown) {
+        const cell = column.daily[day];
+        if (!cell) table.append(el("span", { class: "week-cell dim" }, "--"));
+        else if (cell.total !== undefined) table.append(el("span", { class: "week-cell" }, el("span", { class: "value" }, cell.total)));
+        else table.append(el("span", { class: "week-cell" },
+          el("span", { class: "dim" }, "▲"), el("span", { class: "value" }, cell.max), " ",
+          el("span", { class: "dim" }, "▼"), el("span", { class: "value" }, cell.min)));
+      }
+    });
+    body.append(table);
   }
   node.append(body);
   if (history.at) node.append(el("div", { class: "subtitle" }, new Date(history.at).toTimeString().slice(0, 8)));

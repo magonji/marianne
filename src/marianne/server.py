@@ -26,7 +26,7 @@ from aiohttp import web
 from .config import Config, ConfigError, PanelConfig, load_config, parse_config
 from .icons import Icons
 from .sources import Source, build_source
-from .sources.base import HISTORY_PERIODS
+from .sources.base import HISTORY_PERIODS, last_days
 from .sources.dates import DatesSource
 from .sources.pomodoro import PomodoroSource
 
@@ -78,7 +78,11 @@ class Dashboard:
 
         wanted = [(index, panel) for index, panel in enumerate(self.config.panels) if panel.history]
         results = await asyncio.gather(*(panel_rows(panel) for _, panel in wanted))
-        return {"period": period, "panels": {str(index): rows for (index, _), rows in zip(wanted, results)}}
+        answer = {"period": period, "panels": {str(index): rows for (index, _), rows in zip(wanted, results)}}
+        if period == "7d":
+            # The days of the "7 days" table, oldest first, as its rows.
+            answer["days"] = [day.isoformat() for day in last_days(datetime.now().astimezone())]
+        return answer
 
     def date_stores(self) -> dict[str, DatesSource]:
         """The dates sources with a file the page can edit."""

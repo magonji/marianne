@@ -13,7 +13,8 @@ from urllib.parse import quote
 import httpx
 import websockets
 
-from .base import WHEN_FORMAT, Reading, Source, check_alert, format_number, make_fraction, parse_number, period_start
+from .base import (WHEN_FORMAT, Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number,
+                   period_start)
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
 # Shortcuts for `format:`; any other value is used as a strftime pattern.
@@ -217,6 +218,10 @@ class HomeAssistantSource(Source):
             return cached[1]
         states = await self._all_states()
         now = datetime.now().astimezone()
+        if period == "7d":
+            rows = await self._week(items, states, now)
+            self._history_rows[key] = (time.monotonic(), rows)
+            return rows
         start = period_start(period, now)
         parts = {item_id: history_parts(item) for item_id, item in enumerate(items)}
         kinds = {part["entity"]: state_kind(states.get(part["entity"])) for found in parts.values() for part in found}
@@ -367,8 +372,80 @@ class HomeAssistantSource(Source):
         since = self._alert_since.setdefault(key, datetime.now().astimezone())
         return alarm_message(item, label, value, since, alert)
 
+    async def _week(self, items: list[dict[str, Any]], states: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+        """The history's "7 days", day by day: each measured value's max and min of each day, and
+        each meter's consumption of each day."""
+        days = last_days(now)
+        start = midnight(now) - timedelta(days=len(days) - 1)
+        parts = [history_parts(item) for item in items]
+        kinds = {part["entity"]: state_kind(states.get(part["entity"])) for found in parts for part in found}
+        measured = sorted(entity for entity, kind in kinds.items() if kind == "range")
+        meters = sorted(entity for entity, kind in kinds.items() if kind == "daily")
+        queries = []
+        # Hour by hour, so that a meter's glitch only takes out its hour, not the whole day.
+        if measured:
+            queries.append({"start_time": start.isoformat(), "statistic_ids": measured, "period": "hour", "types": ["max", "min"]})
+        if meters:
+            queries.append({"start_time": start.isoformat(), "statistic_ids": meters, "period": "day", "types": ["change"]})
+        answers = await self._statistics(queries) if queries else []
+        if answers is None:
+            return [{"label": item.get("name", item.get("entity", "")), "error": "SIN CONEXIÓN"} for item in items]
+        found = {entity: rows for answer in answers for entity, rows in answer.items()}
+        rows = []
+        for item, item_parts in zip(items, parts):
+            row_parts = []
+            for part in item_parts:
+                state = states.get(part["entity"]) or {}
+                unit = part.get("unit", state.get("attributes", {}).get("unit_of_measurement", ""))
+                kind = kinds[part["entity"]]
+                if kind == "range":
+                    row_parts.append({"unit": unit, "daily": week_ranges(part, found.get(part["entity"], []), days, state, now)})
+                elif kind == "daily":
+                    row_parts.append({"unit": unit, "daily": week_totals(part, found.get(part["entity"], []), days)})
+            if row_parts:
+                rows.append({"label": item.get("name", item["entity"]), "parts": row_parts})
+        return rows
+
     async def close(self) -> None:
         await self.client.aclose()
+
+
+def week_ranges(
+    part: dict[str, Any], rows: list[dict[str, Any]], days: list, state: dict[str, Any], now: datetime
+) -> list[dict[str, Any] | None]:
+    """Each day's max and min from the hourly statistics (None for a day without data), leaving out
+    the hours beyond `valid_max` or `valid_min`. Days after the sensor last reported are None too:
+    Home Assistant keeps writing its last value. Today's counts the current value."""
+    scale, decimals = part.get("scale", 1), part.get("decimals")
+    high_limit, low_limit = part.get("valid_max"), part.get("valid_min")
+    highs: dict[Any, list[float]] = {}
+    lows: dict[Any, list[float]] = {}
+    for row in rows:
+        day = row_time(row).date()
+        if row.get("max") is not None and (high_limit is None or row["max"] * scale <= float(high_limit)):
+            highs.setdefault(day, []).append(row["max"] * scale)
+        if row.get("min") is not None and (low_limit is None or row["min"] * scale >= float(low_limit)):
+            lows.setdefault(day, []).append(row["min"] * scale)
+    current = parse_number(state.get("state"))
+    reported = parse_timestamp(state.get("last_reported") or state.get("last_updated") or "")
+    if current is not None and reported is not None and reported >= midnight(now):
+        highs.setdefault(now.date(), []).append(current * scale)
+        lows.setdefault(now.date(), []).append(current * scale)
+    cells = []
+    for day in days:
+        silent = reported is not None and day > reported.date()
+        if silent or day not in highs or day not in lows:
+            cells.append(None)
+        else:
+            cells.append({"max": format_number(max(highs[day]), decimals), "min": format_number(min(lows[day]), decimals)})
+    return cells
+
+
+def week_totals(part: dict[str, Any], rows: list[dict[str, Any]], days: list) -> list[dict[str, Any] | None]:
+    """Each day's consumption of a meter (None for a day without data or a reset)."""
+    by_day = {row_time(row).date(): row["change"] * part.get("scale", 1)
+              for row in rows if row.get("change") is not None and row["change"] >= 0}
+    return [{"total": format_number(by_day[day], part.get("decimals", 1))} if day in by_day else None for day in days]
 
 
 def mark_stale(item: dict[str, Any], reading: Reading, state: dict[str, Any], now: datetime) -> None:

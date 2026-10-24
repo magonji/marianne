@@ -216,7 +216,13 @@ valores por la máxima y la mínima del periodo, con cuándo fue cada una: hoy, 
 últimos 30 días, este año y desde siempre (cada pulsación pasa al siguiente; la última, o `Q`,
 vuelve a lo normal).
 
-- **Home Assistant**: salen de sus estadísticas a largo plazo (los sensores con `state_class`).
+En **7 días** sale, en lugar de eso, una tabla con un día por fila y un valor por columna: la
+máxima y la mínima de ese día (o el consumo, o la lluvia, del día). Si un panel tiene más de tres
+valores, van en páginas (los de una misma fila, juntos: la temperatura y la humedad de una
+habitación) que pasan solas cada 10 segundos o con un clic en el título.
+
+- **Home Assistant**: salen de sus estadísticas a largo plazo (los sensores con `state_class`);
+  los días posteriores al último informe de un sensor salen como `--`.
   Para lo que se mide (temperatura, humedad, potencia...), la máxima y la mínima; para los
   contadores (kWh), el día de más y el de menos consumo. Si un sensor no ha informado desde la
   medianoche, "hoy" dice SIN DATOS en lugar de repetir su último valor.

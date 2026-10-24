@@ -283,6 +283,36 @@ button {
   align-self: start;
 }
 
+/* ---- the history's "7 days" table ---- */
+
+.week-table {
+  display: grid;
+  gap: 0 1.5ch;
+  white-space: nowrap;
+}
+
+.week-table > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.week-head {
+  color: var(--soft);
+  text-align: right;
+}
+
+.week-day {
+  color: var(--soft);
+}
+
+.week-day.today {
+  color: var(--accent);
+}
+
+.week-cell {
+  text-align: right;
+}
+
 .calendar-rows {
   min-width: 0;
 }
