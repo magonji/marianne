@@ -77,7 +77,7 @@ def measure(field: str, item: dict[str, Any], host: Path | None = None) -> tuple
     if field == "disk":
         path = item.get("path", "/")
         disk = psutil.disk_usage(str(host / path.lstrip("/")) if host else path)
-        return disk.percent, f"{gigabytes(disk.used)}/{gigabytes(disk.total)} GB"
+        return disk.percent, sizes(disk.used, disk.total)
     return cpu_temperature(), ""
 
 
@@ -106,6 +106,13 @@ def text_value(field: str, host: Path | None = None) -> str:
 
 def gigabytes(size: float) -> str:
     return f"{size / 1024**3:.1f}"
+
+
+def sizes(used: float, total: float) -> str:
+    """'11.7/926.3 GB', or in TB from 1000 GB on (a big external disk): '3.5/4.6 TB'."""
+    if total >= 1000 * 1024**3:
+        return f"{used / 1024**4:.1f}/{total / 1024**4:.1f} TB"
+    return f"{gigabytes(used)}/{gigabytes(total)} GB"
 
 
 def read_text(path: Path) -> str:

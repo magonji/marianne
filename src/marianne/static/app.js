@@ -727,9 +727,15 @@ function conditionsAt(chart, day, t, interpolate) {
   return upper([hour, `${temp.toFixed(1)}°C`, `${Math.round(wind)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
 }
 
+// Where the wind blows from, as on a weather map: N, NE, E... (O for oeste); nothing when calm.
+function windFrom(degrees, speed) {
+  if (degrees === undefined || degrees === null || speed < 1) return "";
+  return ` ${["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Math.round(degrees / 45) % 8]}`;
+}
+
 function conditionsNow(sample) {
   return upper([
-    "Ahora", `${sample.temp.toFixed(1)}°C`, `${Math.round(sample.wind)} km/h`,
+    "Ahora", `${sample.temp.toFixed(1)}°C`, `${Math.round(sample.wind)} km/h${windFrom(sample.deg, sample.wind)}`,
     `☂ ${sample.rain.toFixed(1)} mm/h`, `︽ ${Math.round(sample.clouds)}%`,
   ].join("  "));
 }

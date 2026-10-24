@@ -420,16 +420,20 @@ def daily_summaries(samples: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
-    """Temperature, wind (km/h), clouds (%) and rain (mm in the last hour) from the current weather."""
+    """Temperature, wind (km/h, and the degrees it blows from), clouds (%) and rain (mm in the last
+    hour) from the current weather."""
     if "main" not in current or "dt" not in current:
         return None
-    return {
+    sample = {
         "t": int(current["dt"]),
         "temp": current["main"]["temp"],
         "wind": current.get("wind", {}).get("speed", 0) * 3.6,
         "clouds": current.get("clouds", {}).get("all", 0),
         "rain": current.get("rain", {}).get("1h", 0) + current.get("snow", {}).get("1h", 0),
     }
+    if current.get("wind", {}).get("deg") is not None:
+        sample["deg"] = current["wind"]["deg"]
+    return sample
 
 
 def weather_week(history: WeatherHistory, now: datetime) -> list[dict[str, Any]]:

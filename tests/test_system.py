@@ -59,3 +59,10 @@ def test_system_reads_the_host_mounted_in_docker(fake_machine, tmp_path, monkeyp
     assert paths == [str(tmp_path / "mnt/datos")]
     # Without the mount (outside Docker), the local machine.
     assert SystemSource("equipo", host_root="/no/existe").host is None
+
+
+def test_big_disks_in_terabytes():
+    from marianne.sources.system import sizes
+
+    assert sizes(450 * GB, 500 * GB) == "450.0/500.0 GB"
+    assert sizes(3.5 * 1024 * GB, 4.6 * 1024 * GB) == "3.5/4.6 TB"
