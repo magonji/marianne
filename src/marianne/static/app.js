@@ -33,7 +33,8 @@ let calendarDay = null; // "YYYY-MM-DD" picked while going through the days
 let history = null; // { data, at } while it's on
 const HISTORY_REFRESH_MS = 5 * 60_000;
 // The "7 days" table: at most this many values a page, which go by on their own.
-const WEEK_COLUMNS = 3;
+// Six on a screen (three rooms with their temperature and humidity), three on a phone.
+const weekColumns = () => (matchMedia("(max-width: 760px)").matches ? 3 : 6);
 const WEEK_PAGE_MS = 10_000;
 const weekPages = {}; // page shown, by panel
 let weekTurned = 0;
@@ -1121,7 +1122,7 @@ async function loadHistory() {
 }
 
 // The "7 days": a row a day, a column a value with that day's max and min (a meter's or the rain's,
-// its total). The values go in pages of WEEK_COLUMNS, never splitting a row's values (a room's
+// its total). The values go in pages of weekColumns(), never splitting a row's values (a room's
 // temperature and humidity stay together); a click on the title turns the page.
 function drawWeekPanel(view) {
   const { panel, index } = view;
@@ -1141,7 +1142,7 @@ function drawWeekPanel(view) {
   const pages = [];
   for (const group of columns) {
     const last = pages[pages.length - 1];
-    if (last && last.length + group.length <= WEEK_COLUMNS) last.push(...group);
+    if (last && last.length + group.length <= weekColumns()) last.push(...group);
     else pages.push([...group]);
   }
   weekPages[index] = weekPages[index] ?? 0;
@@ -1162,7 +1163,8 @@ function drawWeekPanel(view) {
   const errors = rows.filter((row) => row.error);
   if (!shown.length) body.append(el("div", { class: errors.length ? "error" : "waiting" }, upper(errors.length ? errors[0].error : "SIN DATOS")));
   else {
-    const table = el("div", { class: "week-table", style: `grid-template-columns: auto repeat(${shown.length}, minmax(0, 1fr))` });
+    // Each column as wide as its figures (a humidity needs less than a temperature), spread out.
+    const table = el("div", { class: "week-table", style: `grid-template-columns: repeat(${shown.length + 1}, auto)` });
     table.append(el("span", {}));
     // A row's first value is named after it; the others (a room's humidity), only by their unit.
     shown.forEach((column, at) => {
@@ -1179,6 +1181,9 @@ function drawWeekPanel(view) {
         const cell = column.daily[day];
         if (!cell) table.append(el("span", { class: "week-cell dim" }, "--"));
         else if (cell.total !== undefined) table.append(el("span", { class: "week-cell" }, el("span", { class: "value" }, cell.total)));
+        // With many columns, only max/min; with few, with the arrows.
+        else if (shown.length > 3) table.append(el("span", { class: "week-cell" },
+          el("span", { class: "value" }, cell.max), el("span", { class: "dim" }, "/"), el("span", { class: "value" }, cell.min)));
         else table.append(el("span", { class: "week-cell" },
           el("span", { class: "dim" }, "▲"), el("span", { class: "value" }, cell.max), " ",
           el("span", { class: "dim" }, "▼"), el("span", { class: "value" }, cell.min)));

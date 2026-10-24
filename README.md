@@ -269,6 +269,7 @@ título.
 | `week: false` | Lo deja fuera solo de la tabla de 7 días (p. ej. una potencia, para quedarse con su consumo) |
 | `week: true` | En un elemento `on_today`: su tiempo encendido de cada día en la tabla de 7 días (la calefacción) |
 | `week_name` | Su nombre en la tabla de 7 días ("Calefacción" en lugar de "Calefacción hoy") |
+| `week_order` | Su lugar en la tabla de 7 días: 0 por defecto; cuanto mayor, más a la derecha |
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 

@@ -287,7 +287,8 @@ button {
 
 .week-table {
   display: grid;
-  gap: 0 1.5ch;
+  justify-content: space-between;
+  gap: 0 1ch;
   white-space: nowrap;
 }
 

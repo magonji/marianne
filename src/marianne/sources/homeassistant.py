@@ -345,10 +345,12 @@ class HomeAssistantSource(Source):
             return [{"label": item.get("name", item.get("entity", "")), "error": "SIN CONEXIÓN"} for item in items]
         found = {entity: rows for answer in answers for entity, rows in answer.items()}
         rows = []
+        orders = []
         for item, item_parts in zip(items, parts):
             if item.get("on_today") and item.get("week"):
                 # Time on each day (the heating), from the states of the whole week.
                 rows.append(await self._week_on_time(item, states.get(item["entity"]), days, start, now))
+                orders.append(float(item.get("week_order", 0)))
                 continue
             row_parts = []
             for part in item_parts:
@@ -361,7 +363,9 @@ class HomeAssistantSource(Source):
                     row_parts.append({"unit": unit, "daily": week_totals(part, found.get(part["entity"], []), days)})
             if row_parts:
                 rows.append({"label": item.get("week_name", item.get("name", item["entity"])), "parts": row_parts})
-        return rows
+                orders.append(float(item.get("week_order", 0)))
+        # `week_order` moves a column along the table (higher, further right); the rest keep their order.
+        return [row for _, _, row in sorted(zip(orders, range(len(rows)), rows), key=lambda entry: entry[:2])]
 
     async def _week_on_time(
         self, item: dict[str, Any], state: dict[str, Any] | None, days: list, start: datetime, now: datetime
