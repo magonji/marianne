@@ -1429,10 +1429,10 @@ function chime() {
 
 // ---------------------------------------------------------------- boot
 
-function boot(lines) {
+async function boot(lines) {
   // Once per browser session: a reload doesn't replay it.
   try {
-    if (sessionStorage.getItem("marianne.booted")) return Promise.resolve();
+    if (sessionStorage.getItem("marianne.booted")) return;
     sessionStorage.setItem("marianne.booted", "1");
   } catch {
     /* no storage: show it */
@@ -1440,6 +1440,20 @@ function boot(lines) {
   const screen = document.getElementById("boot");
   const log = document.getElementById("boot-log");
   screen.hidden = false;
+  // Its lines are a terminal's 66 columns: on a narrow screen (a phone) the font shrinks to fit them,
+  // measured with VT323 itself, once it has loaded (a fallback font is wider).
+  try {
+    await Promise.race([document.fonts.load('1em "VT323"'), new Promise((resolve) => setTimeout(resolve, 1500))]);
+  } catch {
+    /* without the font, measure with whatever there is */
+  }
+  log.style.fontSize = "";
+  log.textContent = lines.join("\n");
+  const room = log.clientWidth;
+  if (log.scrollWidth > room) {
+    log.style.fontSize = `${(parseFloat(getComputedStyle(log).fontSize) * room) / log.scrollWidth}px`;
+  }
+  log.textContent = "";
   return new Promise((resolve) => {
     let shown = 0;
     const finish = () => {

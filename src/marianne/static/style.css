@@ -1116,6 +1116,7 @@ a.tile.cursor > span {
   margin: 0;
   font: inherit;
   font-size: 1.2rem;
+  overflow: hidden;
 }
 
 /* ---- narrow screens: one column that scrolls ---- */
@@ -1133,6 +1134,10 @@ a.tile.cursor > span {
 
   #top {
     padding: 0.3rem 16px;
+  }
+
+  #boot {
+    padding: 1rem 16px;
   }
 
   #banner {
