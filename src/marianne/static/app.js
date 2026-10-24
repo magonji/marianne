@@ -465,13 +465,16 @@ function drawChart(chart) {
   }
   if (low < 0 && high > 0) draw("line", { class: "zero", x1: 0, y1: yTemp(0), x2: W, y2: yTemp(0) });
 
-  // Rain: as high as the mm an hour, as wide (centred in its slot) as the chance of it.
+  // Rain: as high as the mm an hour across its whole slot, as solid as the chance of it
+  // (observed rain is certain).
   for (const bar of day.bars) {
-    const from = x(bar.from), to = x(bar.to), width = Math.max(1, (to - from) * Math.max(0.15, bar.pop));
+    const from = x(bar.from), to = x(bar.to);
     const tall = Math.max(1.5, Math.min(1, bar.rain / rainTop) * height);
+    const heavy = bar.rain >= chart.heavy_rain;
     draw("rect", {
-      class: `rain${bar.rain >= chart.heavy_rain ? " heavy" : ""}`,
-      x: (from + to - width) / 2, y: bottom - tall, width, height: tall,
+      class: `rain${heavy ? " heavy" : ""}`,
+      x: from + 0.3, y: bottom - tall, width: Math.max(0.6, to - from - 0.6), height: tall,
+      "fill-opacity": (0.12 + 0.78 * Math.max(0, Math.min(1, bar.pop))).toFixed(2),
     });
   }
 
@@ -488,12 +491,19 @@ function drawChart(chart) {
     const clouds = interpolate(t, "clouds");
     if (clouds === null) continue;
     const cx = x(t), cy = Math.max(top + 3, Math.min(bottom - 6, yClouds(clouds)));
-    draw("path", { class: "clouds", d: `M ${cx - 3} ${cy + 1.5} L ${cx} ${cy - 1.5} L ${cx + 3} ${cy + 1.5} M ${cx - 3} ${cy + 4.5} L ${cx} ${cy + 1.5} L ${cx + 3} ${cy + 4.5}` });
+    const d = `M ${cx - 3} ${cy + 1.5} L ${cx} ${cy - 1.5} L ${cx + 3} ${cy + 1.5} M ${cx - 3} ${cy + 4.5} L ${cx} ${cy + 1.5} L ${cx + 3} ${cy + 4.5}`;
+    draw("path", { class: "outline", d });
+    draw("path", { class: "clouds", d });
   }
 
   // Wind, thin; then the temperature, thick, split where it crosses 0 °C to paint the cold in red.
   const line = (key, y) => points.map((point) => `${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`).join(" ");
-  if (points.length > 1) draw("polyline", { class: "wind", points: line("wind", yWind) });
+  // Each line goes over a thin black one a little wider, so that it stands out from the rest.
+  if (points.length > 1) {
+    draw("polyline", { class: "outline", points: line("wind", yWind) });
+    draw("polyline", { class: "wind", points: line("wind", yWind) });
+    draw("polyline", { class: "outline thick", points: line("temp", yTemp) });
+  }
   for (let index = 1; index < points.length; index += 1) {
     const a = points[index - 1], b = points[index];
     const pieces = [[a.t, a.temp]];
@@ -512,12 +522,16 @@ function drawChart(chart) {
   const inspected = chartHour === null ? null : day.start + chartHour * 3600;
   if (inspected !== null) draw("line", { class: "inspect", x1: x(inspected), y1: top, x2: x(inspected), y2: bottom });
 
+  // Under it: the conditions now (or at the hour picked), and the day in figures.
   const value = (number, unit = "°") => (number === null || number === undefined ? "--" : `${number.toFixed(0)}${unit}`);
-  const caption = [
-    chartDay ? upper("Mañana") : `${upper("Ahora")} ${chart.temp === null ? "--" : chart.temp.toFixed(1) + "°C"}`,
-    `▲ ${value(day.max)}`, `▼ ${value(day.min)}`, `☂ ${value(day.pop, "%")}`,
-  ].join("  ");
-  const readout = inspected === null ? caption : conditionsAt(chart, day, inspected, interpolate);
+  let readout;
+  if (inspected !== null) readout = conditionsAt(chart, day, inspected, interpolate);
+  else if (!chartDay && chart.current) readout = conditionsNow(chart.current);
+  else readout = conditionsAt(chart, day, day.start + 12 * 3600, interpolate);
+  const summary = upper([
+    chartDay ? "Mañana" : "Hoy", `▲ ${value(day.max)}`, `▼ ${value(day.min)}`,
+    `☂ ${value(day.pop, "%")}`, `${(day.rain || 0).toFixed(1)} mm`,
+  ].join("  "));
   // Midnight at the left edge needs no label; then one every 3 hours.
   const hours = [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => el("span", {}, hour ? String(hour).padStart(2, "0") : ""));
   // Hovering (or a tap on a phone) picks the hour under the pointer.
@@ -543,7 +557,8 @@ function drawChart(chart) {
       svg,
       el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
     el("div", { class: "chart-hours" }, hours),
-    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout));
+    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout),
+    el("div", { class: "chart-caption dim" }, summary));
 }
 
 // The conditions at one moment of the chart: observed if it has gone by, forecast if not.
@@ -556,6 +571,13 @@ function conditionsAt(chart, day, t, interpolate) {
   const rain = bar ? `☂ ${bar.rain.toFixed(1)} mm/h${bar.observed ? "" : ` ${Math.round(bar.pop * 100)}%`}` : "☂ 0";
   const when = t < chart.now ? "observado" : "previsto";
   return upper([hour, `${temp.toFixed(1)}°C`, `${Math.round(wind)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
+}
+
+function conditionsNow(sample) {
+  return upper([
+    "Ahora", `${sample.temp.toFixed(1)}°C`, `${Math.round(sample.wind)} km/h`,
+    `☂ ${sample.rain.toFixed(1)} mm/h`, `︽ ${Math.round(sample.clouds)}%`,
+  ].join("  "));
 }
 
 // Where the hour starts when the cursor lands on the chart: now on today's (in the city's time,

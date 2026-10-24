@@ -374,6 +374,8 @@ def chart_reading(
         "heavy_rain": float(item.get("heavy_rain", HEAVY_RAIN)),
         "now": now.timestamp(),
         "temp": temperature,
+        # What it's like now (temperature, wind, clouds, rain in the last hour), for the line under it.
+        "current": observed_sample(current),
         "days": days,
     }
     if temperature is not None and days[0]["points"]:
@@ -441,4 +443,6 @@ def chart_day(
         "max": max((point["temp"] for point in inside), default=None),
         "min": min((point["temp"] for point in inside), default=None),
         "pop": max(pops, default=0) * 100,
+        # Litres per m² over the whole day: what fell in the hours gone and what is forecast for the rest.
+        "rain": sum(bar["rain"] * (bar["to"] - bar["from"]) / 3600 for bar in bars),
     }

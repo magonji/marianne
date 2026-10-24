@@ -182,19 +182,22 @@ panels:
 
 - **Temperatura**: línea gruesa; en rojo por debajo de 0 °C (y una raya roja discontinua en el 0).
 - **Viento**: línea fina, con su escala en km/h a la derecha.
-- **Lluvia**: una barra por tramo, tan alta como los mm por hora y tan ancha como la probabilidad;
-  en rojo desde `heavy_rain` mm/h (4 por defecto, la "lluvia intensa" del Met Office).
+- **Lluvia**: una barra por tramo, tan alta como los mm por hora y tanto más sólida cuanto más
+  probable (la observada, del todo); en rojo desde `heavy_rain` mm/h (4 por defecto, la "lluvia
+  intensa" del Met Office).
 - **Nubes**: un doble chevron (︽) por hora, a la altura de su porcentaje (0 % abajo, 100 % arriba).
 
 A la izquierda de la raya de "ahora", lo observado; a la derecha, la previsión (en tramos de 3
 horas). El plan gratuito de OpenWeather no da el pasado, así que Marianne guarda las condiciones
 de cada consulta (cada 10 minutos) en el fichero `history` de la fuente; las horas en las que no
-estaba en marcha quedan en blanco. La tecla `day_key` (`D`) o el botón de la barra pasan a mañana y
-vuelven. Debajo va la temperatura de ahora, la máxima, la mínima y la probabilidad de lluvia.
+estaba en marcha quedan en blanco. Las líneas y los chevrones llevan un fino borde negro para que se distingan sobre las barras. La
+tecla `day_key` (`D`) o el botón de la barra pasan a mañana y vuelven. Debajo van dos líneas: las
+condiciones de ahora (temperatura, viento, lluvia y nubes) y el día en cifras (máxima, mínima,
+probabilidad de lluvia y litros por m² de todo el día).
 
 Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o lleva
 hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
-(sin perder la hora) y `↑` `↓` o `Esc` salen. Debajo de la gráfica se lee entonces la hora, la
+(sin perder la hora) y `↑` `↓` o `Esc` salen. En la primera línea se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado o lo previsto.
 
