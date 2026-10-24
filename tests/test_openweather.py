@@ -239,7 +239,10 @@ def test_chart_observed_hours_then_forecast(tmp_path):
     assert [day["date"] for day in reading.chart["days"]] == ["2026-10-24", "2026-10-25"]
     now_weather = {"dt": int(now.timestamp()), "main": {"temp": 2.5}, "wind": {"speed": 5}, "clouds": {"all": 75}}
     current = chart_reading({"field": "chart"}, "El tiempo", forecast, now, now_weather, history.samples).chart["current"]
-    assert current == {"t": int(now.timestamp()), "temp": 2.5, "wind": 18.0, "clouds": 75, "rain": 0}
+    assert current == {"t": int(now.timestamp()), "temp": 2.5, "wind": 18.0, "gust": 18.0, "clouds": 75, "rain": 0}
+    now_weather["wind"]["gust"] = 10
+    current = chart_reading({"field": "chart"}, "El tiempo", forecast, now, now_weather, history.samples).chart["current"]
+    assert current["gust"] == 36.0  # 10 m/s
     now_weather["wind"]["deg"] = 225
     current = chart_reading({"field": "chart"}, "El tiempo", forecast, now, now_weather, history.samples).chart["current"]
     assert current["deg"] == 225  # from the south-west

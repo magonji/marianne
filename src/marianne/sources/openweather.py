@@ -20,7 +20,7 @@ CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 # Hourly forecast for the chart (OpenWeather's free one comes in slots of 3 hours). Free, no key,
 # from the national weather services' models; data CC BY 4.0, Open-Meteo.com.
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-OPEN_METEO_FIELDS = "temperature_2m,wind_speed_10m,precipitation,precipitation_probability,cloud_cover"
+OPEN_METEO_FIELDS = "temperature_2m,wind_speed_10m,wind_gusts_10m,precipitation,precipitation_probability,cloud_cover"
 # The forecast only changes every few hours; the free plan allows 1000 calls a day.
 CACHE_SECONDS = 600.0
 
@@ -420,8 +420,8 @@ def daily_summaries(samples: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
-    """Temperature, wind (km/h, and the degrees it blows from), clouds (%) and rain (mm in the last
-    hour) from the current weather."""
+    """Temperature, wind and gusts (km/h, and the degrees it blows from), clouds (%) and rain (mm in
+    the last hour) from the current weather."""
     if "main" not in current or "dt" not in current:
         return None
     sample = {
@@ -433,6 +433,8 @@ def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
     }
     if current.get("wind", {}).get("deg") is not None:
         sample["deg"] = current["wind"]["deg"]
+    # No gust in it: as strong as the wind itself.
+    sample["gust"] = max(current.get("wind", {}).get("gust", 0) * 3.6, sample["wind"])
     return sample
 
 
@@ -489,13 +491,15 @@ def open_meteo_hours(data: dict[str, Any]) -> list[dict[str, Any]]:
     hourly = data["hourly"]
     hours = []
     for index, t in enumerate(hourly["time"]):
-        values = {key: hourly[key][index] for key in OPEN_METEO_FIELDS.split(",")}
+        # A field missing from the answer (the gusts, in some models) counts as unknown.
+        values = {key: (hourly.get(key) or [None] * len(hourly["time"]))[index] for key in OPEN_METEO_FIELDS.split(",")}
         if values["temperature_2m"] is None:
             continue
         hours.append({
             "t": int(t),
             "temp": values["temperature_2m"],
             "wind": values["wind_speed_10m"] or 0,
+            "gust": values["wind_gusts_10m"] if values["wind_gusts_10m"] is not None else values["wind_speed_10m"] or 0,
             "clouds": values["cloud_cover"] or 0,
             "rain": values["precipitation"] or 0,
             "pop": (values["precipitation_probability"] or 0) / 100,
@@ -530,8 +534,10 @@ def chart_day(
             by_hour.setdefault(int((sample["t"] - start) // 3600), []).append(sample)
     for hour, samples in sorted(by_hour.items()):
         mean = {key: sum(sample[key] for sample in samples) / len(samples) for key in ("t", "temp", "wind", "clouds", "rain")}
+        # Samples kept before gusts were: as strong as the wind.
+        mean["gust"] = sum(sample.get("gust", sample["wind"]) for sample in samples) / len(samples)
         # At the samples' mean time: the middle of a full hour, earlier for the one under way.
-        points.append({"t": mean["t"], "temp": mean["temp"], "wind": mean["wind"],
+        points.append({"t": mean["t"], "temp": mean["temp"], "wind": mean["wind"], "gust": mean["gust"],
                        "clouds": mean["clouds"], "observed": True})
         if mean["rain"] > 0:
             bars.append({"from": start + hour * 3600, "to": start + (hour + 1) * 3600,
@@ -542,7 +548,7 @@ def chart_day(
         not points or latest["t"] - points[-1]["t"] > 300
     ):
         points.append({"t": latest["t"], "temp": latest["temp"], "wind": latest["wind"],
-                       "clouds": latest["clouds"], "observed": True})
+                       "gust": latest.get("gust", latest["wind"]), "clouds": latest["clouds"], "observed": True})
 
     if hours:
         observed_hours = set(by_hour)
@@ -550,7 +556,8 @@ def chart_day(
             t = hour["t"]
             if t < start - 3600 or t > end + 3600:
                 continue
-            point = {"t": t, "temp": hour["temp"], "wind": hour["wind"], "clouds": hour["clouds"], "observed": False}
+            point = {"t": t, "temp": hour["temp"], "wind": hour["wind"], "gust": hour.get("gust", hour["wind"]),
+                     "clouds": hour["clouds"], "observed": False}
             if t <= moment:
                 # Gone by: only to fill an hour nothing was observed in.
                 if start <= t < end and int((t - start) // 3600) not in observed_hours:
@@ -574,7 +581,9 @@ def chart_day(
         if slot_end <= max(moment, start - 3 * 3600) or slot["dt"] > end + 3 * 3600:
             continue
         if slot["dt"] > moment:
-            points.append({"t": slot["dt"], "temp": slot["main"]["temp"], "wind": slot["wind"]["speed"] * 3.6,
+            wind = slot["wind"]["speed"] * 3.6
+            points.append({"t": slot["dt"], "temp": slot["main"]["temp"], "wind": wind,
+                           "gust": max(slot["wind"].get("gust", 0) * 3.6, wind),
                            "clouds": slot.get("clouds", {}).get("all", 0), "observed": False})
         rain = (slot.get("rain", {}).get("3h", 0) + slot.get("snow", {}).get("3h", 0)) / 3
         bar_start, bar_end = max(slot["dt"], moment, start), min(slot_end, end)

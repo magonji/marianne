@@ -586,7 +586,8 @@ function drawChart(chart) {
   if (!temps.length) [low, high] = [0, 10];
   if (high - low < 6) [low, high] = [Math.floor((low + high) / 2 - 3), Math.ceil((low + high) / 2 + 3)];
   const yTemp = (value) => bottom - ((value - low) / (high - low)) * height;
-  const windTop = Math.round(Math.max(30, ...points.map((point) => point.wind)) * 1.1);
+  const gust = (point) => Math.max(point.gust ?? point.wind, point.wind);
+  const windTop = Math.round(Math.max(30, ...points.map(gust)) * 1.1);
   const yWind = (value) => bottom - (value / windTop) * height;
   const rainTop = Math.max(chart.heavy_rain * 2, ...day.bars.map((bar) => bar.rain));
   const yClouds = (value) => bottom - (value / 100) * height;
@@ -638,6 +639,11 @@ function drawChart(chart) {
   const line = (key, y) => points.map((point) => `${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`).join(" ");
   // Each line goes over a thin black one a little wider, so that it stands out from the rest.
   if (points.length > 1) {
+    // The gusts: a thin line over the wind's, with a faint fill between the two.
+    const along = (value) => points.map((point) => `${x(point.t).toFixed(1)},${yWind(value(point)).toFixed(1)}`);
+    draw("polygon", { class: "gust-band", points: [...along((point) => point.wind), ...along(gust).reverse()].join(" ") });
+    draw("polyline", { class: "outline", points: along(gust).join(" ") });
+    draw("polyline", { class: "gust", points: along(gust).join(" ") });
     draw("polyline", { class: "outline", points: line("wind", yWind) });
     draw("polyline", { class: "wind", points: line("wind", yWind) });
     draw("polyline", { class: "outline thick", points: line("temp", yTemp) });
@@ -718,13 +724,19 @@ function conditionsAt(chart, day, t, interpolate) {
   const hour = `${String(Math.round((t - day.start) / 3600)).padStart(2, "0")}:00`;
   const temp = interpolate(t, "temp");
   if (temp === null) return upper(`${hour}  sin datos`);
-  const wind = interpolate(t, "wind"), clouds = interpolate(t, "clouds");
+  const wind = interpolate(t, "wind"), clouds = interpolate(t, "clouds"), gusts = interpolate(t, "gust");
   const bar = day.bars.find((bar) => bar.from <= t && t < bar.to);
   const rain = bar ? `☂ ${bar.rain.toFixed(1)} mm/h${bar.observed ? "" : ` ${Math.round(bar.pop * 100)}%`}` : "☂ 0";
   // Gone by: observed, or estimated by Open-Meteo where nothing was observed.
   const nearest = day.points.reduce((best, point) => (Math.abs(point.t - t) < Math.abs(best.t - t) ? point : best), day.points[0]);
   const when = t >= chart.now ? "previsto" : nearest && nearest.estimated ? "estimado" : "observado";
-  return upper([hour, `${temp.toFixed(1)}°C`, `${Math.round(wind)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
+  return upper([hour, `${temp.toFixed(1)}°C`, `${windAndGusts(wind, gusts)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
+}
+
+// "26–40": the wind and, if they're stronger, its gusts.
+function windAndGusts(wind, gusts) {
+  return gusts !== null && gusts !== undefined && Math.round(gusts) > Math.round(wind)
+    ? `${Math.round(wind)}–${Math.round(gusts)}` : `${Math.round(wind)}`;
 }
 
 // Where the wind blows from, as on a weather map: N, NE, E... (O for oeste); nothing when calm.
@@ -735,7 +747,7 @@ function windFrom(degrees, speed) {
 
 function conditionsNow(sample) {
   return upper([
-    "Ahora", `${sample.temp.toFixed(1)}°C`, `${Math.round(sample.wind)} km/h${windFrom(sample.deg, sample.wind)}`,
+    "Ahora", `${sample.temp.toFixed(1)}°C`, `${windAndGusts(sample.wind, sample.gust)} km/h${windFrom(sample.deg, sample.wind)}`,
     `☂ ${sample.rain.toFixed(1)} mm/h`, `︽ ${Math.round(sample.clouds)}%`,
   ].join("  "));
 }

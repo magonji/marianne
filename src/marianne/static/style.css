@@ -816,6 +816,19 @@ a.tile.cursor > span {
   stroke-width: 5;
 }
 
+.chart .gust-band {
+  fill: var(--soft);
+  opacity: 0.12;
+}
+
+.chart .gust {
+  fill: none;
+  stroke: var(--soft);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
 .chart .clouds,
 .chart .wind {
   fill: none;
