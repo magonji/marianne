@@ -71,6 +71,7 @@ uv run marianne --demo --theme phosphor
 | `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
 | `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
+| `<` `>` | Calendario: mes anterior y siguiente (también `RePág` y `AvPág`); `Q` lo devuelve a este mes |
 | `F1` | Ayuda: la lista de todas las teclas, que también se pueden pulsar ahí |
 | `Q` | Salir: cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente (`Esc` hace lo mismo) |
 

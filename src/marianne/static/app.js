@@ -924,7 +924,7 @@ function onKey(event) {
   const key = event.key.toLowerCase();
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
   // F1 is the help here, not the browser's.
-  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader)) || key === "f1") event.preventDefault();
+  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader)) || key === "f1" || MONTH_KEYS[key]) event.preventDefault();
   press(key);
 }
 
@@ -981,6 +981,13 @@ function press(key) {
     return void window.open(cursor, "_blank", "noopener");
   }
   if (key === layout.history_key) return toggleHistory();
+  // < and > (or PgUp and PgDn) go to the calendar's month before and after, like its ‹ ›.
+  if (MONTH_KEYS[key] && calendarReading()) return shiftCalendarMonth(MONTH_KEYS[key]);
+  if (key === "escape" && calendarView && !cursor && popup === null) {
+    // Q, with nothing else open, brings the calendar back to this month.
+    leaveCalendar();
+    return render();
+  }
   if (key === "escape" && history && popup === null && !cursor) {
     history = null;
     return render();
@@ -1058,6 +1065,7 @@ function setSegments(node, text) {
 
 const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
 const KEY_NAMES = { enter: "↵", escape: "ESC", f1: "F1" };
+const MONTH_KEYS = { "<": -1, ">": 1, pageup: -1, pagedown: 1 };
 
 // What the cursor is on: a link's address, or CHART_CURSOR for the weather chart.
 const cursorId = (node) => node.getAttribute("href") || node.dataset.cursor;
@@ -1147,6 +1155,10 @@ function helpCommands() {
   const weatherKey = chartKey();
   if (weatherKey) add(weatherKey, chartDay ? "El tiempo: la gráfica de hoy" : "El tiempo: la gráfica de mañana");
   for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar");
+  if (calendarReading()) {
+    add("<", "Calendario: mes anterior");
+    add(">", "Calendario: mes siguiente");
+  }
   for (const view of panelViews()) {
     if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`);
   }
