@@ -318,6 +318,11 @@ button {
   text-align: right;
 }
 
+/* The day's events, under the dates. */
+.agenda {
+  border-top: 1px dashed var(--dim);
+}
+
 .calendar-rows {
   min-width: 0;
 }
@@ -381,12 +386,6 @@ button {
 
 .calendar-grid .weekend {
   color: var(--soft);
-}
-
-/* A special date: in the accent colour and underlined; its name is in the tooltip. */
-.calendar-grid .marked {
-  color: var(--accent);
-  text-decoration: underline;
 }
 
 .calendar-grid .day {

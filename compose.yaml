@@ -20,3 +20,8 @@ services:
       # Los secretos que config.yaml pide con ${...}, leídos del fichero .env.
       HASS_TOKEN: ${HASS_TOKEN:-}
       OPENWEATHER_KEY: ${OPENWEATHER_KEY:-}
+      # Los enlaces iCal de los calendarios (añade aquí los que uses en config.yaml).
+      ICAL_PERSONAL: ${ICAL_PERSONAL:-}
+      ICAL_VILLCAHITERS: ${ICAL_VILLCAHITERS:-}
+      ICAL_UNI: ${ICAL_UNI:-}
+      ICAL_UNI_CLOSED: ${ICAL_UNI_CLOSED:-}

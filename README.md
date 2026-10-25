@@ -47,6 +47,8 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   el texto que trae el feed y, al final, el enlace a la noticia en la web.
 - **Avisos meteorológicos** del Met Office (amarillo, ámbar, rojo) de tu región: los ámbar y
   rojos salen también en la franja de alarma.
+- **Tus calendarios** (Google, iCloud, Outlook… con su enlace iCal privado): los eventos de hoy, y
+  con la tecla `M` los de mañana.
 - **Monitor de servicios**: comprueba que tus servicios web responden y cuánto tardan; si
   alguno se cae, sale en rojo.
 
@@ -70,7 +72,7 @@ uv run marianne --demo --theme phosphor
 | `T`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `→` `↓` / `←` `↑` | Mover el cursor hacia delante / hacia atrás por un solo camino: las horas de la gráfica del tiempo, los servicios (de izquierda a derecha y de arriba abajo) y los titulares de noticias; al final vuelve a empezar. Con un día del calendario elegido (tocándolo), recorren los días |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
-| `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
+| `M` | Mañana: la gráfica del tiempo y los eventos de los calendarios de mañana, y vuelta a hoy |
 | `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
 | `<` `>` | Calendario: mes anterior y siguiente (también `RePág` y `AvPág`); `Q` lo devuelve a este mes |
@@ -179,11 +181,12 @@ panels:
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`; con `wud: <url>` pregunta además a What's Up Docker qué contenedores tienen actualización, y el icono de su servicio sale en rojo): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `link` (adónde lleva un clic, si no es la misma `url`), `container` o `containers` (sus contenedores en What's Up Docker), `alert: false`, `alarm_after`, `alarm_text` |
+| `ical` | Eventos de calendarios por su enlace iCal privado (`calendars:` una lista de `name` y `url`, mejor como `${ICAL_PERSONAL}` en `.env`: el enlace da acceso a todo el calendario). Un elemento lista los eventos de hoy (con hora de inicio y fin, o "todo el día"; ● el que está en curso) y, con la tecla de mañana (`M`), los de mañana | sin campos; opcional `name`, el título de la lista |
 | `metoffice` | Avisos meteorológicos del Met Office (`region`: el código de la región, `st` para Strathclyde; opcional `area`, solo los que la nombran, p. ej. `Glasgow`), del peor al más próximo, con hasta cuándo valen; un clic abre el texto completo | sin campos; opcionales `limit` (3), `alarm_from` (`amber`: desde qué nivel van a la franja de alarma) y `none_text` |
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
-| `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`); o `calendar: true`, el mes en una columna a la izquierda, separada por una línea (encima en el móvil), con hoy en vídeo inverso y las fechas señaladas subrayadas; `‹` `›` o el cursor (ver Teclas) pasan a otros meses |
+| `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`); o `calendar: true`, el mes en una columna a la izquierda, separada por una línea (encima en el móvil), con hoy en vídeo inverso; `‹` `›` o el cursor (ver Teclas) pasan a otros meses |
 
 ### La gráfica del tiempo
 
@@ -311,6 +314,7 @@ src/marianne/
     monitor.py         monitor de servicios web
     rss.py             titulares de feeds RSS y Atom
     metoffice.py       avisos meteorológicos del Met Office
+    ical.py            eventos de calendarios iCal
     system.py          CPU, memoria y disco de este equipo
     demo.py            datos simulados
 ```

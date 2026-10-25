@@ -46,6 +46,12 @@ sources:
   luna:
     type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
 
+  agenda:
+    type: ical                          # eventos de tus calendarios, por su enlace iCal privado
+    calendars:                          # los enlaces, en .env: dan acceso a todo el calendario
+      - name: Personal
+        url: ${ICAL_PERSONAL}
+
   avisos:
     type: metoffice                     # avisos meteorológicos del Met Office (Reino Unido)
     region: st                          # código de la región (st: Strathclyde); ver metoffice.gov.uk
@@ -245,7 +251,7 @@ panels:
     items:
       - progress: day                   # barras de progreso: day | week | month | year | life
       - progress: year
-      - calendar: true                  # el mes, a la izquierda: hoy en inverso y las fechas subrayadas
+      - calendar: true                  # el mes, a la izquierda, con hoy en inverso
       - progress: life
         birth: 1990-03-14
         end: 2070-01-01                 # hasta cuándo
@@ -258,6 +264,8 @@ panels:
         date: 1990-03-14
         yearly: true                    # cada año, y dice cuántos cumple
         soon: 14                        # resaltada 14 días antes (7 por defecto)
+      # - source: agenda                # los eventos de hoy de tus calendarios (con M, los de mañana)
+      #   name: Personal
 
   - title: Servidor
     source: servidor

@@ -350,6 +350,10 @@ function drawPanel(view) {
         if (reading === firstSun) body.append(drawSun(sun));
         continue;
       }
+      if (reading.agenda) {
+        body.append(drawAgenda(reading));
+        continue;
+      }
       if (reading.chart) {
         // The chart takes the height the rows under it leave.
         body.classList.add("with-chart");
@@ -471,8 +475,7 @@ function drawBig(panel, reading) {
       reading.note ? el("span", { class: reading.error ? "error" : null }, `  ${reading.note}`) : ""));
 }
 
-// A month like the terminal's `cal`: today in reverse video, the special dates highlighted (their
-// names in the tooltip) and the weekend dimmer.
+// Calendar helpers: dates as YYYY-MM-DD in local time.
 const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const pad2 = (number) => String(number).padStart(2, "0");
 const isoDate = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
@@ -487,28 +490,64 @@ function eventsOn(events, year, month, day) {
     .map((event) => (event.year && event.yearly ? `${event.name} · ${year - event.year} años` : event.name));
 }
 
-// A month like the terminal's `cal`: today in reverse video, the special dates highlighted (their
-// names in the tooltip) and the weekend dimmer. ‹ › go to another month.
+// The calendars' events of a day, in order: those lasting all day first, then by their time.
+function eventsOfDay(events, iso) {
+  return events
+    .filter((event) => {
+      const first = event.start.slice(0, 10);
+      // An all-day event ends the day after its last; a timed one, on the day (and time) it ends.
+      const last = event.all_day ? isoDate(new Date(fromIso(event.end.slice(0, 10)) - 86_400_000)) : event.end.slice(0, 10);
+      return first <= iso && iso <= last && !(!event.all_day && event.end.slice(0, 10) === iso && event.end.slice(11) === "00:00" && first !== iso);
+    })
+    .sort((a, b) => (b.all_day - a.all_day) || a.start.localeCompare(b.start));
+}
+
+// The events of today, or of tomorrow with the "mañana" key, a row each: "HOY · YOGA …… 18:30–19:30"
+// (or "todo el día"), ● on the one under way; with none, a single "HOY · NADA" row. No title row:
+// the panel has little room left.
+function drawAgenda(reading) {
+  const day = new Date();
+  day.setDate(day.getDate() + chartDay);
+  const iso = isoDate(day);
+  const now = new Date();
+  const clock = `${iso}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  const events = eventsOfDay(reading.agenda || [], iso);
+  const when = chartDay ? "Mañana" : "Hoy";
+  if (!events.length) {
+    return el("div", { class: "agenda", title: reading.label },
+      el("div", { class: "row" }, el("span", { class: "label dim" }, upper(`${when} · nada en ${reading.label}`))));
+  }
+  return el("div", { class: "agenda", title: reading.label }, events.map((event) => {
+    const starts = event.start.slice(0, 10) === iso && !event.all_day ? event.start.slice(11, 16) : "";
+    const ends = event.end.slice(0, 10) === iso && !event.all_day ? event.end.slice(11, 16) : "";
+    const time = event.all_day ? "todo el día" : starts && ends ? `${starts}–${ends}` : starts ? `desde ${starts}` : ends ? `hasta ${ends}` : "todo el día";
+    const under = !chartDay && !event.all_day && event.start <= clock && clock < event.end;
+    return el("div", { class: "row" },
+      el("span", { class: `label${under ? " on" : ""}` },
+        el("span", { class: "dim" }, upper(`${under ? "● " : ""}${when} · `)), upper(event.name)),
+      el("span", { class: "leader" }),
+      el("span", { class: "values" }, el("span", { class: under ? "on" : "value" }, upper(time))));
+  }));
+}
+
+// A month like the terminal's `cal`: today in reverse video and the weekend dimmer. ‹ › go to
+// another month.
 function drawCalendar(calendar) {
   const view = calendarView || { year: calendar.year, month: calendar.month };
   const first = new Date(view.year, view.month - 1, 1);
   const length = new Date(view.year, view.month, 0).getDate();
   const firstWeekday = (first.getDay() + 6) % 7;
   const today = `${calendar.year}-${pad2(calendar.month)}-${pad2(calendar.today)}`;
-  const events = calendar.events || [];
   const cells = [];
   // The usual Spanish initials: X for miércoles, so it isn't confused with martes.
   for (const day of ["l", "m", "x", "j", "v", "s", "d"]) cells.push(el("span", { class: "weekday" }, upper(day)));
   for (let blank = 0; blank < firstWeekday; blank += 1) cells.push(el("span", {}));
   const dayCell = (day) => {
     const iso = `${view.year}-${pad2(view.month)}-${pad2(day)}`;
-    const marked = eventsOn(events, view.year, view.month, day);
-    const classes = ["day", (firstWeekday + day - 1) % 7 >= 5 ? "weekend" : "", marked.length ? "marked" : "",
+    // Only today stands out: no day is marked (the events are listed beside, see drawAgenda).
+    const classes = ["day", (firstWeekday + day - 1) % 7 >= 5 ? "weekend" : "",
       iso === today ? "today" : "", iso === calendarDay ? "selected" : ""].filter(Boolean);
-    return el("span", {
-      class: classes.join(" "), title: marked.length ? marked.join(", ") : null,
-      onclick: () => pickCalendarDay(iso),
-    }, String(day));
+    return el("span", { class: classes.join(" "), onclick: () => pickCalendarDay(iso) }, String(day));
   };
   for (let day = 1; day <= length; day += 1) cells.push(dayCell(day));
   const arrow = (text, step) => el("button", { class: "calendar-arrow", onclick: () => shiftCalendarMonth(step) }, text);
@@ -785,13 +824,16 @@ function toggleChartDay() {
   render();
 }
 
-// The weather chart's key, if a panel has one.
+// The "mañana" key (the weather chart's day_key, M by default): tomorrow's weather and tomorrow's
+// events; null if there's neither.
 function chartKey() {
+  let agenda = false;
   for (const { data } of panelViews()) {
     const reading = data.readings.find((reading) => reading.chart);
     if (reading) return reading.chart.key;
+    agenda = agenda || data.readings.some((reading) => reading.agenda);
   }
-  return null;
+  return agenda ? "m" : null;
 }
 
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.
@@ -1156,7 +1198,7 @@ function helpCommands() {
   }
   if (layout.history_key) add(layout.history_key, history ? "Volver a los valores de ahora" : "Historial de los últimos 7 días");
   const weatherKey = chartKey();
-  if (weatherKey) add(weatherKey, chartDay ? "El tiempo: la gráfica de hoy" : "El tiempo: la gráfica de mañana");
+  if (weatherKey) add(weatherKey, chartDay ? "Hoy: el tiempo y los eventos" : "Mañana: el tiempo y los eventos");
   for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar");
   if (calendarReading()) {
     add("<", "Calendario: mes anterior");

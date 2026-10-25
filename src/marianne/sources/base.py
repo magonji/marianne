@@ -44,6 +44,8 @@ class Reading:
     icon: str | None = None
     # Where a click on the label goes (a news headline opens the article).
     link: str | None = None
+    # Events from calendars (see ical.parse_events), for the page's calendar to mark.
+    agenda: list[dict[str, Any]] | None = None
     # A month as a calendar (see dates.month_calendar), drawn beside the panel's rows.
     calendar: dict[str, Any] | None = None
     # The day's weather as a chart: points, rain bars and the scales (see openweather.chart_reading).

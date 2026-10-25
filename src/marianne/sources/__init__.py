@@ -8,6 +8,7 @@ from .demo import DemoSource
 from .dates import DatesSource
 from .homeassistant import HomeAssistantSource
 from .monitor import MonitorSource
+from .ical import IcalSource
 from .metoffice import MetOfficeSource
 from .moon import MoonSource
 from .openweather import OpenWeatherSource
@@ -46,6 +47,9 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),
                              wud=spec.get("wud"))
+    if kind == "ical":
+        calendars = [{"name": str(c.get("name", "")), "url": secret(c.get("url", ""))} for c in spec.get("calendars") or []]
+        return IcalSource(name, calendars, timeout=spec.get("timeout", 20))
     if kind == "metoffice":
         if not spec.get("region"):
             raise ValueError(f"source '{name}': falta 'region', el código de la región del Met Office (st para Strathclyde)")
