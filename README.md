@@ -194,7 +194,8 @@ panels:
 
 - **Temperatura**: línea gruesa, con la máxima y la mínima escritas; en rojo por debajo de 0 °C
   (y una raya roja discontinua en el 0). Rayas horizontales tenues en las temperaturas redondas.
-- **Viento**: línea fina, con su escala en km/h a la derecha.
+- **Viento**: línea fina, con su escala en km/h a la derecha; en rojo los tramos desde `strong_wind`
+  km/h (50 por defecto, "viento fuerte" en la escala de Beaufort). Encima, las rachas.
 - **Lluvia**: una barra por tramo, tan alta como los mm por hora y tanto más sólida cuanto más
   probable (la observada, del todo); en rojo desde `heavy_rain` mm/h (4 por defecto, la "lluvia
   intensa" del Met Office).

@@ -732,7 +732,7 @@ a.tile.cursor > span {
 
 .chart-plot {
   display: grid;
-  grid-template-columns: 3ch 1fr 4ch;
+  grid-template-columns: 4ch 1fr 4ch;
   gap: 0 0.5ch;
 }
 
@@ -869,6 +869,11 @@ a.tile.cursor > span {
   stroke: var(--soft);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+}
+
+.chart .wind.strong {
+  stroke: var(--error);
+  stroke-width: 2;
 }
 
 .chart .temp {

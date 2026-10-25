@@ -66,6 +66,8 @@ WEEKDAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
 SUNNY = {800, 801}
 # Rain from this many mm an hour is heavy (the Met Office's "heavy rain"): its bar goes in red.
 HEAVY_RAIN = 4.0
+# Wind from this many km/h is strong (Beaufort 7, "near gale"): that stretch of its line goes in red.
+STRONG_WIND = 50.0
 # Observed weather is kept sample by sample for today and the two days before; older days, only
 # as a summary (their max, min and rain), for the `history` command's last 7 days.
 HISTORY_DAYS = 2
@@ -473,6 +475,7 @@ def chart_reading(
         "key": str(item.get("day_key", "m")).lower(),
         "hourly": bool(hours),
         "heavy_rain": float(item.get("heavy_rain", HEAVY_RAIN)),
+        "strong_wind": float(item.get("strong_wind", STRONG_WIND)),
         "now": now.timestamp(),
         "temp": temperature,
         # What it's like now (temperature, wind, clouds, rain in the last hour), for the line under it.

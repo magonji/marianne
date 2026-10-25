@@ -652,11 +652,12 @@ function drawChart(chart) {
     const at = x(day.start + hour * 3600);
     draw("line", { class: "tick", x1: at, y1: top, x2: at, y2: bottom });
   }
-  // And across, at round temperatures: every 1, 2, 5 or 10 degrees, the smallest step that gives
-  // 5 lines at most (0 °C has its own red one).
-  const step = [1, 2, 5, 10].find((size) => (high - low) / size <= 5) || 10;
-  for (let degrees = Math.ceil((low + 0.01) / step) * step; degrees < high; degrees += step) {
-    if (degrees !== 0) draw("line", { class: "tick", x1: 0, y1: yTemp(degrees), x2: W, y2: yTemp(degrees) });
+  // And across, on the rain's scale (the left axis): every 1, 2, 5 or 10 mm/h, the smallest step that
+  // gives 5 lines at most. The temperature only keeps its red line at 0 °C.
+  const yRain = (value) => bottom - (value / rainTop) * height;
+  const step = [1, 2, 5, 10, 20].find((size) => rainTop / size <= 5) || 20;
+  for (let mm = step; mm < rainTop - 0.01; mm += step) {
+    draw("line", { class: "tick", x1: 0, y1: yRain(mm), x2: W, y2: yRain(mm) });
   }
   if (low < 0 && high > 0) draw("line", { class: "zero", x1: 0, y1: yTemp(0), x2: W, y2: yTemp(0) });
 
@@ -702,6 +703,16 @@ function drawChart(chart) {
     draw("polyline", { class: "gust", points: along(gust).join(" ") });
     draw("polyline", { class: "outline", points: line("wind", yWind) });
     draw("polyline", { class: "wind", points: line("wind", yWind) });
+    // Over it, in red, the stretches where the wind is strong, cut where it crosses the threshold.
+    const strong = chart.strong_wind ?? 50;
+    for (let index = 1; index < points.length; index += 1) {
+      const a = points[index - 1], b = points[index];
+      if (a.wind < strong && b.wind < strong) continue;
+      const cross = () => a.t + ((strong - a.wind) * (b.t - a.t)) / (b.wind - a.wind);
+      const t1 = a.wind >= strong ? a.t : cross(), t2 = b.wind >= strong ? b.t : cross();
+      const at = (t) => a.wind + ((b.wind - a.wind) * (t - a.t)) / (b.t - a.t || 1);
+      draw("line", { class: "wind strong", x1: x(t1), y1: yWind(at(t1)), x2: x(t2), y2: yWind(at(t2)) });
+    }
     draw("polyline", { class: "outline thick", points: line("temp", yTemp) });
   }
   for (let index = 1; index < points.length; index += 1) {
@@ -768,7 +779,9 @@ function drawChart(chart) {
   const credit = chart.hourly ? "Previsión por horas: Open-Meteo.com (CC BY 4.0)" : null;
   return el("div", { class: "chart-box", "data-cursor": CHART_CURSOR, title: credit },
     el("div", { class: "chart-plot" },
-      el("div", { class: "chart-axis" }, el("span", {}, `${high}°`), el("span", {}, `${low}°`)),
+      // Left, the rain's scale (mm an hour, at the top of the bars); right, the wind's. The temperature
+      // has its max and min written on its line.
+      el("div", { class: "chart-axis" }, el("span", {}, `${rainTop < 10 ? Number(rainTop.toFixed(1)) : Math.round(rainTop)}`), el("span", {}, "mm/h")),
       el("div", { class: "chart-area" }, svg, marks),
       el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
     el("div", { class: "chart-hours" }, hours),
