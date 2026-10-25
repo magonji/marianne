@@ -57,6 +57,19 @@ def test_only_the_area_the_current_ones_and_the_worst_first():
     assert len(current_warnings(warnings, None, during)) == 3
 
 
+def test_the_same_thing_ending_at_once_only_the_worst():
+    from marianne.sources.metoffice import current_warnings
+
+    same = ("Yellow warning of wind affecting Strathclyde",
+            "Yellow warning of wind affecting Strathclyde: Glasgow valid from 1100 Sat 24 Oct to 2100 Sun 25 Oct")
+    later = ("Yellow warning of wind affecting Strathclyde",
+             "Yellow warning of wind affecting Strathclyde: Glasgow valid from 1100 Sat 24 Oct to 0600 Mon 26 Oct")
+    during = datetime(2026, 10, 25, 12, tzinfo=UK)
+    warnings = current_warnings(parse_warnings(feed(same, AMBER, later)), "Glasgow", during)
+    # The yellow one ending with the amber one goes; the one lasting longer stays
+    assert [(w.level, f"{w.ends:%a %H}") for w in warnings] == [("amber", "Sun 21"), ("yellow", "Mon 06")]
+
+
 def test_no_warnings():
     content = feed()
     source = MetOfficeSource("avisos", "st", transport=httpx.MockTransport(lambda request: httpx.Response(200, content=content)))

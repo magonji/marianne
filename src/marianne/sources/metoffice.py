@@ -82,11 +82,18 @@ class MetOfficeSource(Source):
 
 
 def current_warnings(warnings: list[Warning], area: str | None, now: datetime) -> list[Warning]:
-    """Those for the area that aren't over, the worst first and then the soonest."""
+    """Those for the area that aren't over, the worst first and then the soonest. Of several for the
+    same thing that end at the same time (a yellow warning of wind inside an amber one), only the
+    worst."""
     if area:
         warnings = [warning for warning in warnings if area.lower() in warning.text.lower()]
     warnings = [warning for warning in warnings if warning.ends is None or warning.ends > now]
-    return sorted(warnings, key=lambda warning: (-RANK.get(warning.level, 0), warning.starts or now))
+    warnings = sorted(warnings, key=lambda warning: (-RANK.get(warning.level, 0), warning.starts or now))
+    kept: list[Warning] = []
+    for warning in warnings:
+        if not any(other.kind == warning.kind and other.ends == warning.ends for other in kept):
+            kept.append(warning)
+    return kept
 
 
 def parse_warnings(content: bytes) -> list[Warning]:
