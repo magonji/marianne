@@ -313,8 +313,13 @@ function drawPanel(view) {
     class: `panel${alerting && !stale ? " alert" : ""}${stale ? " stale" : ""}`,
     style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}`,
   });
-  const heading = panel.page_key
-    ? el("button", { title: `Siguiente página [${panel.page_key.toUpperCase()}]`, onclick: () => nextPage(index) }, upper(title))
+  // With several pages (a phone each, a newspaper each), the title turns the page, also by touch,
+  // and says which one it is.
+  const several = panel.pages.length > 1;
+  const pageKey = panel.page_key || panel.key;
+  const heading = several
+    ? el("button", { title: `Siguiente página${pageKey ? ` [${pageKey.toUpperCase()}]` : ""}`, onclick: () => nextPage(index) },
+      upper(title), el("span", { class: "page-count" }, ` ‹${((pages[index] || 0) % panel.pages.length) + 1}/${panel.pages.length}›`))
     : upper(title);
   node.append(el("h2", {}, heading));
   const body = el("div", { class: "body" });
@@ -1554,4 +1559,12 @@ document.getElementById("popup").addEventListener("click", (event) => {
   else togglePopup(popup);
 });
 addEventListener("pointerdown", unlockAudio);
+// A tap (or click) anywhere but the weather chart lets go of the hour picked on it, and the
+// chart says what it's like now again; with the cursor on the chart, that goes too.
+addEventListener("pointerdown", (event) => {
+  if (chartHour === null || event.target.closest(".chart-box")) return;
+  chartHour = null;
+  if (cursor === CHART_CURSOR) cursor = null;
+  render();
+});
 start();
