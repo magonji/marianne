@@ -71,10 +71,14 @@ uv run marianne --demo --theme phosphor
 | `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
 | `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
+| `F1` | Ayuda: la lista de todas las teclas, que también se pueden pulsar ahí |
 | `Q` | Salir: cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente (`Esc` hace lo mismo) |
 
-Casi todas están también en la barra de abajo, para usarlas con el ratón o el dedo. El tema, la
-página de cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
+La barra de abajo muestra el estado de las fuentes de datos (■ bien, ✖ falla). Todas las teclas
+están en la ayuda (`F1`, o el botón AYUDA de la barra, el único en el móvil), donde también se
+pueden pulsar con el ratón o el dedo; en la barra solo salen las que avisan de algo (`[A]VISTO`,
+una ventana con una alerta) y las del momento (`[Q]SALIR` con el cursor). El color, la página de
+cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
 dejan sonar nada hasta la primera tecla o clic en la página.
 
 ## Con tu Home Assistant

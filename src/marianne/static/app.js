@@ -15,6 +15,7 @@ let noticeFlashUntil = 0;
 let lastBell = 0;
 let popup = null; // index of the open pop-up panel
 let cursor = null; // href of the link under the keyboard cursor (arrows move it, Enter opens it)
+let helpOpen = false; // the list of commands (F1)
 let reader = null; // the story open in the reader: its reading, the title of its panel and the chosen option
 const READER_CHOICES = ["read", "close"];
 // The date editor (its key, F by default): the dates of one source, and the form when one is open.
@@ -230,7 +231,15 @@ function renderPanels() {
 
 function renderPopup() {
   const box = document.getElementById("popup");
-  box.hidden = popup === null && !reader && !dates;
+  box.hidden = popup === null && !reader && !dates && !helpOpen;
+  if (helpOpen) {
+    // Only rebuilt when it changes, so that a tap on it isn't lost (as in the status bar).
+    const help = drawHelp();
+    if (box.dataset.help !== help.outerHTML) box.replaceChildren(help);
+    box.dataset.help = help.outerHTML;
+    return;
+  }
+  delete box.dataset.help;
   if (dates) {
     // Drawn again only when it changes: the poll every second must not wipe what is being typed.
     if (box.dataset.dates !== String(dates.version)) {
@@ -832,42 +841,31 @@ function renderStatus() {
   const bar = document.getElementById("status");
   const items = [];
   if (state && state.offline) items.push(el("span", { class: "source bad" }, "✖ SIN CONEXIÓN CON EL SERVIDOR"));
-  // Only the sources that fail: those that work (or haven't answered yet) need no room.
+  // The state of every data source; the commands are in the help (F1).
   for (const source of (state && state.sources) || []) {
-    if (source.ok === false) items.push(el("span", { class: "source bad" }, `✖ ${source.name.toUpperCase()}`));
+    const mark = source.ok === null ? "◌" : source.ok ? "■" : "✖";
+    const cls = source.ok === null ? " waiting-source" : source.ok ? "" : " bad";
+    items.push(el("span", { class: `source${cls}` }, `${mark} ${source.name.toUpperCase()}`));
   }
   // A click on one of these does the same as pressing its key (see the listener on #status).
   const key = (letter, text, flashing = false) =>
     el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
-  // R (refresh) still works, but stays out of the bar to save room.
-  items.push(key("c", "COLOR"));
+  // What needs seeing stays in the bar: an alert not yet seen, a pop-up panel with one.
   if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
-  for (const pomodoro of layout.pomodoros) {
-    const running = state && state.pomodoro && state.pomodoro.running;
-    items.push(key(pomodoro.start_key, running ? "PAUSAR" : "POMODORO"));
-    // Reset only while a pomodoro is under way: stopped at the start there's nothing to reset.
-    if (state && state.pomodoro && state.pomodoro.active) items.push(key(pomodoro.reset_key, "REINICIAR"));
-  }
-  for (const view of panelViews()) {
-    if (view.panel.page_key && !view.panel.key) items.push(key(view.panel.page_key, upper(view.panel.title)));
-  }
-  if (layout.history_key) items.push(key(layout.history_key, history ? "AHORA" : "HISTORIAL"));
-  const weatherKey = chartKey();
-  if (weatherKey) items.push(key(weatherKey, chartDay ? "HOY" : "MAÑANA"));
-  for (const editor of layout.date_editors || []) items.push(key(editor.key, "FECHAS"));
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
-    // A hidden panel with new alerts: the menu entry flashes so it isn't missed.
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
-    items.push(key(view.panel.key, upper(view.panel.title) + (fresh ? "!" : ""), fresh));
+    if (fresh) items.push(key(view.panel.key, upper(view.panel.title) + "!", true));
   }
+  // And what the keys do right now, with the cursor or a window open.
   if (cursor === CALENDAR_CURSOR && !reader) {
     if (calendarDay) items.push(key("q", "VOLVER"));
     else items.push(key("enter", "ELEGIR DÍA"), key("q", "SALIR"));
   } else if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
   else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("q", "SALIR"));
-  // A pop-up panel open: Q closes it.
   else if (popup !== null && !reader && !dates) items.push(key("q", "CERRAR"));
+  // On a phone only "AYUDA": the key's name means nothing there.
+  items.push(el("button", { class: "help-key", "data-key": "f1" }, el("span", { class: "keycap" }, "[F1]"), "AYUDA"));
   if (!audio || audio.state !== "running") items.push(el("span", { class: "sound-hint" }, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
   items.push(el("span", { class: "ready" }, "READY"));
   // The state arrives every second: rebuilding unchanged buttons would swallow a tap that
@@ -924,8 +922,9 @@ function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (dates) return datesKey(event);
   const key = event.key.toLowerCase();
-  // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button.
-  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader))) event.preventDefault();
+  // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
+  // F1 is the help here, not the browser's.
+  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader)) || key === "f1") event.preventDefault();
   press(key);
 }
 
@@ -935,6 +934,15 @@ function press(key) {
   noticeFlashUntil = 0;
   // Q leaves, as in most terminal programs (and in elinor); Esc still does too.
   if (key === "q") key = "escape";
+  if (key === "f1" || key === "?") {
+    helpOpen = !helpOpen;
+    return render();
+  }
+  if (helpOpen) {
+    // From the help: Q closes it, and a command's key closes it and does it.
+    helpOpen = false;
+    if (key === "escape") return render();
+  }
   if (reader) {
     // In the reader: left and right choose between reading on the web and leaving, Enter accepts,
     // up and down scroll the story. Q (or Esc) leaves too.
@@ -1049,7 +1057,7 @@ function setSegments(node, text) {
 // ---------------------------------------------------------------- link cursor
 
 const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
-const KEY_NAMES = { enter: "↵", escape: "ESC" };
+const KEY_NAMES = { enter: "↵", escape: "ESC", f1: "F1" };
 
 // What the cursor is on: a link's address, or CHART_CURSOR for the weather chart.
 const cursorId = (node) => node.getAttribute("href") || node.dataset.cursor;
@@ -1115,6 +1123,50 @@ function renderCursor() {
     leaveCalendar();
     renderStatus();
   }
+}
+
+// ---------------------------------------------------------------- help
+
+// Every command, with its key: in the help window, where each one can be pressed (on a phone,
+// the only way to them).
+function helpCommands() {
+  const commands = [];
+  const add = (key, text) => commands.push({ key, text });
+  add("c", "Cambiar de color");
+  for (const pomodoro of layout.pomodoros) {
+    const running = state && state.pomodoro && state.pomodoro.running;
+    add(pomodoro.start_key, running ? "Pausar el pomodoro" : "Empezar o seguir el pomodoro");
+    if (state && state.pomodoro && state.pomodoro.active) add(pomodoro.reset_key, "Reiniciar el pomodoro");
+  }
+  for (const view of panelViews()) {
+    if (view.panel.page_key && !view.panel.key) add(view.panel.page_key, `${view.panel.title}: siguiente página`);
+  }
+  if (layout.history_key) add(layout.history_key, history ? "Volver a los valores de ahora" : "Historial de los últimos 7 días");
+  const weatherKey = chartKey();
+  if (weatherKey) add(weatherKey, chartDay ? "El tiempo: la gráfica de hoy" : "El tiempo: la gráfica de mañana");
+  for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar");
+  for (const view of panelViews()) {
+    if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`);
+  }
+  add("a", "Dar por vistas las alertas");
+  add("r", "Refrescar todos los paneles");
+  return commands;
+}
+
+function drawHelp() {
+  const row = (keyName, text, key) => el(key ? "button" : "div", {
+    class: "row help-row", "data-help-key": key || null,
+    onclick: key ? () => press(key) : null,
+  }, el("span", { class: "label" }, upper(keyName)), el("span", { class: "leader" }), el("span", { class: "values" }, upper(text)));
+  return el("section", { class: "panel help" },
+    el("h2", {}, upper("Ayuda")),
+    el("div", { class: "body" },
+      helpCommands().map(({ key, text }) => row(KEY_NAMES[key] || key, text, key)),
+      el("div", { class: "rule" }),
+      row("← ↑ ↓ →", "Mover el cursor: enlaces, gráfica, calendario"),
+      row("↵", "Abrir o elegir lo que tiene el cursor"),
+      row("Q", "Salir: cerrar, quitar el cursor"),
+      row("F1", "Esta ayuda")));
 }
 
 // ---------------------------------------------------------------- history
@@ -1493,7 +1545,10 @@ document.getElementById("status").addEventListener("click", (event) => {
 // A click outside the pop-up panel closes it.
 document.getElementById("popup").addEventListener("click", (event) => {
   if (event.target.id !== "popup") return;
-  if (dates) {
+  if (helpOpen) {
+    helpOpen = false;
+    render();
+  } else if (dates) {
     if (!dates.form) closeDates();
   } else if (reader) closeReader();
   else togglePopup(popup);

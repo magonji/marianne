@@ -848,6 +848,25 @@ a.tile.cursor > span {
   stroke: var(--error);
 }
 
+/* ---- help ---- */
+
+#popup .panel.help {
+  width: min(44rem, 94vw);
+}
+
+.help button.row {
+  width: 100%;
+  text-align: left;
+}
+
+.help .help-row .label {
+  color: var(--accent);
+}
+
+.help button.row:hover .values {
+  text-decoration: underline;
+}
+
 .chart-area {
   position: relative;
   min-width: 0;
@@ -936,6 +955,10 @@ a.tile.cursor > span {
   color: var(--background);
   text-shadow: none;
   white-space: nowrap;
+}
+
+#status .source.waiting-source {
+  opacity: 0.6;
 }
 
 #status .source.bad {
@@ -1238,8 +1261,10 @@ a.tile.cursor > span {
     padding: 0.3rem 0;
   }
 
-  /* On a phone only the keys (and a failing source): the sound hint (any tap turns it on) and
-     READY stay out. */
+  /* On a phone only the help (and the alerts): the sources that are fine, the sound hint (any tap
+     turns it on) and READY stay out, and the help's key name too. */
+  #status .source:not(.bad),
+  #status .help-key .keycap,
   #status .sound-hint,
   #status .ready {
     display: none;
