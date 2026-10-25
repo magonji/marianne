@@ -313,13 +313,14 @@ function drawPanel(view) {
     class: `panel${alerting && !stale ? " alert" : ""}${stale ? " stale" : ""}`,
     style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}`,
   });
-  // With several pages (a phone each, a newspaper each), the title turns the page, also by touch,
-  // and says which one it is.
+  // With several pages (a phone each, a newspaper each), the title turns the page, also by touch.
+  // A pop-up (the phones) also says which page it is: its pages are a hidden list otherwise.
   const several = panel.pages.length > 1;
   const pageKey = panel.page_key || panel.key;
+  const count = panel.key ? ` ‹${((pages[index] || 0) % panel.pages.length) + 1}/${panel.pages.length}›` : "";
   const heading = several
     ? el("button", { title: `Siguiente página${pageKey ? ` [${pageKey.toUpperCase()}]` : ""}`, onclick: () => nextPage(index) },
-      upper(title), el("span", { class: "page-count" }, ` ‹${((pages[index] || 0) % panel.pages.length) + 1}/${panel.pages.length}›`))
+      upper(title), count ? el("span", { class: "page-count" }, count) : "")
     : upper(title);
   node.append(el("h2", {}, heading));
   const body = el("div", { class: "body" });
