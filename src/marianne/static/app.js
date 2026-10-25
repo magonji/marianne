@@ -777,11 +777,6 @@ function startHour() {
   return 12;
 }
 
-function moveChartHour(step) {
-  chartHour = Math.max(0, Math.min(23, (chartHour ?? startHour()) + step));
-  render();
-}
-
 function toggleChartDay() {
   chartDay = chartDay ? 0 : 1;
   render();
@@ -1082,39 +1077,41 @@ function visibleLinks() {
   });
 }
 
-// To the nearest link in that direction, measured between edges: a list of headlines (all starting
-// at the same left edge) is entered at the top. The distance across counts double, and is zero while
-// the two overlap, so a column of headlines or of icons is followed straight down.
+// The cursor's one way through the page: the weather chart hour by hour, then the services (left to
+// right and top to bottom), then the headlines (top to bottom). In a pop-up, its links in order.
+function cursorTargets() {
+  const visible = visibleLinks();
+  if (popup !== null) return visible;
+  const shown = (selector) => [...document.querySelectorAll(`#panels ${selector}`)].filter((node) => visible.includes(node));
+  return [...shown(".chart-box[data-cursor]"), ...shown("a.tile"), ...shown(".row .label a[href]")];
+}
+
+// → and ↓ go forward along that way, ← and ↑ back; past the end it starts again.
 function moveCursor([dx, dy]) {
-  const links = visibleLinks();
-  const current = links.find((link) => cursorId(link) === cursor);
-  // On the chart, left and right move along its hours, up and down leave it.
-  if (current && cursor === CHART_CURSOR && dx) return moveChartHour(dx);
-  // In the calendar's days: left and right a day, up and down a week (the month follows).
-  if (current && cursor === CALENDAR_CURSOR && calendarDay) return moveCalendarDay(dx + dy * 7);
-  let target = current ? null : links[0];
-  if (current) {
-    const from = current.getBoundingClientRect();
-    let best = Infinity;
-    for (const link of links) {
-      const to = link.getBoundingClientRect();
-      const ahead = dx ? (to.left + to.right - from.left - from.right) * dx : (to.top + to.bottom - from.top - from.bottom) * dy;
-      if (link === current || ahead <= 2) continue;
-      const along = Math.max(0, dx > 0 ? to.left - from.right : dx < 0 ? from.left - to.right : dy > 0 ? to.top - from.bottom : from.top - to.bottom);
-      const across = dx
-        ? Math.max(0, to.top - from.bottom, from.top - to.bottom)
-        : Math.max(0, to.left - from.right, from.left - to.right);
-      if (along + 2 * across < best) [best, target] = [along + 2 * across, link];
+  // A day picked on the calendar (by a tap): the arrows go through the days, up and down a week.
+  if (cursor === CALENDAR_CURSOR && calendarDay) return moveCalendarDay(dx + dy * 7);
+  const step = dx + dy > 0 ? 1 : -1;
+  const targets = cursorTargets();
+  if (!targets.length) return;
+  const index = targets.findIndex((target) => cursorId(target) === cursor);
+  if (index >= 0 && cursor === CHART_CURSOR) {
+    const hour = (chartHour ?? startHour()) + step;
+    if (hour >= 0 && hour <= 23) {
+      chartHour = hour;
+      return render();
     }
   }
-  if (!target) return;
+  const target = index < 0 ? targets[step > 0 ? 0 : targets.length - 1] : targets[(index + step + targets.length) % targets.length];
+  const from = cursor;
   cursor = cursorId(target);
-  chartHour = cursor === CHART_CURSOR ? startHour() : null;
+  if (from === CALENDAR_CURSOR) leaveCalendar();
+  // Into the chart: at now when the cursor starts there, at its first or last hour when it comes along the way.
+  chartHour = cursor !== CHART_CURSOR ? null : index < 0 ? startHour() : step > 0 ? 0 : 23;
   render();
-  target = visibleLinks().find((link) => cursorId(link) === cursor);
+  const shown = visibleLinks().find((link) => cursorId(link) === cursor);
   // Only where the page scrolls (a phone, one column): on a screen it's all in sight, and scrolling
   // it would shift the whole dashboard.
-  if (target && getComputedStyle(document.body).overflow !== "hidden") target.scrollIntoView({ block: "nearest" });
+  if (shown && getComputedStyle(document.body).overflow !== "hidden") shown.scrollIntoView({ block: "nearest" });
 }
 
 // Panels are drawn again every second: put the cursor back on its link, or drop it if it's gone.
@@ -1168,7 +1165,7 @@ function drawHelp() {
     el("div", { class: "body" },
       helpCommands().map(({ key, text }) => row(KEY_NAMES[key] || key, text, key)),
       el("div", { class: "rule" }),
-      row("← ↑ ↓ →", "Mover el cursor: enlaces, gráfica, calendario"),
+      row("→ ↓  ← ↑", "Cursor: horas del tiempo, servicios y noticias"),
       row("↵", "Abrir o elegir lo que tiene el cursor"),
       row("Q", "Salir: cerrar, quitar el cursor"),
       row("F1", "Esta ayuda")));

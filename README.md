@@ -66,7 +66,7 @@ uv run marianne --demo --theme phosphor
 | `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `T`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
-| `←` `↑` `↓` `→` | Mover el cursor entre los enlaces (servicios, titulares), la gráfica del tiempo, donde `←` `→` van de hora en hora, y el calendario, donde `Enter` entra en los días: `←` `→` de día en día y `↑` `↓` de semana en semana, pasando de mes, con lo que es cada día debajo; `Q` sale de los días. En el lector de noticias, `←` `→` eligen entre *Leer en la web* y *Salir*, y `↑` `↓` desplazan el texto |
+| `→` `↓` / `←` `↑` | Mover el cursor hacia delante / hacia atrás por un solo camino: las horas de la gráfica del tiempo, los servicios (de izquierda a derecha y de arriba abajo) y los titulares de noticias; al final vuelve a empezar. Con un día del calendario elegido (tocándolo), recorren los días |
 | `Enter` | Abrir el enlace del cursor: un titular se abre en el lector, y ahí acepta la opción elegida; lo demás, en una pestaña nueva |
 | `M` | El tiempo: la gráfica de mañana, y vuelta a la de hoy |
 | `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
@@ -207,9 +207,9 @@ tecla `day_key` (`M`) o el botón de la barra pasan a mañana y vuelven. La máx
 día van escritas sobre la línea de temperatura, y debajo de la gráfica, las condiciones de ahora
 (temperatura, viento, lluvia y nubes).
 
-Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o lleva
-hasta ella el cursor de las flechas; ahí `←` `→` van de hora en hora, `Enter` cambia de día
-(sin perder la hora) y `↑` `↓` o `Q` salen. Debajo se lee entonces la hora, la
+Para ver las condiciones de una hora: pasa el ratón por la gráfica o tócala en el móvil, o usa
+el cursor de las flechas, que empieza en ella y va de hora en hora; `Enter` cambia de día (sin
+perder la hora) y `Q` sale. Debajo se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado, lo estimado o lo previsto.
 
