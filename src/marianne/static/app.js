@@ -350,6 +350,8 @@ function drawPanel(view) {
         continue;
       }
       if (reading.chart) {
+        // The chart takes the height the rows under it leave.
+        body.classList.add("with-chart");
         body.append(drawChart(reading.chart), el("div", { class: "rule" }));
         continue;
       }

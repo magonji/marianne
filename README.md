@@ -45,6 +45,8 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   equipo en el que corre Marianne.
 - **Noticias**: los últimos titulares de tus feeds RSS o Atom; un clic los abre en un lector con
   el texto que trae el feed y, al final, el enlace a la noticia en la web.
+- **Avisos meteorológicos** del Met Office (amarillo, ámbar, rojo) de tu región: los ámbar y
+  rojos salen también en la franja de alarma.
 - **Monitor de servicios**: comprueba que tus servicios web responden y cuánto tardan; si
   alguno se cae, sale en rojo.
 
@@ -177,6 +179,7 @@ panels:
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`; con `wud: <url>` pregunta además a What's Up Docker qué contenedores tienen actualización, y el icono de su servicio sale en rojo): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `link` (adónde lleva un clic, si no es la misma `url`), `container` o `containers` (sus contenedores en What's Up Docker), `alert: false`, `alarm_after`, `alarm_text` |
+| `metoffice` | Avisos meteorológicos del Met Office (`region`: el código de la región, `st` para Strathclyde; opcional `area`, solo los que la nombran, p. ej. `Glasgow`), del peor al más próximo, con hasta cuándo valen; un clic abre el texto completo | sin campos; opcionales `limit` (3), `alarm_from` (`amber`: desde qué nivel van a la franja de alarma) y `none_text` |
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname`, `platform`. Opción de la fuente: `host_root` (ver Docker) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
@@ -307,6 +310,7 @@ src/marianne/
     web.py             scraping con selectores CSS
     monitor.py         monitor de servicios web
     rss.py             titulares de feeds RSS y Atom
+    metoffice.py       avisos meteorológicos del Met Office
     system.py          CPU, memoria y disco de este equipo
     demo.py            datos simulados
 ```

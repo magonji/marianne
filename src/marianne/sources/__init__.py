@@ -8,6 +8,7 @@ from .demo import DemoSource
 from .dates import DatesSource
 from .homeassistant import HomeAssistantSource
 from .monitor import MonitorSource
+from .metoffice import MetOfficeSource
 from .moon import MoonSource
 from .openweather import OpenWeatherSource
 from .pomodoro import PomodoroSource
@@ -45,6 +46,10 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),
                              wud=spec.get("wud"))
+    if kind == "metoffice":
+        if not spec.get("region"):
+            raise ValueError(f"source '{name}': falta 'region', el código de la región del Met Office (st para Strathclyde)")
+        return MetOfficeSource(name, region=str(spec["region"]), area=spec.get("area"), timeout=spec.get("timeout", 15))
     if kind == "rss":
         return RssSource(name, timeout=spec.get("timeout", 15))
     if kind == "system":

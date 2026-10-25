@@ -46,6 +46,11 @@ sources:
   luna:
     type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
 
+  avisos:
+    type: metoffice                     # avisos meteorológicos del Met Office (Reino Unido)
+    region: st                          # código de la región (st: Strathclyde); ver metoffice.gov.uk
+    area: Glasgow                       # opcional: solo los que nombran este sitio
+
   tiempo:
     type: openweather                   # api gratuita de previsión de openweathermap.org
     api_key: ${OPENWEATHER_KEY}
