@@ -25,6 +25,8 @@ CACHE_SECONDS = 2.0
 HISTORY_CACHE_SECONDS = 300.0
 # Records only change when a new one is set: the current value is checked on every refresh anyway.
 RECORDS_CACHE_SECONDS = 3600.0
+# How far back the history is read to find when a device last really changed a value.
+SEEN_DAYS = 7
 
 Samples = list[tuple[datetime, float]]
 Records = dict[str, tuple[datetime, float]]
@@ -66,6 +68,8 @@ class HomeAssistantSource(Source):
         self._records: tuple[float, dict[str, Records]] = (0.0, {})
         # When each numeric alert started, so `alarm_after` can wait for it to persist.
         self._alert_since: dict[tuple[str, str | None], datetime] = {}
+        # When each device last really changed a value (see _last_seen), by device, for a few minutes.
+        self._seen: tuple[float, dict[str, datetime]] = (0.0, {})
         # The `history` command's rows, by items, for a few minutes.
         self._history_rows: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
@@ -90,6 +94,7 @@ class HomeAssistantSource(Source):
         self.mark_ok()
         histories = await self._histories(items)
         records = await self._all_records(items)
+        seen = await self._last_seen(items, states)
         readings: list[Reading] = []
         for item in items:
             state = states.get(item["entity"])
@@ -98,9 +103,9 @@ class HomeAssistantSource(Source):
             reading.sun = item.get("sun")
             readings.append(reading)
             if state and "stale_after" in item:
-                mark_stale(item, reading, state, datetime.now().astimezone())
+                mark_stale(item, reading, state, datetime.now().astimezone(), seen.get(device(item["entity"])))
             for extra_item in item.get("also", []):
-                extra = self._extra(extra_item, states.get(extra_item["entity"]), reading)
+                extra = self._extra(extra_item, states.get(extra_item["entity"]), reading, seen)
                 if extra_item.get("replace"):
                     # Takes the place of the main value when it has something to say (eco mode...).
                     if extra.value and not extra.error:
@@ -125,11 +130,12 @@ class HomeAssistantSource(Source):
                 readings += day_stats(item, reading, current, samples, datetime.now().astimezone())
         return readings
 
-    def _extra(self, item: dict[str, Any], state: dict[str, Any] | None, main: Reading) -> Reading:
+    def _extra(self, item: dict[str, Any], state: dict[str, Any] | None, main: Reading,
+               seen: dict[str, datetime] | None = None) -> Reading:
         """A value that shares its row with `main`: no bar, and no repeated stale note."""
         extra = self._reading(item, state)
         if state and "stale_after" in item:
-            mark_stale(item, extra, state, datetime.now().astimezone())
+            mark_stale(item, extra, state, datetime.now().astimezone(), (seen or {}).get(device(item["entity"])))
         extra.fraction = None
         if extra.note == main.note:
             extra.note = ""
@@ -168,6 +174,45 @@ class HomeAssistantSource(Source):
         if latest is not None and latest > changes[-1][0]:
             changes = [*changes, (latest, raw_state(item, state))]
         return Reading(label, format_duration(on_minutes(item, changes, now)))
+
+    async def _last_seen(self, items: list[dict[str, Any]], states: dict[str, dict[str, Any]]) -> dict[str, datetime]:
+        """When each device of the `stale_after` items last really changed one of its values.
+
+        Home Assistant and Zigbee2MQTT send a device's last values again when they restart, so its
+        last report says nothing about whether it's still there: a device whose values haven't
+        changed is the one that's gone. Its values are those whose ids share the device's (the
+        Zigbee2MQTT name, sensor.0x…_temperature, _humidity, _pressure...)."""
+        wanted = {device(part["entity"]) for item in items for part in [item, *item.get("also", [])]
+                  if "stale_after" in part and "entity" in part}
+        if not wanted:
+            return {}
+        cached_at, cached = self._seen
+        if time.monotonic() - cached_at < HISTORY_CACHE_SECONDS and wanted <= cached.keys():
+            return cached
+        entities = sorted(entity for entity in states if device(entity) in wanted)
+        now = datetime.now().astimezone()
+        start = now - timedelta(days=SEEN_DAYS)
+        try:
+            # Without end_time, Home Assistant gives only one day from the start.
+            response = await self.client.get(
+                f"/api/history/period/{quote(start.isoformat())}",
+                params={"filter_entity_id": ",".join(entities), "end_time": now.isoformat(), "minimal_response": "",
+                        "no_attributes": "", "significant_changes_only": "0"},
+            )
+            response.raise_for_status()
+        except httpx.HTTPError:
+            return cached  # Without history, the last report is all there is.
+        # A device with no change at all in those days: before the start (mark_stale says "más de").
+        found: dict[str, datetime] = {name: datetime.min.replace(tzinfo=now.tzinfo) for name in wanted}
+        for series in response.json():
+            if not series:
+                continue
+            changed = last_change(series)
+            name = device(series[0]["entity_id"])
+            if changed is not None and changed > found[name]:
+                found[name] = changed
+        self._seen = (time.monotonic(), {**cached, **found})
+        return self._seen[1]
 
     async def _statistics(self, queries: list[dict[str, Any]]) -> list[dict[str, list[dict[str, Any]]]] | None:
         """Answers to `recorder/statistics_during_period` queries, over one WebSocket (the statistics
@@ -453,11 +498,40 @@ def week_totals(part: dict[str, Any], rows: list[dict[str, Any]], days: list) ->
     return [{"total": format_number(by_day[day], part.get("decimals", 1))} if day in by_day else None for day in days]
 
 
-def mark_stale(item: dict[str, Any], reading: Reading, state: dict[str, Any], now: datetime) -> None:
-    """Flag a value the device hasn't reported for more than `stale_after` minutes."""
+def device(entity: str) -> str:
+    """The device an entity belongs to, by its id: sensor.0x00124b…_temperature → 0x00124b…."""
+    return entity.split(".", 1)[-1].rsplit("_", 1)[0]
+
+
+def last_change(series: list[dict[str, Any]]) -> datetime | None:
+    """When the value last became different from the one before (unavailable and unknown don't
+    count, and neither does the same value sent again)."""
+    previous, changed = None, None
+    for sample in series:
+        value = sample.get("state")
+        if value in (None, "", "unavailable", "unknown"):
+            continue
+        when = parse_timestamp(sample.get("last_changed") or sample.get("last_updated") or "")
+        if previous is not None and value != previous and when is not None:
+            changed = when
+        previous = value
+    return changed
+
+
+def mark_stale(item: dict[str, Any], reading: Reading, state: dict[str, Any], now: datetime,
+               seen: datetime | None = None) -> None:
+    """Flag a value the device hasn't reported for more than `stale_after` minutes: by its last
+    report, or by when its device last really changed a value, if that's earlier (see _last_seen)."""
     reported = parse_timestamp(state.get("last_reported") or state.get("last_updated") or "")
     if reported is None:
         return
+    if seen is not None and seen.year == 1:
+        # Not one change in all the history read: longer ago than that.
+        reading.error = True
+        reading.note = f"hace más de {SEEN_DAYS} d"
+        return
+    if seen is not None and seen < reported:
+        reported = seen
     minutes = (now - reported).total_seconds() / 60
     if minutes > float(item["stale_after"]):
         reading.error = True

@@ -351,3 +351,30 @@ def test_stats_beside_go_next_to_the_value():
     readings = asyncio.run(source.fetch([{"entity": "sensor.t", "decimals": 1, "stats": "beside"}]))
     assert len(readings) == 1
     assert [(extra.label, extra.value) for extra in readings[0].extra] == [("▲", "9.0"), ("▼", "4.0")]
+
+
+def test_a_device_whose_values_dont_change_is_stale_even_if_resent():
+    from datetime import datetime, timedelta
+
+    from marianne.sources.base import Reading
+    from marianne.sources.homeassistant import device, last_change, mark_stale
+
+    now = datetime(2026, 10, 25, 23, 0).astimezone()
+    stamp = lambda hours: (now - timedelta(hours=hours)).isoformat()
+    # A restart sends the same value again; unavailable/unknown in between don't count
+    series = [{"state": "6.1", "last_changed": stamp(90)}, {"state": "6.02", "last_changed": stamp(88)},
+              {"state": "unavailable", "last_changed": stamp(1)}, {"state": "6.02", "last_changed": stamp(1)}]
+    assert last_change(series) == now - timedelta(hours=88)
+    assert last_change([{"state": "6.02", "last_changed": stamp(5)}, {"state": "6.02", "last_changed": stamp(1)}]) is None
+    assert device("sensor.0x00124b0000000001_temperature") == "0x00124b0000000001"
+
+    state = {"state": "6.02", "last_reported": stamp(1)}
+    reading = Reading("Temperatura", "6.0")
+    mark_stale({"stale_after": 120}, reading, state, now, seen=now - timedelta(hours=88))
+    assert reading.error and reading.note == "hace 3 d 16 h"
+    never = Reading("Biblioteca", "18.7")
+    mark_stale({"stale_after": 180}, never, state, now, seen=datetime.min.replace(tzinfo=now.tzinfo))
+    assert never.error and never.note == "hace más de 7 d"
+    fine = Reading("Salón", "19.3")
+    mark_stale({"stale_after": 180}, fine, {"state": "19.3", "last_reported": stamp(0.2)}, now, seen=now - timedelta(minutes=12))
+    assert not fine.error
