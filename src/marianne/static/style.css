@@ -743,6 +743,8 @@ a.tile.cursor > span {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   grid-auto-rows: auto;
+  /* The rows reach the bottom: room for the update time on the border, so it doesn't cover the last. */
+  padding-bottom: 0.6rem;
 }
 
 .body.with-chart > .chart-box {
