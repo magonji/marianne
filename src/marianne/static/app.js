@@ -903,7 +903,8 @@ function drawEnergy(reading) {
   const flame = el("span", { class: `flame${energy.flame ? "" : " out"}`, style: 'mask-image: url("/api/icon/mdi/fire"); -webkit-mask-image: url("/api/icon/mdi/fire")' });
   const number = el("div", { class: `number segments ${styleClass(reading)}` });
   setSegments(number, `${reading.value}W`);
-  const now = el("div", { class: "energy-now", title: energy.flame ? "La calefacción está calentando" : null }, flame, number);
+  // The flame after the figure, raised like an exponent.
+  const now = el("div", { class: "energy-now", title: energy.flame ? "La calefacción está calentando" : null }, number, flame);
 
   // Today's curve: power (filled), the heating's spells (a strip at the bottom and a faint column).
   const W = 240, top = 3, bottom = 60, height = bottom - top;

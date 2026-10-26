@@ -965,8 +965,8 @@ a.tile.cursor > span {
 
 .energy-now {
   display: flex;
-  align-items: center;
-  gap: 0.6ch;
+  align-items: flex-start;
+  gap: 0.2ch;
 }
 
 .energy-now .number {
@@ -976,11 +976,14 @@ a.tile.cursor > span {
 
 .flame {
   display: block;
-  width: 2.3em;
-  height: 2.3em;
+  width: 1.1em;
+  height: 1.1em;
   flex: none;
+  /* Up by the top of the digits, like an exponent. */
+  margin-top: -0.15em;
   /* Like the services' icons: the SVG as a mask over scanlines, in one colour. */
-  background: repeating-linear-gradient(to bottom, var(--error) 0 2px, transparent 2px 3px);
+  background: repeating-linear-gradient(to bottom, var(--primary) 0 2px, transparent 2px 3px);
+  filter: drop-shadow(0 0 2px var(--primary));
   mask-size: contain;
   mask-repeat: no-repeat;
   mask-position: center;
