@@ -14,6 +14,7 @@ from urllib.parse import quote
 import httpx
 import websockets
 
+from ..sun import sun_path
 from .base import Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
@@ -71,6 +72,8 @@ class HomeAssistantSource(Source):
         self._records: tuple[float, dict[str, Records]] = (0.0, {})
         # When each numeric alert started, so `alarm_after` can wait for it to persist.
         self._alert_since: dict[tuple[str, str | None], datetime] = {}
+        # Home Assistant's latitude and longitude, for the Sun's path (asked once).
+        self._place: tuple[float, float] | None = None
         # When each device last really changed a value (see _last_seen), by device, for a few minutes.
         self._seen: tuple[float, dict[str, datetime]] = (0.0, {})
         # The `history` command's rows, by items, for a few minutes.
@@ -98,6 +101,7 @@ class HomeAssistantSource(Source):
         histories = await self._histories(items)
         records = await self._all_records(items)
         seen = await self._last_seen(items, states)
+        path = await self._sun_path() if any(item.get("sun") for item in items) else None
         readings: list[Reading] = []
         for item in items:
             if item.get("energy"):
@@ -107,6 +111,9 @@ class HomeAssistantSource(Source):
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
             reading.sun = item.get("sun")
+            if reading.sun and path is not None:
+                # The diagram's curves go with the first of its readings.
+                reading.sun_path, path = path, None
             readings.append(reading)
             if state and "stale_after" in item:
                 mark_stale(item, reading, state, datetime.now().astimezone(), seen.get(device(item["entity"])))
@@ -157,6 +164,18 @@ class HomeAssistantSource(Source):
         if not changes:
             return Reading(label, "N/D", error=True)
         return Reading(label, format_duration(on_minutes(item, changes, now)))
+
+    async def _sun_path(self) -> dict | None:
+        """Today's and the solstices' curves of the Sun's height, where Home Assistant is."""
+        if self._place is None:
+            try:
+                response = await self.client.get("/api/config")
+                response.raise_for_status()
+                config = response.json()
+                self._place = (float(config["latitude"]), float(config["longitude"]))
+            except (httpx.HTTPError, KeyError, TypeError, ValueError):
+                return None
+        return sun_path(*self._place, datetime.now().astimezone())
 
     async def _changes_today(self, item: dict[str, Any], state: dict[str, Any], now: datetime) -> list[tuple[datetime, str]]:
         """The item's raw states (its attribute's, with `attribute`) since midnight, in order of time."""
@@ -243,6 +262,8 @@ class HomeAssistantSource(Source):
             "target": attributes.get("temperature"),
             "room": item.get("room_name", "Vestíbulo"),
             "room_temp": room_temp,
+            # The thermostat's scale, for the bar the room's temperature chases the target along.
+            "scale": [float(item.get("scale_min", 14)), float(item.get("scale_max", 24))],
         }
         value = "--" if power is None else f"{power:.0f}"
         return Reading(item.get("name", "Luz"), value, "W", offline=power is None, energy=widget)

@@ -353,7 +353,10 @@ function drawPanel(view) {
     const noteWidth = Math.max(0, ...wide.map((reading) => (reading.note ? reading.note.length : 0)));
     for (const reading of rows) {
       if (reading.sun) {
-        if (reading === firstSun) body.append(drawSun(sun));
+        if (reading === firstSun) {
+          const path = rows.find((row) => row.sun_path);
+          body.append(...(path ? drawSunPath(sun, path.sun_path) : [drawSun(sun)]));
+        }
         continue;
       }
       if (reading.agenda) {
@@ -953,17 +956,28 @@ function drawEnergy(reading) {
       [" ", el("span", { class: "token-value" }, number), " ", el("span", { class: "token-unit" }, upper(unit))])));
 
   const degrees = (value) => (value === null || value === undefined ? "--" : Number(value).toFixed(1));
-  // A row like the others: "OBJETIVO …… 19.0 °C (18.4 °C) · MODO ECO", the target and, in
-  // brackets, the room's temperature now.
-  const thermostat = el("div", { class: "row", title: `${energy.room}: ${degrees(energy.room_temp)} °C` },
-    el("span", { class: "label" }, upper("Objetivo")),
-    el("span", { class: "leader" }),
+  // The room chasing the target: a bar on the thermostat's scale filled up to the room's temperature,
+  // a mark at the target, and "18.4 °C ▲ 19.0 °C" (▲ while heating, ▼ while not; nothing when off).
+  const [low, high] = energy.scale || [14, 24];
+  const place = (value) => Math.max(0, Math.min(1, (value - low) / (high - low)));
+  const bar = el("span", { class: "bar thermo" });
+  if (energy.room_temp !== null && energy.room_temp !== undefined) {
+    bar.append(el("i", { style: `width: ${Math.round(place(energy.room_temp) * 100)}%` }));
+  }
+  if (energy.target !== null && energy.target !== undefined) {
+    bar.append(el("b", { class: `target-mark${energy.off ? " off" : ""}`, style: `left: ${(place(energy.target) * 100).toFixed(1)}%` }));
+  }
+  const arrow = energy.off ? "" : energy.flame ? " ▲ " : " ▼ ";
+  const thermostat = el("div", { class: "row wide", title: `${energy.room}: ${degrees(energy.room_temp)} °C · objetivo ${degrees(energy.target)} °C` },
+    el("span", { class: "label", style: "flex: none; margin-right: 1ch" }, upper("Objetivo")),
     el("span", { class: "values" },
-      el("span", { class: energy.off ? "dim" : "value" }, degrees(energy.target)), el("span", { class: "unit" }, " °C"),
-      el("span", { class: "dim" }, " ("), el("span", { class: "value" }, degrees(energy.room_temp)),
-      el("span", { class: "unit" }, " °C"), el("span", { class: "dim" }, ")"),
-      energy.eco ? el("span", { class: "on" }, upper(" · modo eco")) : null,
-      energy.off ? el("span", { class: "dim" }, upper(" · apagada")) : null));
+      el("span", { class: "dim scale-end" }, `${low}°`), bar, el("span", { class: "dim scale-end" }, `${high}°`),
+      el("span", { class: "value-text" },
+        el("span", { class: "value" }, degrees(energy.room_temp)), el("span", { class: "unit" }, " °C"),
+        el("span", { class: energy.flame ? "on" : "dim" }, arrow || " "),
+        el("span", { class: energy.off ? "dim" : "value" }, degrees(energy.target)), el("span", { class: "unit" }, " °C"),
+        energy.eco ? el("span", { class: "on" }, upper(" · eco")) : null,
+        energy.off ? el("span", { class: "dim" }, upper(" · apagada")) : null)));
   return [el("div", { class: "energy" }, el("div", { class: "energy-top" }, now, plot), totals), thermostat];
 }
 
@@ -977,6 +991,92 @@ function chartKey() {
     agenda = agenda || data.readings.some((reading) => reading.agenda);
   }
   return agenda ? "m" : null;
+}
+
+// The Sun's height through today, hour by hour (00 to 24), over the horizon: today's curve (bright
+// above it, dim below) with the Sun at this moment, and the solstices' curves, dashed, as the
+// year's highest and lowest; the times of sunrise, solar noon and sunset where they happen. Under
+// it, how long the day and the night are.
+function drawSunPath(readings, path) {
+  const value = (role) => (readings[role] && !readings[role].error ? `${readings[role].value}${readings[role].unit}` : "");
+  const W = 300, top = 14, bottom = 82;
+  const highest = Math.max(...path.summer.map(([, e]) => e));
+  const high = Math.ceil((highest + 4) / 10) * 10;
+  // Below the horizon only a little: enough to see the night, not to take the room.
+  const low = -10;
+  const x = (minute) => (minute / 1440) * W;
+  const y = (degrees) => top + ((high - Math.max(low, degrees)) / (high - low)) * (bottom - top);
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "sun sun-path");
+  svg.setAttribute("viewBox", `0 0 ${W} 100`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  const add = (tag, attrs, text) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, v] of Object.entries(attrs)) node.setAttribute(name, v);
+    if (text !== undefined) node.textContent = text;
+    svg.append(node);
+    return node;
+  };
+  const line = (curve, keep) => curve.filter(([, e]) => keep(e)).map(([m, e]) => `${x(m).toFixed(1)},${y(e).toFixed(1)}`).join(" ");
+  // Above the horizon, split where the curve crosses it, so the line ends on it.
+  const above = (curve) => {
+    const pieces = [];
+    let piece = [];
+    curve.forEach(([m, e], i) => {
+      const prev = curve[i - 1];
+      if (prev && (prev[1] >= 0) !== (e >= 0)) {
+        const cross = prev[0] + ((0 - prev[1]) * (m - prev[0])) / (e - prev[1]);
+        piece.push(`${x(cross).toFixed(1)},${y(0).toFixed(1)}`);
+        if (e < 0) { pieces.push(piece); piece = []; }
+      }
+      if (e >= 0) piece.push(`${x(m).toFixed(1)},${y(e).toFixed(1)}`);
+    });
+    if (piece.length) pieces.push(piece);
+    return pieces.filter((points) => points.length > 1).map((points) => points.join(" "));
+  };
+  for (let hour = 3; hour < 24; hour += 3) add("line", { class: "sun-tick", x1: x(hour * 60), y1: top - 6, x2: x(hour * 60), y2: bottom });
+  add("line", { class: "horizon", x1: 0, y1: y(0), x2: W, y2: y(0) });
+  for (const [curve, cls] of [[path.summer, "solstice"], [path.winter, "solstice"]]) {
+    for (const points of above(curve)) add("polyline", { class: cls, points });
+  }
+  add("polyline", { class: "night-path", points: line(path.today, () => true) });
+  for (const points of above(path.today)) add("polyline", { class: "travelled", points });
+  // The solstices' highest points, labelled: summer's over its curve, winter's under it (today's
+  // curve is between the two).
+  for (const [curve, name, under] of [[path.summer, "21/6", false], [path.winter, "21/12", true]]) {
+    const [m, e] = curve.reduce((best, point) => (point[1] > best[1] ? point : best));
+    add("text", { x: x(m), y: under ? y(e) + 10 : y(e) - 3, "text-anchor": "middle", class: "faint small" }, `${name} ${Math.round(e)}°`);
+  }
+  // The Sun now, on today's curve.
+  const at = path.today.reduce((best, point) => (Math.abs(point[0] - path.now) < Math.abs(best[0] - path.now) ? point : best));
+  add("circle", { class: at[1] >= 0 ? "body" : "body below", cx: x(path.now).toFixed(1), cy: y(at[1]).toFixed(1), r: 6 });
+  // Today's highest point: solar noon and how high.
+  const [noonMinute, noonHeight] = path.today.reduce((best, point) => (point[1] > best[1] ? point : best));
+  add("text", { x: x(noonMinute), y: y(noonHeight) - 6, "text-anchor": "middle" }, `${value("noon") || ""} ${Math.round(noonHeight)}°`.trim());
+  add("text", { x: 0, y: 11 }, value("elevation"));
+  add("text", { x: W, y: 11, "text-anchor": "end" }, value("azimuth"));
+  // Sunrise and sunset where today's curve meets the horizon.
+  const crossings = [];
+  path.today.forEach(([m, e], i) => {
+    const prev = path.today[i - 1];
+    if (prev && (prev[1] >= -0.833) !== (e >= -0.833)) crossings.push(prev[0] + ((-0.833 - prev[1]) * (m - prev[0])) / (e - prev[1]));
+  });
+  const [riseAt, setAt] = [crossings[0], crossings[crossings.length - 1]];
+  if (riseAt !== undefined) add("text", { x: x(riseAt), y: 97, "text-anchor": "middle" }, value("rising") || "");
+  if (setAt !== undefined && setAt !== riseAt) add("text", { x: x(setAt), y: 97, "text-anchor": "middle" }, value("setting") || "");
+  add("text", { x: 0, y: 97, class: "faint" }, value("dawn"));
+  add("text", { x: W, y: 97, "text-anchor": "end", class: "faint" }, value("dusk"));
+  const hm = (minutes) => [Math.floor(minutes / 60), Math.round(minutes % 60)];
+  const [lh, lm] = hm(path.light), [dh, dm] = hm(path.dark);
+  const lengths = el("div", { class: "row summary sun-lengths" }, el("span", { class: "label" },
+    el("span", { class: "token-label" }, upper("Luz")), " ", el("span", { class: "token-value" }, String(lh)), " ",
+    el("span", { class: "token-unit" }, "H"), " ", el("span", { class: "token-value" }, String(lm)), " ",
+    el("span", { class: "token-unit" }, "MIN"), " ", el("span", { class: "token-sep" }, "·"), " ",
+    el("span", { class: "token-label" }, upper("Oscuridad")), " ", el("span", { class: "token-value" }, String(dh)), " ",
+    el("span", { class: "token-unit" }, "H"), " ", el("span", { class: "token-value" }, String(dm)), " ",
+    el("span", { class: "token-unit" }, "MIN")));
+  return [svg, lengths];
 }
 
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.

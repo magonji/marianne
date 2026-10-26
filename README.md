@@ -32,8 +32,10 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   lluvia y nubes por horas, con lo observado en las horas ya pasadas y la previsión en las que
   faltan, y la tecla `M` para ver mañana), temperatura actual, resumen del día, máxima, mínima, lluvia,
   viento, próximas horas y si mañana hará buen día.
-- **Esquema del sol**: el arco del día con el sol encima, las horas de alba, salida,
-  mediodía, puesta y anochecer, y la elevación y el azimut.
+- **El camino del sol**: su altura real a lo largo del día (de 00 a 24 h, calculada donde está
+  Home Assistant), con los solsticios de verano e invierno como referencia y el sol en su sitio;
+  las horas de alba, salida, mediodía, puesta y anochecer, la elevación y el azimut, y cuántas
+  horas de luz y de oscuridad tiene el día.
 - **Fases de la luna** calculadas localmente (algoritmo de Jean Meeus, sin internet).
 - **Pomodoro**: cuenta atrás con descanso automático. Al terminar cada fase suenan tres
   campanadas y el aviso parpadea hasta pulsar una tecla. Basta con definir la fuente: mientras
@@ -226,8 +228,9 @@ observado, lo estimado o lo previsto.
 Un elemento `energy: true` de Home Assistant dibuja, arriba del panel, el consumo de electricidad
 de ahora en cifras grandes (con una llama mientras la calefacción calienta), una gráfica del día
 con la potencia (medias de 5 minutos de las estadísticas de Home Assistant) y los ratos en que ha
-calentado, y los totales de hoy: kWh y tiempo de calefacción. Debajo, la temperatura de la
-habitación del termostato y su objetivo, con `MODO ECO` en modo eco; si el termostato está
+calentado, y los totales de hoy: kWh y tiempo de calefacción. Debajo, el termostato: una escala
+(`scale_min`, `scale_max`, 14 y 24 °C por defecto) con la temperatura de la habitación como barra
+y el objetivo como una marca, y ▲ mientras calienta (▼ si no), `ECO` en modo eco; si está
 apagado, lo dice sobre la gráfica.
 
 ```yaml

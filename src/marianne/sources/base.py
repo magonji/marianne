@@ -42,6 +42,8 @@ class Reading:
     art: list[str] | None = None
     # Its place in the Sun diagram (dawn, rising, noon...), instead of a row.
     sun: str | None = None
+    # The Sun's height today and at the solstices (see sun.sun_path), for that diagram.
+    sun_path: dict[str, Any] | None = None
     # Its icon in a panel drawn as icons, as "mdi:dolphin" or "si:jellyfin".
     icon: str | None = None
     # Where a click on the label goes (a news headline opens the article).

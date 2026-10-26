@@ -1011,6 +1011,34 @@ a.tile.cursor > span {
   margin: 0 0 0 calc(2.5ch + 0.5ch);
 }
 
+/* The thermostat's bar: the room's temperature, and the target as a mark across it. */
+.bar.thermo {
+  margin: 0 0.6ch;
+}
+
+.bar.thermo > .target-mark {
+  position: absolute;
+  top: -0.35em;
+  width: 2px;
+  height: calc(100% + 0.7em);
+  margin-left: -1px;
+  background: var(--accent);
+  box-shadow: 0 0 3px var(--accent);
+}
+
+.bar.thermo > .target-mark.off {
+  background: var(--dim);
+  box-shadow: none;
+}
+
+.row.wide .scale-end {
+  flex: none;
+}
+
+.row.wide .scale-end + .value-text {
+  margin-left: 1.2ch;
+}
+
 .chart .heat-span {
   fill: var(--error);
   opacity: 0.12;
@@ -1116,6 +1144,43 @@ a.tile.cursor > span {
 .sun .horizon {
   stroke: var(--dim);
   stroke-width: 1.5;
+}
+
+.sun.sun-path {
+  max-height: 6.4em;
+}
+
+.sun .sun-tick {
+  stroke: color-mix(in srgb, var(--foreground) 14%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 1 3;
+}
+
+.sun .solstice {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.sun .night-path {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 1 2;
+}
+
+.sun .small {
+  font-size: 11px;
+}
+
+.sun .body.below {
+  fill: var(--dim);
+  filter: none;
+}
+
+.row.summary.sun-lengths {
+  margin: 0 0 0.3em;
 }
 
 .sun .body {
