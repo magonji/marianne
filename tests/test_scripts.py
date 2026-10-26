@@ -23,9 +23,11 @@ def test_scripts_must_be_scripts():
 
 
 def test_buttons_run_only_the_scripts_of_the_config():
-    calls = []
+    calls, failing = [], []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and failing:
+            return httpx.Response(500, text="fallo")
         if request.method == "POST":
             calls.append((request.url.path, request.content))
             return httpx.Response(200, json=[])
@@ -53,5 +55,11 @@ def test_buttons_run_only_the_scripts_of_the_config():
                 assert (await client.post(path)).status == 404
             assert (await client.get("/api/script/1/0")).status == 405
             assert len(calls) == 1
+
+            # Home Assistant fails: the page is told why, without its address
+            failing.append(True)
+            response = await client.post("/api/script/1/0")
+            assert response.status == 502
+            assert (await response.json())["error"] == "Home Assistant responde 500"
 
     asyncio.run(run())

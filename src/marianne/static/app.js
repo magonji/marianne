@@ -216,6 +216,7 @@ function renderStrips() {
 
   const notices = views.flatMap(({ data }) => data.readings.flatMap(parts).map((part) => part.notice));
   if (state.pomodoro && state.pomodoro.notice) notices.push(state.pomodoro.notice);
+  if (toast && Date.now() < toast.until) notices.push(toast.text);
   const unique = [...new Set(notices.filter(Boolean))];
   const notice = document.getElementById("notice");
   notice.hidden = unique.length === 0;
@@ -503,7 +504,7 @@ function drawActions(view, readings) {
     return el("button", {
       class: `tile action${busy ? " on" : ""}${reading.error ? " error" : ""}`, "data-cursor": id, "data-script": "1",
       title: reading.error ? `${reading.label}: no existe en Home Assistant` : reading.label,
-      onclick: () => runScript(id, view.index, item),
+      onclick: () => runScript(id, view.index, item, reading.label),
     },
     el("span", { class: "number-key" }, String(item + 1)),
     el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
@@ -518,14 +519,36 @@ function drawActions(view, readings) {
 // The buttons pressed and not answered yet: they show "en marcha" until Home Assistant says.
 const running = new Set();
 
-async function runScript(id, panel, item) {
+// A message of the page's own for a few seconds in the notice strip: a script run, or why not.
+let toast = null; // { text, until }
+const TOAST_MS = 5000;
+
+function showToast(text) {
+  toast = { text, until: Date.now() + TOAST_MS };
+  render();
+  setTimeout(render, TOAST_MS + 50);
+}
+
+// The window closes at once, and the notice strip says what Home Assistant answered.
+async function runScript(id, panel, item, name) {
   if (running.has(id)) return;
   running.add(id);
-  cursor = id;
-  render();
-  await post(`/api/script/${panel}/${item}`);
-  running.delete(id);
-  render();
+  if (popup === panel) popup = null;
+  cursor = null;
+  showToast(`${name} · ejecutando…`);
+  try {
+    const response = await fetch(`/api/script/${panel}/${item}`, { method: "POST" });
+    const answer = await response.json().catch(() => ({}));
+    if (response.ok) {
+      update(answer);
+      showToast(`✓ ${name} · ejecutado`);
+    } else showToast(`✖ ${name} · no se ha podido ejecutar${answer.error ? `: ${answer.error}` : ""}`);
+  } catch {
+    showToast(`✖ ${name} · sin conexión con Marianne`);
+  } finally {
+    running.delete(id);
+    render();
+  }
 }
 
 function drawBig(panel, reading) {

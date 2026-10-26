@@ -20,6 +20,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+import httpx
 import yaml
 from aiohttp import web
 
@@ -309,8 +310,11 @@ def make_app(dashboard: Dashboard) -> web.Application:
             raise web.HTTPNotFound()
         try:
             await source.run_script(item["script"])
+        except httpx.HTTPStatusError as exc:
+            # Never the error's text: it has Home Assistant's address.
+            return web.json_response({"error": f"Home Assistant responde {exc.response.status_code}"}, status=502)
         except Exception as exc:
-            return web.json_response({"error": str(exc)[:80] or "ERROR"}, status=502)
+            return web.json_response({"error": f"sin respuesta de Home Assistant ({type(exc).__name__})"}, status=502)
         await dashboard.reload(item["source"])
         return web.json_response(dashboard.state())
 
