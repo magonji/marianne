@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import socket
 import time
 from pathlib import Path
@@ -74,14 +75,19 @@ class SystemSource(Source):
         """Uptime, load and temperature in one line: "ACTIVO 16 D 9 H · CARGA 0.27 0.30 0.27 · 56 °C".
         The temperature, only where it can be read; red when one of them crosses its threshold."""
         loads = os.getloadavg()
-        parts = [f"Activo {text_value('uptime', self.host)}", "Carga " + " ".join(f"{load:.2f}" for load in loads)]
+        # In pieces, so the page can colour the figures and their units apart: [kind, text].
+        tokens = [["label", "Activo"]]
+        for number, unit in re.findall(r"(\d+) (\w+)", text_value("uptime", self.host)):
+            tokens += [["value", number], ["unit", unit]]
+        tokens += [["sep", "·"], ["label", "Carga"], ["value", " ".join(f"{load:.2f}" for load in loads)]]
         alert = check_alert({"alert_above": item["load_above"]} if "load_above" in item else {}, loads[0])
         temperature = cpu_temperature()
         if temperature is not None:
-            parts.append(f"{temperature:.0f} °C")
+            tokens += [["sep", "·"], ["value", f"{temperature:.0f}"], ["unit", "°C"]]
             if "temperature_above" in item:
                 alert = alert or temperature > float(item["temperature_above"])
-        return Reading(" · ".join(parts), "", alert=alert, hidden=bool(item.get("hidden")))
+        label = " ".join(text for _, text in tokens)
+        return Reading(label, "", alert=alert, hidden=bool(item.get("hidden")), tokens=tokens)
 
 
 def measure(field: str, item: dict[str, Any], host: Path | None = None) -> tuple[float | None, str]:

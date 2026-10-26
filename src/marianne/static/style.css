@@ -542,6 +542,24 @@ a.tile.cursor > span {
   color: inherit;
 }
 
+.row.summary {
+  /* More room under it than between the rows that follow. */
+  margin-bottom: 0.45em;
+}
+
+.row.summary .token-value {
+  color: var(--accent);
+}
+
+.row.summary .token-unit,
+.row.summary .token-sep {
+  color: var(--dim);
+}
+
+.row.summary.alert-text .token-value {
+  color: var(--error);
+}
+
 .row .leader {
   flex: 1 1 1ch;
   min-width: 1ch;

@@ -360,6 +360,13 @@ function drawPanel(view) {
         body.append(drawAgenda(reading));
         continue;
       }
+      if (reading.tokens) {
+        // A summary line: its figures bright, their units dim (red as a whole when it's alerting).
+        // In one span: the row is a flex box, which would drop the spaces between the pieces.
+        body.append(el("div", { class: `row summary${reading.alert ? " alert-text" : ""}` }, el("span", { class: "label" },
+          reading.tokens.flatMap(([kind, text], at) => [at ? " " : "", el("span", { class: `token-${kind}` }, upper(text))]))));
+        continue;
+      }
       if (reading.chart) {
         // The chart takes the height the rows under it leave.
         body.classList.add("with-chart");
