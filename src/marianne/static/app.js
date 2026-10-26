@@ -322,7 +322,9 @@ function drawPanel(view) {
     ? el("button", { title: `Siguiente página${pageKey ? ` [${pageKey.toUpperCase()}]` : ""}`, onclick: () => nextPage(index) },
       upper(title), count ? el("span", { class: "page-count" }, count) : "")
     : upper(title);
-  node.append(el("h2", {}, heading));
+  // A panel showing tomorrow (its chart, with the "mañana" key) says so in its title.
+  const tomorrow = chartDay && data.readings.some((reading) => reading.chart);
+  node.append(el("h2", {}, heading, tomorrow ? upper(" · mañana") : ""));
   const body = el("div", { class: "body" });
 
   // A calendar goes in a column of its own, to the left of the rows.
@@ -739,7 +741,7 @@ function drawChart(chart) {
   let readout;
   if (inspected !== null) readout = conditionsAt(chart, day, inspected, interpolate);
   else if (!chartDay && chart.current) readout = conditionsNow(chart.current);
-  else readout = conditionsAt(chart, day, day.start + 12 * 3600, interpolate);
+  else readout = daySummary(day);
   // The day's highest and lowest temperature, written on the line itself (in HTML over the
   // drawing, so the stretching doesn't distort them).
   const inDay = points.filter((point) => point.t >= day.start && point.t < day.end);
@@ -805,6 +807,19 @@ function conditionsAt(chart, day, t, interpolate) {
 }
 
 // "26–40": the wind and, if they're stronger, its gusts.
+// Tomorrow in one line: its highest and lowest, its strongest wind and gusts and its rain (total and
+// chance): "MAÑANA ▲ 15° ▼ 8° 17–45 KM/H ☂ 4.2 MM 87%".
+function daySummary(day) {
+  const inDay = day.points.filter((point) => point.t >= day.start && point.t < day.end);
+  if (!inDay.length) return upper("Mañana  sin datos");
+  const most = (key) => Math.max(...inDay.map((point) => point[key] ?? point.wind));
+  const degrees = (value) => (value === null || value === undefined ? "--" : `${Math.round(value)}°`);
+  return upper([
+    "Mañana", `▲ ${degrees(day.max)}`, `▼ ${degrees(day.min)}`, `${windAndGusts(most("wind"), most("gust"))} km/h`,
+    `☂ ${(day.rain || 0).toFixed(1)} mm ${Math.round(day.pop || 0)}%`,
+  ].join("  "));
+}
+
 function windAndGusts(wind, gusts) {
   return gusts !== null && gusts !== undefined && Math.round(gusts) > Math.round(wind)
     ? `${Math.round(wind)}–${Math.round(gusts)}` : `${Math.round(wind)}`;
