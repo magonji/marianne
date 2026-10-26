@@ -100,6 +100,9 @@ class HomeAssistantSource(Source):
         seen = await self._last_seen(items, states)
         readings: list[Reading] = []
         for item in items:
+            if item.get("energy"):
+                readings.append(await self._energy(item, states))
+                continue
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
@@ -150,19 +153,26 @@ class HomeAssistantSource(Source):
             return Reading(item.get("name", item["entity"]), "NO EXISTE", error=True)
         label = item.get("name") or state.get("attributes", {}).get("friendly_name") or item["entity"]
         now = datetime.now().astimezone()
+        changes = await self._changes_today(item, state, now)
+        if not changes:
+            return Reading(label, "N/D", error=True)
+        return Reading(label, format_duration(on_minutes(item, changes, now)))
+
+    async def _changes_today(self, item: dict[str, Any], state: dict[str, Any], now: datetime) -> list[tuple[datetime, str]]:
+        """The item's raw states (its attribute's, with `attribute`) since midnight, in order of time."""
         key = (item["entity"], item.get("attribute"))
         cached = self._changes.get(key)
         if cached and time.monotonic() - cached[0] < HISTORY_CACHE_SECONDS and cached[1][0][0] >= midnight(now):
             changes = cached[1]
         else:
-            params = {"filter_entity_id": item["entity"], "significant_changes_only": "0"}
+            params = {"filter_entity_id": item["entity"], "significant_changes_only": "0", "end_time": now.isoformat()}
             if "attribute" not in item:
                 params["no_attributes"] = ""
             try:
                 response = await self.client.get(f"/api/history/period/{quote(midnight(now).isoformat())}", params=params)
                 response.raise_for_status()
             except httpx.HTTPError:
-                return Reading(label, "N/D", error=True)
+                return []
             series = next(iter(response.json()), [])
             changes = [
                 (when, raw_state(item, sample))
@@ -170,13 +180,72 @@ class HomeAssistantSource(Source):
                 if (when := parse_timestamp(sample.get("last_updated") or sample.get("last_changed", ""))) is not None
             ]
             if not changes:
-                return Reading(label, "N/D", error=True)
+                return []
             self._changes[key] = (time.monotonic(), changes)
         # The history is cached for a while: the current state brings it up to date.
         latest = parse_timestamp(state.get("last_updated", ""))
         if latest is not None and latest > changes[-1][0]:
             changes = [*changes, (latest, raw_state(item, state))]
-        return Reading(label, format_duration(on_minutes(item, changes, now)))
+        return changes
+
+    async def _energy(self, item: dict[str, Any], states: dict[str, dict[str, Any]]) -> Reading:
+        """The energy widget: the power now, its curve today (5-minute means), the heating's spells
+        today, the totals, and the thermostat (off, eco, target) with the room's temperature."""
+        now = datetime.now().astimezone()
+        start = midnight(now)
+        power_state = states.get(item["power"]) or {}
+        climate = states.get(item.get("climate", "")) or {}
+        attributes = climate.get("attributes", {})
+        power = parse_number(power_state.get("state"))
+        limit = float(item.get("valid_max", float("inf")))
+
+        key = ("energy", item["power"])
+        cached = self._changes.get(key)
+        if cached and time.monotonic() - cached[0] < HISTORY_CACHE_SECONDS and cached[1] and cached[1][0][0] >= start.timestamp():
+            series = cached[1]
+        else:
+            answers = await self._statistics([{"start_time": start.isoformat(), "statistic_ids": [item["power"]],
+                                               "period": "5minute", "types": ["mean"]}])
+            rows = (answers or [{}])[0].get(item["power"], [])
+            series = [[row_time(row).timestamp(), round(row["mean"])] for row in rows
+                      if row.get("mean") is not None and row["mean"] <= limit]
+            self._changes[key] = (time.monotonic(), series)
+        if power is not None and power <= limit:
+            series = [*series, [now.timestamp(), round(power)]]
+
+        heating: list[list[float]] = []
+        heat_minutes = 0.0
+        if climate:
+            heat_item = {"entity": item["climate"], "attribute": "hvac_action", "on_states": ["heating"]}
+            changes = await self._changes_today(heat_item, climate, now)
+            for (when, raw), (until, _) in zip(changes, [*changes[1:], (now, "")]):
+                if raw == "heating":
+                    begins, ends = max(when, start), min(until, now)
+                    if ends > begins:
+                        heating.append([begins.timestamp(), ends.timestamp()])
+            heat_minutes = on_minutes(heat_item, changes, now)
+
+        room = states.get(item.get("room", "")) or {}
+        room_temp = parse_number(room.get("state"))
+        energy = parse_number((states.get(item.get("energy_today", "")) or {}).get("state"))
+        widget = {
+            "start": start.timestamp(),
+            "end": (start + timedelta(days=1)).timestamp(),
+            "now": now.timestamp(),
+            "series": series,
+            "heating": heating,
+            "kwh": energy,
+            "heat_minutes": heat_minutes,
+            "heat_text": format_duration(heat_minutes),
+            "flame": attributes.get("hvac_action") == "heating",
+            "off": climate.get("state") == "off",
+            "eco": attributes.get("preset_mode") == "eco",
+            "target": attributes.get("temperature"),
+            "room": item.get("room_name", "Vestíbulo"),
+            "room_temp": room_temp,
+        }
+        value = "--" if power is None else f"{power:.0f}"
+        return Reading(item.get("name", "Luz"), value, "W", offline=power is None, energy=widget)
 
     async def _last_seen(self, items: list[dict[str, Any]], states: dict[str, dict[str, Any]]) -> dict[str, datetime]:
         """When each device of the `stale_after` items last really changed one of its values.
@@ -619,7 +688,7 @@ def record_rows(item: dict[str, Any], reading: Reading, records: Records, curren
 def history_parts(item: dict[str, Any]) -> list[dict[str, Any]]:
     """The values of an item (and of its `also`) that have a history: entities' numeric states,
     not attributes, counters of time (`on_today`) or hidden ones; `history: false` leaves one out."""
-    if item.get("hidden") or item.get("on_today") or item.get("history") is False or "entity" not in item:
+    if (item.get("hidden") and not item.get("history")) or item.get("on_today") or item.get("history") is False or "entity" not in item:
         return []
     return [
         part for part in [item, *item.get("also", [])]

@@ -360,6 +360,10 @@ function drawPanel(view) {
         body.append(drawAgenda(reading));
         continue;
       }
+      if (reading.energy) {
+        body.append(drawEnergy(reading), el("div", { class: "rule" }));
+        continue;
+      }
       if (reading.tokens) {
         // A summary line: its figures bright, their units dim (red as a whole when it's alerting).
         // In one span: the row is a flex box, which would drop the spaces between the pieces.
@@ -872,6 +876,85 @@ function startHour() {
 function toggleChartDay() {
   chartDay = chartDay ? 0 : 1;
   render();
+}
+
+// The energy widget: the power now in big digits (with a flame while the heating is on), today's
+// curve of it with the heating's spells under it, and today's totals; under them, the room's
+// temperature and the thermostat's target (ECO in eco mode; APAGADA over the chart when it's off).
+function drawEnergy(reading) {
+  const energy = reading.energy;
+  const ns = "http://www.w3.org/2000/svg";
+  const svgOf = (cls, box) => {
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", cls);
+    svg.setAttribute("viewBox", box);
+    return svg;
+  };
+  const draw = (svg, tag, attrs) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    svg.append(node);
+    return node;
+  };
+
+  // The flame: drawn, so it takes the theme's colours (an emoji wouldn't).
+  const flame = svgOf(`flame${energy.flame ? "" : " out"}`, "0 0 20 28");
+  draw(flame, "path", { d: "M10 1 C12 7 18 10 18 17 A8 8 0 0 1 2 17 C2 12 5 10 6 6 C7 9 8 10 9 10 C9 7 9 4 10 1 Z" });
+  draw(flame, "path", { class: "core", d: "M10 13 C11 16 14 17 14 20.5 A4 4 0 0 1 6 20.5 C6 18 8 17 10 13 Z" });
+  const number = el("div", { class: `number segments ${styleClass(reading)}` });
+  setSegments(number, `${reading.value}W`);
+  const now = el("div", { class: "energy-now", title: energy.flame ? "La calefacción está calentando" : null }, flame, number);
+
+  // Today's curve: power (filled), the heating's spells (a strip at the bottom and a faint column).
+  const W = 240, top = 3, bottom = 60, height = bottom - top;
+  const chart = svgOf("chart energy-chart", `0 0 ${W} ${bottom}`);
+  chart.setAttribute("preserveAspectRatio", "none");
+  const x = (t) => ((t - energy.start) / (energy.end - energy.start)) * W;
+  const peak = Math.max(1000, ...energy.series.map(([, watts]) => watts)) * 1.1;
+  const scaleTop = peak >= 5000 ? Math.ceil(peak / 1000) * 1000 : Math.ceil(peak / 500) * 500;
+  const y = (watts) => bottom - (watts / scaleTop) * height;
+  for (let hour = 3; hour < 24; hour += 3) {
+    const at = x(energy.start + hour * 3600);
+    draw(chart, "line", { class: "tick", x1: at, y1: top, x2: at, y2: bottom });
+  }
+  for (const [from, to] of energy.heating) {
+    draw(chart, "rect", { class: "heat-span", x: x(from), y: top, width: Math.max(0.5, x(to) - x(from)), height });
+    draw(chart, "rect", { class: "heat-strip", x: x(from), y: bottom - 4, width: Math.max(0.5, x(to) - x(from)), height: 4 });
+  }
+  if (energy.series.length > 1) {
+    const line = energy.series.map(([t, watts]) => `${x(t).toFixed(1)},${y(watts).toFixed(1)}`);
+    const first = energy.series[0][0], last = energy.series[energy.series.length - 1][0];
+    draw(chart, "polygon", { class: "power-area", points: `${x(first)},${bottom} ${line.join(" ")} ${x(last)},${bottom}` });
+    draw(chart, "polyline", { class: "power-line", points: line.join(" ") });
+  }
+  if (energy.now >= energy.start && energy.now < energy.end) {
+    draw(chart, "line", { class: "now", x1: x(energy.now), y1: top, x2: x(energy.now), y2: bottom });
+  }
+  const scaleText = scaleTop >= 1000 ? `${scaleTop / 1000}k` : `${scaleTop}`;
+  const hours = [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => el("span", {}, hour ? String(hour).padStart(2, "0") : ""));
+  const area = el("div", { class: "chart-area" }, chart,
+    energy.off ? el("span", { class: "energy-off" }, upper("Calefacción apagada")) : null);
+  const plot = el("div", { class: "energy-plot" },
+    el("div", { class: "chart-plot energy-grid" },
+      el("div", { class: "chart-axis" }, el("span", {}, scaleText), el("span", {}, "W")), area),
+    el("div", { class: "chart-hours energy-hours" }, hours));
+
+  // Today's totals, beside the chart.
+  const kwh = energy.kwh === null || energy.kwh === undefined ? "--" : energy.kwh.toFixed(2);
+  const totals = el("div", { class: "energy-totals" },
+    el("div", {}, el("span", { class: "dim" }, upper(reading.label)), el("br"),
+      el("span", { class: "value" }, kwh), el("span", { class: "unit" }, " kWh")),
+    el("div", {}, el("span", { class: "dim" }, upper("Calef.")), el("br"),
+      el("span", { class: energy.heat_minutes ? "value" : "dim" }, upper(energy.heat_text))));
+
+  const degrees = (value) => (value === null || value === undefined ? "--" : Number(value).toFixed(1));
+  const caption = el("div", { class: "energy-caption" },
+    el("span", { class: "dim" }, upper(`${energy.room} `)), el("span", { class: "value" }, degrees(energy.room_temp)),
+    el("span", { class: "unit" }, " °C"), el("span", { class: "dim" }, upper(" · objetivo ")),
+    el("span", { class: energy.off ? "dim" : "value" }, degrees(energy.target)), el("span", { class: "unit" }, " °C"),
+    energy.eco ? el("span", { class: "on" }, upper(" · modo eco")) : null,
+    energy.off ? el("span", { class: "dim" }, upper(" · apagada")) : null);
+  return el("div", { class: "energy" }, el("div", { class: "energy-top" }, now, plot, totals), caption);
 }
 
 // The "mañana" key (the weather chart's day_key, M by default): tomorrow's weather and tomorrow's

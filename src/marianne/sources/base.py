@@ -54,6 +54,8 @@ class Reading:
     chart: dict[str, Any] | None = None
     # A line in pieces, each [kind, text] (label, value, unit, sep), coloured apart by the page.
     tokens: list[list[str]] | None = None
+    # The energy widget (see homeassistant._energy): power now and today, heating, thermostat.
+    energy: dict[str, Any] | None = None
     # The panel's title, taken from the reading (e.g. the name of the machine).
     title: str | None = None
     # A newer version is waiting (a service whose container What's Up Docker can update).

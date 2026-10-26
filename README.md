@@ -176,7 +176,7 @@ panels:
 
 | `type` | Qué es | Elementos |
 |---|---|---|
-| `homeassistant` | REST API de Home Assistant (`url`, `token`, `verify_ssl`) | `entity:` |
+| `homeassistant` | REST API de Home Assistant (`url`, `token`, `verify_ssl`) | `entity:`; o `energy: true`, el bloque de energía (ver abajo) |
 | `openweather` | Previsión gratuita de openweathermap.org (`api_key`, `city`, `lang`) | `field:` `chart` (gráfica del día, ver abajo), `now` (temperatura actual, con un dibujo del tiempo que hace si va en grande), `summary`, `max`, `min`, `rain_probability`, `rain`, `next_rain` (cuándo vuelve a llover), `wind`, `hours`, `good_day` |
 | `moon` | Fases de la luna calculadas en local | `field:` `phase`, `next_phase` |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
@@ -220,6 +220,29 @@ el cursor de las flechas, que empieza en ella y va de hora en hora; `Enter` camb
 perder la hora) y `Q` sale. Debajo se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado, lo estimado o lo previsto.
+
+### El bloque de energía
+
+Un elemento `energy: true` de Home Assistant dibuja, arriba del panel, el consumo de electricidad
+de ahora en cifras grandes (con una llama mientras la calefacción calienta), una gráfica del día
+con la potencia (medias de 5 minutos de las estadísticas de Home Assistant) y los ratos en que ha
+calentado, y los totales de hoy: kWh y tiempo de calefacción. Debajo, la temperatura de la
+habitación del termostato y su objetivo, con `MODO ECO` en modo eco; si el termostato está
+apagado, lo dice sobre la gráfica.
+
+```yaml
+- energy: true
+  name: Luz
+  power: sensor.consumo_ahora            # W
+  energy_today: sensor.consumo_hoy       # kWh de hoy
+  climate: climate.termostato            # hvac_action, preset_mode, temperature
+  room: sensor.temperatura_vestibulo
+  room_name: Vestíbulo
+  valid_max: 20000                       # descarta los picos falsos del medidor
+```
+
+Para que el historial de 7 días siga teniendo el consumo y la calefacción de cada día, sus
+elementos pueden quedarse en el panel ocultos: `hidden: true` y, para un contador, `history: true`.
 
 ### El historial
 
@@ -277,7 +300,7 @@ título.
 | `stats: true` | Filas con la máxima y la mínima de hoy (`stats: beside`: al lado del valor, ▲ ▼) |
 | `records: true` | Filas con la máxima y la mínima de toda la historia, de las estadísticas a largo plazo de Home Assistant |
 | `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)). El servidor los descarga una vez de jsDelivr y la página los pinta con líneas de barrido en el color del tema |
-| `history: false` | Deja este valor fuera del historial |
+| `history: false` | Deja este valor fuera del historial (`history: true`: lo deja dentro aunque esté oculto) |
 | `week: false` | Lo deja fuera solo de la tabla de 7 días (p. ej. una potencia, para quedarse con su consumo) |
 | `week: true` | En un elemento `on_today`: su tiempo encendido de cada día en la tabla de 7 días (la calefacción) |
 | `week_name` | Su nombre en la tabla de 7 días ("Calefacción" en lugar de "Calefacción hoy") |

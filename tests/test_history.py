@@ -100,3 +100,9 @@ def test_minutes_on_within_a_day():
                (day + timedelta(hours=7), "heating"), (day + timedelta(hours=7, minutes=30), "idle")]
     # From midnight (it was already heating) to 1:00, and 7:00 to 7:30
     assert minutes_on(item, changes, day, day + timedelta(days=1)) == 90
+
+
+def test_hidden_items_can_stay_in_the_history():
+    assert history_parts({"entity": "sensor.luz_hoy", "hidden": True}) == []
+    assert [p["entity"] for p in history_parts({"entity": "sensor.luz_hoy", "hidden": True, "history": True})] == ["sensor.luz_hoy"]
+    assert history_parts({"energy": True, "power": "sensor.luz"}) == []
