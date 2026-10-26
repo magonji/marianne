@@ -97,14 +97,26 @@ button {
 
 #banner {
   flex: 1;
-  color: var(--primary);
-  /* After Jane Austen's Marianne Dashwood: a Regency hand. */
-  font-family: "Mrs Saint Delafield", cursive;
-  font-size: 4.2rem;
-  /* Room for the capital's flourish, which rises over the line. */
-  line-height: 1.15;
-  padding-top: 0.12em;
-  white-space: nowrap;
+  position: relative;
+  line-height: 0;
+}
+
+/* The title's pixels (see drawBanner), shown hard, with a phosphor glow and scanlines over them. */
+#banner-art {
+  display: block;
+  max-width: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 0 2px #f2b23a) drop-shadow(0 0 8px color-mix(in srgb, #f2b23a 60%, transparent))
+    drop-shadow(0 0 18px color-mix(in srgb, #f2b23a 30%, transparent));
+}
+
+#banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.35) 0 1px, transparent 1px 3px);
+  pointer-events: none;
 }
 
 #clock {
@@ -1478,8 +1490,10 @@ a.tile.cursor > span {
     padding: 1rem 16px;
   }
 
-  #banner {
-    font-size: 3rem;
+  /* On a phone, smaller, keeping its proportions. */
+  #banner-art {
+    height: 64px !important;
+    width: auto !important;
   }
 
   #clock-date {

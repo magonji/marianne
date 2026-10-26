@@ -88,6 +88,7 @@ async function start() {
   layout = await (await fetch("/api/layout")).json();
   setTheme(load("marianne.theme", null) || layout.theme);
   document.getElementById("panels").style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
+  drawBanner();
   if (layout.boot) await boot(layout.boot_lines);
   tickClock();
   setInterval(tickClock, 1000);
@@ -1318,6 +1319,50 @@ function press(key) {
     else if (panel.page_key === key) nextPage(index);
   });
   render();
+}
+
+// ---------------------------------------------------------------- title
+
+// The title, "Marianne" (Jane Austen's Marianne Dashwood), in Mrs Saint Delafield as an early-80s
+// computer would draw it: written letter by letter on a small canvas, its alpha cut to hard
+// pixels, and blown up without smoothing. The glow and the scanlines are the CSS's.
+const BANNER_PIXEL = 3; // pixel size, 1 to 8
+const BANNER_HEIGHT = 110; // px on screen
+
+async function drawBanner() {
+  const canvas = document.getElementById("banner-art");
+  try {
+    await Promise.race([document.fonts.load("400 80px 'Mrs Saint Delafield'"), new Promise((resolve) => setTimeout(resolve, 3000))]);
+  } catch {
+    /* without the font, the browser's cursive */
+  }
+  const px = Math.max(1, Math.min(8, BANNER_PIXEL));
+  const fs = 84 * 1.15;
+  const text = "Marianne";
+  const context = canvas.getContext("2d");
+  const font = `400 ${fs / px}px 'Mrs Saint Delafield', cursive`;
+  context.font = font;
+  const spacing = (fs * 0.01) / px;
+  const widths = [...text].map((letter) => context.measureText(letter).width);
+  const height = Math.ceil(BANNER_HEIGHT / px);
+  const width = Math.ceil(widths.reduce((sum, w) => sum + w + spacing, 0) + (fs / px) * 0.4);
+  canvas.width = width;
+  canvas.height = height;
+  // Resizing a canvas resets its state.
+  context.font = font;
+  context.fillStyle = "#f2b23a";
+  context.textBaseline = "alphabetic";
+  let x = 0;
+  [...text].forEach((letter, index) => {
+    context.fillText(letter, x, height * 0.78);
+    x += widths[index] + spacing;
+  });
+  // Hard pixels: each one lit or not.
+  const image = context.getImageData(0, 0, width, height);
+  for (let i = 3; i < image.data.length; i += 4) image.data[i] = image.data[i] > 100 ? 255 : 0;
+  context.putImageData(image, 0, 0);
+  canvas.style.width = `${width * px}px`;
+  canvas.style.height = `${BANNER_HEIGHT}px`;
 }
 
 // ---------------------------------------------------------------- big digits
