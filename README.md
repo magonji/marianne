@@ -5,7 +5,9 @@ casa: sensores de **Home Assistant**, la **previsión del tiempo** de OpenWeathe
 **fases de la luna** y valores **sacados de webs**.
 
 Ámbar naranja (por defecto), fósforo verde o azul Commodore 64, con líneas de barrido de
-monitor CRT, reloj grande y arranque tipo BIOS. En pantallas estrechas (el móvil) los paneles
+monitor CRT, reloj grande y arranque tipo BIOS. El título, por la Marianne Dashwood de Jane
+Austen, va en la caligrafía Mrs Saint Delafield redibujada en píxeles, como en un programa de
+dibujo de principios de los 80. En pantallas estrechas (el móvil) los paneles
 se ponen en una columna.
 
 Un pequeño servidor en Python consulta las fuentes y la página solo recibe los valores ya

@@ -88,6 +88,7 @@ async function start() {
   layout = await (await fetch("/api/layout")).json();
   setTheme(load("marianne.theme", null) || layout.theme);
   document.getElementById("panels").style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
+  drawBanner();
   if (layout.boot) await boot(layout.boot_lines);
   tickClock();
   setInterval(tickClock, 1000);
@@ -1318,6 +1319,49 @@ function press(key) {
     else if (panel.page_key === key) nextPage(index);
   });
   render();
+}
+
+// ---------------------------------------------------------------- title
+
+// "Marianne" (after Jane Austen's Marianne Dashwood) in Mrs Saint Delafield, as if someone had
+// redrawn the script in a paint program of 1983: rendered tiny, one bit per pixel, and blown up
+// with the pixels showing. The theme's colour and glow go on it in CSS.
+async function drawBanner() {
+  const canvas = document.getElementById("banner-art");
+  try {
+    await Promise.race([document.fonts.load('40px "Mrs Saint Delafield"'), new Promise((resolve) => setTimeout(resolve, 3000))]);
+  } catch {
+    /* without the font, a cursive fallback */
+  }
+  const text = "Marianne", rows = 46;
+  const work = document.createElement("canvas").getContext("2d");
+  work.font = `${rows}px "Mrs Saint Delafield", cursive`;
+  const width = Math.ceil(work.measureText(text).width) + 8;
+  canvas.width = width;
+  canvas.height = rows + 6;
+  const context = canvas.getContext("2d");
+  context.font = work.font;
+  context.textBaseline = "alphabetic";
+  context.fillStyle = "#fff";
+  // Thicker strokes, as someone redrawing the script by hand pixel by pixel would make them.
+  context.strokeStyle = "#fff";
+  context.lineWidth = 1.2;
+  context.lineJoin = "round";
+  context.strokeText(text, 4, rows - 2);
+  context.fillText(text, 4, rows - 2);
+  // One bit per pixel: lit or not, no smoothing between.
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < image.data.length; i += 4) {
+    const on = image.data[i + 3] > 110;
+    image.data[i] = image.data[i + 1] = image.data[i + 2] = 255;
+    image.data[i + 3] = on ? 255 : 0;
+  }
+  context.putImageData(image, 0, 0);
+  // As a mask over the theme's colour, so it changes with the theme.
+  const banner = document.getElementById("banner");
+  banner.style.setProperty("--banner-art", `url(${canvas.toDataURL()})`);
+  banner.style.setProperty("--banner-ratio", `${canvas.width / canvas.height}`);
+  banner.classList.add("drawn");
 }
 
 // ---------------------------------------------------------------- big digits
