@@ -1011,9 +1011,11 @@ function chartKey() {
 // it, how long the day and the night are.
 function drawSunPath(readings, path) {
   const value = (role) => (readings[role] && !readings[role].error ? `${readings[role].value}${readings[role].unit}` : "");
-  const W = 300, top = 14, bottom = 82;
+  const W = 300, top = 10, bottom = 82;
+  // The summer solstice's top close to the top edge: the room above it was wasted, and the curves
+  // (and their labels) spread over the whole height.
   const highest = Math.max(...path.summer.map(([, e]) => e));
-  const high = Math.ceil((highest + 4) / 10) * 10;
+  const high = highest + 3;
   // Below the horizon only a little: enough to see the night, not to take the room.
   const low = -10;
   const x = (minute) => (minute / 1440) * W;
@@ -1054,11 +1056,11 @@ function drawSunPath(readings, path) {
   }
   add("polyline", { class: "night-path", points: line(path.today, () => true) });
   for (const points of above(path.today)) add("polyline", { class: "travelled", points });
-  // The solstices' highest points, labelled: summer's over its curve, winter's under it (today's
-  // curve is between the two).
+  // The solstices' highest points, labelled: summer's over its curve; winter's under the horizon at
+  // noon, where nothing else is (between its curve and today's there's no room).
   for (const [curve, name, under] of [[path.summer, "21/6", false], [path.winter, "21/12", true]]) {
     const [m, e] = curve.reduce((best, point) => (point[1] > best[1] ? point : best));
-    add("text", { x: x(m), y: under ? y(e) + 10 : y(e) - 3, "text-anchor": "middle", class: "faint small" }, `${name} ${Math.round(e)}°`);
+    add("text", { x: x(m), y: under ? y(0) + 10 : y(e) - 3, "text-anchor": "middle", class: "faint small" }, `${name} ${Math.round(e)}°`);
   }
   // The Sun now, on today's curve.
   const at = path.today.reduce((best, point) => (Math.abs(point[0] - path.now) < Math.abs(best[0] - path.now) ? point : best));
