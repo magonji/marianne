@@ -30,7 +30,7 @@
   --off: color-mix(in srgb, var(--foreground) 45%, transparent);
   --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
   /* Every letter's halo, in its own colour: a soft edge and a wider glow, like phosphor. */
-  --glow: 0 0 2px color-mix(in srgb, currentColor 70%, transparent), 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
+  --glow: 0 0 2px color-mix(in srgb, currentColor 80%, transparent), 0 0 5px color-mix(in srgb, currentColor 55%, transparent), 0 0 12px color-mix(in srgb, currentColor 35%, transparent);
   /* Dark letters on a lit background (reverse video): softened, and the box glowing instead. */
   --glow-dark: 0 0 1px color-mix(in srgb, var(--background) 60%, transparent);
   --glow-box: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
@@ -1466,7 +1466,8 @@ a.tile.cursor > span {
   }
 
   #top {
-    padding: 0.3rem 16px;
+    /* Clear of the iPhone's notch or Dynamic Island (its safe area), and a little more. */
+    padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 16px 0.3rem;
   }
 
   #boot {
@@ -1528,6 +1529,9 @@ a.tile.cursor > span {
     white-space: normal;
     gap: 0 1.4ch;
     font-size: 0.9rem;
+    /* On a phone, the help (and any alert) in the middle; clear of the home indicator. */
+    justify-content: center;
+    padding-bottom: calc(0.05rem + env(safe-area-inset-bottom, 0px));
   }
 
   /* Panels as tall as their contents: the chart has its own height. */
