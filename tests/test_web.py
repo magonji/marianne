@@ -45,3 +45,14 @@ def test_layout_state_and_pomodoro_over_http():
             assert "marianne" in (await (await client.get("/")).text()).lower()
 
     asyncio.run(run())
+
+
+def test_the_page_and_its_files_are_revalidated():
+    async def run():
+        async with TestClient(TestServer(make_app(dashboard()))) as client:
+            for path in ("/", "/static/app.js", "/static/style.css"):
+                response = await client.get(path)
+                assert response.headers["Cache-Control"] == "no-cache", path
+            assert "Cache-Control" not in (await client.get("/api/layout")).headers
+
+    asyncio.run(run())

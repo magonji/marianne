@@ -317,7 +317,17 @@ def make_app(dashboard: Dashboard) -> web.Application:
     async def delete_date(request: web.Request) -> web.Response:
         return await change_dates(request, lambda store: store.delete(request.match_info["id"]))
 
-    app = web.Application(client_max_size=64 * 1024)
+    @web.middleware
+    async def revalidate(request: web.Request, handler) -> web.StreamResponse:
+        # The page and its files are checked with the server every time (cheap, with their ETag):
+        # without it a browser, the iPhone's home-screen app most of all, keeps an old version for
+        # hours after an update.
+        response = await handler(request)
+        if request.path == "/" or request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    app = web.Application(client_max_size=64 * 1024, middlewares=[revalidate])
     app.add_routes(routes)
     app.router.add_static("/static", STATIC)
 
