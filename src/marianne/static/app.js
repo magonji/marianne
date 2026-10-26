@@ -34,7 +34,7 @@ let history = null; // { data, at } while it's on
 const HISTORY_REFRESH_MS = 5 * 60_000;
 // The "7 days" table: at most this many values a page, which go by on their own.
 // Six on a screen (three rooms with their temperature and humidity), three on a phone.
-const weekColumns = () => (matchMedia("(max-width: 760px)").matches ? 3 : 6);
+const weekColumns = () => (matchMedia("(max-width: 760px) and (pointer: coarse)").matches ? 3 : 6);
 const WEEK_PAGE_MS = 10_000;
 const weekPages = {}; // page shown, by panel
 let weekTurned = 0;
@@ -1366,7 +1366,7 @@ function press(key) {
 // computer would draw it: written letter by letter on a small canvas, its alpha cut to hard
 // pixels, and blown up without smoothing. The scanlines are the CSS's.
 const BANNER_PIXEL = 3; // pixel size, 1 to 8
-const BANNER_HEIGHT = 110; // px on screen
+const BANNER_HEIGHT = 110; // px on a big screen; it shrinks with the page (the CSS rem)
 
 async function drawBanner() {
   const canvas = document.getElementById("banner-art");
@@ -1400,8 +1400,9 @@ async function drawBanner() {
   const image = context.getImageData(0, 0, width, height);
   for (let i = 3; i < image.data.length; i += 4) image.data[i] = image.data[i] > 100 ? 255 : 0;
   context.putImageData(image, 0, 0);
-  canvas.style.width = `${width * px}px`;
-  canvas.style.height = `${BANNER_HEIGHT}px`;
+  // Its width follows from the height, as an image's would.
+  canvas.style.width = "auto";
+  canvas.style.height = `min(${BANNER_HEIGHT}px, ${(BANNER_HEIGHT / 19).toFixed(2)}rem)`;
 }
 
 // ---------------------------------------------------------------- big digits

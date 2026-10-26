@@ -30,7 +30,9 @@
   --off: color-mix(in srgb, var(--foreground) 45%, transparent);
   --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
   /* Sized so the screen holds about as many lines as a full-screen terminal. */
-  font-size: clamp(14px, min(2.15vh, 1.18vw), 30px);
+  /* Everything is in rem: a smaller window (a small screen, a corner of a big one) makes all of it
+     smaller in proportion. */
+  font-size: min(2.15vh, 1.18vw, 30px);
 }
 
 * {
@@ -1465,7 +1467,9 @@ a.tile.cursor > span {
 }
 
 
-@media (max-width: 760px) {
+/* A phone: one column to scroll through. Only on touch screens, so that a narrow window on a
+   computer keeps the grid, smaller. */
+@media (max-width: 760px) and (pointer: coarse) {
   :root {
     font-size: 17px;
   }
