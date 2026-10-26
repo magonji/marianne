@@ -392,10 +392,9 @@ button {
   cursor: pointer;
 }
 
-/* A countdown's date: in the accent colour and underlined; its name is in the tooltip. */
+/* A countdown's date: in the accent colour; its name is in the tooltip. */
 .calendar-grid .marked {
   color: var(--accent);
-  text-decoration: underline;
 }
 
 .calendar-grid .selected {
