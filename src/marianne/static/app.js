@@ -492,7 +492,8 @@ function drawIcons(panel, readings) {
   }));
 }
 
-// A grid of buttons (3 by 3) that run Home Assistant scripts: by a click, or the cursor and Enter.
+// A grid of buttons (3 by 3) that run Home Assistant scripts: by a click, the cursor and Enter, or
+// their number (1 to 9) while the window is open.
 // The server only runs the scripts of the config, by their place in the panel.
 function drawActions(view, readings) {
   const buttons = readings.slice(0, 9).map((reading, item) => {
@@ -504,6 +505,7 @@ function drawActions(view, readings) {
       title: reading.error ? `${reading.label}: no existe en Home Assistant` : reading.label,
       onclick: () => runScript(id, view.index, item),
     },
+    el("span", { class: "number-key" }, String(item + 1)),
     el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
     el("span", { class: "name" }, upper(reading.label)),
     el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper("no existe") : "\u00a0"));
@@ -1343,6 +1345,12 @@ function press(key) {
     return render();
   }
   if (key === "escape" && popup !== null) return togglePopup(popup);
+  // In the actions window, 1 to 9 press its buttons.
+  if (popup !== null && layout.panels[popup].actions && /^[1-9]$/.test(key)) {
+    const button = document.querySelector(`#popup [data-cursor="script:${popup}:${Number(key) - 1}"]`);
+    if (button) button.click();
+    return;
+  }
   if (key === "r") return post("/api/reload");
   if (key === "c") return nextTheme();
   if (key === "a") return acknowledge();
@@ -1366,7 +1374,8 @@ function press(key) {
 // computer would draw it: written letter by letter on a small canvas, its alpha cut to hard
 // pixels, and blown up without smoothing. The scanlines are the CSS's.
 const BANNER_PIXEL = 3; // pixel size, 1 to 8
-const BANNER_HEIGHT = 110; // px on a big screen; it shrinks with the page (the CSS rem)
+const BANNER_ART = 110; // px the drawing is made for: its pixels are BANNER_PIXEL at this height
+const BANNER_HEIGHT = 88; // px on a big screen; it shrinks with the page (the CSS rem)
 
 async function drawBanner() {
   const canvas = document.getElementById("banner-art");
@@ -1383,7 +1392,7 @@ async function drawBanner() {
   context.font = font;
   const spacing = (fs * 0.01) / px;
   const widths = [...text].map((letter) => context.measureText(letter).width);
-  const height = Math.ceil(BANNER_HEIGHT / px);
+  const height = Math.ceil(BANNER_ART / px);
   const width = Math.ceil(widths.reduce((sum, w) => sum + w + spacing, 0) + (fs / px) * 0.4);
   canvas.width = width;
   canvas.height = height;

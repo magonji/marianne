@@ -124,7 +124,7 @@ button {
 
 .digits {
   color: var(--accent);
-  font-size: 5.4rem;
+  font-size: 4.3rem;
 }
 
 /* Big digits drawn with box-drawing characters, three rows high (see segmentRows), like elinor.
@@ -494,6 +494,23 @@ a.tile:hover .name {
   cursor: pointer;
 }
 
+.tile.action {
+  position: relative;
+}
+
+/* Its key, in the corner. */
+.tile.action .number-key {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.4rem;
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.tile.action.cursor .number-key {
+  color: inherit;
+}
+
 .tile.action.free {
   min-height: 6.4rem;
   border-style: dashed;
@@ -514,7 +531,7 @@ a.tile:hover .name {
   border-color: var(--primary);
 }
 
-.tile.action.on .name {
+.tile.action.on:not(.cursor) .name {
   color: var(--accent);
 }
 
