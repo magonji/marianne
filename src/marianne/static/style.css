@@ -32,7 +32,7 @@
   /* Every letter's halo, in its own colour: a soft edge and a wider glow, like phosphor. */
   --glow: 0 0 1px currentColor, 0 0 3px color-mix(in srgb, currentColor 50%, transparent), 0 0 7px color-mix(in srgb, currentColor 22%, transparent);
   /* Dark letters on a lit background (reverse video): softened, and the box glowing instead. */
-  --glow-dark: 0 0 1px color-mix(in srgb, var(--background) 60%, transparent);
+  --glow-dark: 0 0 1px color-mix(in srgb, var(--background) 80%, transparent), 0 0 3px color-mix(in srgb, var(--background) 45%, transparent);
   --glow-box: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
   /* Sized so the screen holds about as many lines as a full-screen terminal. */
   font-size: clamp(14px, min(2.15vh, 1.18vw), 30px);
@@ -109,8 +109,9 @@ button {
   image-rendering: crisp-edges;
   /* The same halo as every letter's (--glow), as filters: a canvas has no text-shadow. The
      scanlines are the page's, over everything. */
-  filter: brightness(0.88) drop-shadow(0 0 1px color-mix(in srgb, #f2b23a 60%, transparent))
-    drop-shadow(0 0 4px color-mix(in srgb, #f2b23a 30%, transparent));
+  filter: brightness(0.88) drop-shadow(0 0 1px color-mix(in srgb, #f2b23a 70%, transparent))
+    drop-shadow(0 0 5px color-mix(in srgb, #f2b23a 40%, transparent))
+    drop-shadow(0 0 10px color-mix(in srgb, #f2b23a 18%, transparent));
 }
 
 #clock {
@@ -129,7 +130,7 @@ button {
 }
 
 #clock-date {
-  font-size: 1.6rem;
+  font-size: 1.3rem;
 }
 
 .digits {

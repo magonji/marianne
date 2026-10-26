@@ -2,8 +2,7 @@
 "use strict";
 
 const THEMES = ["amber", "c64", "phosphor"];
-const DAYS = ["DOMINGO", "LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO"];
-const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+const DAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const POLL_MS = 1000;
 const NOTICE_FLASH_MS = 60_000;
 const BELL_EVERY_MS = 5_000;
@@ -181,8 +180,10 @@ function tickClock() {
   const pad = (n) => String(n).padStart(2, "0");
   const colon = now.getSeconds() % 2 === 0 ? ":" : " ";
   setSegments(document.getElementById("clock-digits"), `${pad(now.getHours())}${colon}${pad(now.getMinutes())}`);
+  // "Lunes, 26 de octubre de 2026".
+  const weekday = DAYS[now.getDay()];
   document.getElementById("clock-date").textContent =
-    `${DAYS[now.getDay()]} ${pad(now.getDate())} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+    `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${now.getDate()} de ${MONTH_NAMES[now.getMonth()]} de ${now.getFullYear()}`;
 }
 
 function renderPomodoro() {
