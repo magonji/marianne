@@ -275,6 +275,7 @@ título.
 | `big: true` | El primer valor, en dígitos grandes |
 | `history: true` | Sale con el historial (tecla `H`, ver abajo) |
 | `pomodoro: true` | Mientras hay un pomodoro en marcha, este panel lo muestra en grande (cuenta atrás, fase y progreso) en lugar de su contenido, y la cabecera deja de mostrarlo: p. ej. en Noticias, para no distraerse |
+| `actions: true` | Una cuadrícula de 3 × 3 botones con un icono y un nombre que lanzan scripts de Home Assistant (cada elemento con `script: script.nombre`, `name` e `icon`); se pulsan con un clic o con el cursor y Enter. Pensado con `key:` para abrirlo como ventana. Solo se pueden lanzar los scripts que estén en la configuración |
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
 | `pages`, `page_key: t` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |

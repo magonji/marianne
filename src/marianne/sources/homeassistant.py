@@ -107,6 +107,13 @@ class HomeAssistantSource(Source):
             if item.get("energy"):
                 readings.append(await self._energy(item, states))
                 continue
+            if item.get("script"):
+                # A button: its name and icon, and whether the script is running now.
+                script = states.get(item["script"]) or {}
+                name = item.get("name") or script.get("attributes", {}).get("friendly_name") or item["script"]
+                readings.append(Reading(name, script.get("state", "NO EXISTE"), switch=script.get("state") == "on",
+                                        error=not script, icon=item.get("icon", "mdi:script-text")))
+                continue
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
@@ -164,6 +171,12 @@ class HomeAssistantSource(Source):
         if not changes:
             return Reading(label, "N/D", error=True)
         return Reading(label, format_duration(on_minutes(item, changes, now)))
+
+    async def run_script(self, script: str) -> None:
+        """Run a Home Assistant script (only those of the config: the server checks)."""
+        response = await self.client.post("/api/services/script/turn_on", json={"entity_id": script})
+        response.raise_for_status()
+        self._fetched_at = 0.0  # its state (running) on the next look
 
     async def _sun_path(self) -> dict | None:
         """Today's and the solstices' curves of the Sun's height, where Home Assistant is."""

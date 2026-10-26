@@ -340,6 +340,10 @@ function drawPanel(view) {
     body.append(el("div", { class: "waiting" }, "ESPERANDO DATOS"));
   } else {
     let rows = shown;
+    if (panel.actions) {
+      body.append(drawActions(view, rows));
+      rows = [];
+    }
     if (panel.icons) {
       body.append(drawIcons(panel, rows));
       rows = [];
@@ -486,6 +490,40 @@ function drawIcons(panel, readings) {
       el("span", { class: "name" }, upper(reading.label)),
       el("span", { class: `${styleClass(reading)}${blinking ? " blinking" : ""}` }, reading.value));
   }));
+}
+
+// A grid of buttons (3 by 3) that run Home Assistant scripts: by a click, or the cursor and Enter.
+// The server only runs the scripts of the config, by their place in the panel.
+function drawActions(view, readings) {
+  const buttons = readings.slice(0, 9).map((reading, item) => {
+    const [kind, name] = (reading.icon || "mdi:script-text").split(":");
+    const id = `script:${view.index}:${item}`;
+    const busy = running.has(id) || reading.switch === true;
+    return el("button", {
+      class: `tile action${busy ? " on" : ""}${reading.error ? " error" : ""}`, "data-cursor": id, "data-script": "1",
+      title: reading.error ? `${reading.label}: no existe en Home Assistant` : reading.label,
+      onclick: () => runScript(id, view.index, item),
+    },
+    el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
+    el("span", { class: "name" }, upper(reading.label)),
+    el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper("no existe") : "\u00a0"));
+  });
+  // The free places of the grid, as empty boxes: it's always three by three.
+  const free = Array.from({ length: 9 - buttons.length }, () => el("div", { class: "tile action free" }));
+  return el("div", { class: "actions" }, ...buttons, ...free);
+}
+
+// The buttons pressed and not answered yet: they show "en marcha" until Home Assistant says.
+const running = new Set();
+
+async function runScript(id, panel, item) {
+  if (running.has(id)) return;
+  running.add(id);
+  cursor = id;
+  render();
+  await post(`/api/script/${panel}/${item}`);
+  running.delete(id);
+  render();
 }
 
 function drawBig(panel, reading) {
@@ -1168,7 +1206,7 @@ function renderStatus() {
     if (calendarDay) items.push(key("q", "VOLVER"));
     else items.push(key("enter", "ELEGIR DÍA"), key("q", "SALIR"));
   } else if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
-  else if (cursor && !reader) items.push(key("enter", "ABRIR"), key("q", "SALIR"));
+  else if (cursor && !reader) items.push(key("enter", cursor.startsWith("script:") ? "EJECUTAR" : "ABRIR"), key("q", "SALIR"));
   else if (popup !== null && !reader && !dates) items.push(key("q", "CERRAR"));
   // On a phone only "AYUDA": the key's name means nothing there.
   items.push(el("button", { class: "help-key", "data-key": "f1" }, el("span", { class: "keycap" }, "[F1]"), "AYUDA"));
@@ -1283,7 +1321,7 @@ function press(key) {
   }
   if (key === "enter" && cursor) {
     const link = visibleLinks().find((node) => cursorId(node) === cursor);
-    if (link && link.dataset.reader) return link.click();
+    if (link && (link.dataset.reader || link.dataset.script)) return link.click();
     return void window.open(cursor, "_blank", "noopener");
   }
   if (key === layout.history_key) return toggleHistory();

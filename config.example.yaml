@@ -314,3 +314,12 @@ panels:
           - feeds:                      # varios feeds juntos, ordenados por fecha
               - https://mundo.example/rss
               - https://mundo.example/atom
+
+  - title: Acciones
+    source: homeassistant
+    key: o                              # ventana con la tecla O: botones que lanzan scripts de Home Assistant
+    actions: true                       # hasta 9, en una cuadrícula de 3 × 3
+    items:
+      - script: script.apagar_luces     # solo se pueden lanzar los scripts que estén aquí
+        name: Apagar las luces
+        icon: mdi:lightbulb-off

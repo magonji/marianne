@@ -505,6 +505,64 @@ a.tile:hover .name {
   color: inherit;
 }
 
+/* The buttons that run Home Assistant scripts: three by three, each a box with its icon and name. */
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  padding: 0.3rem 0.1rem;
+}
+
+.tile.action {
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.7rem 0.3rem 0.4rem;
+  font: inherit;
+  color: var(--primary);
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  cursor: pointer;
+}
+
+.tile.action.free {
+  min-height: 6.4rem;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  cursor: default;
+}
+
+.tile.action > span {
+  white-space: normal;
+}
+
+.tile.action .glyph {
+  width: 3rem;
+  height: 3rem;
+}
+
+.tile.action:hover {
+  border-color: var(--primary);
+}
+
+.tile.action.on .name {
+  color: var(--accent);
+}
+
+.tile.action.error {
+  color: var(--error);
+}
+
+.tile.action.cursor {
+  background: var(--primary);
+  color: var(--background);
+  text-shadow: var(--glow-dark);
+  box-shadow: var(--glow-box);
+}
+
+.tile.action.cursor > span {
+  color: inherit;
+}
+
 /* An update waiting (What's Up Docker): the icon in red, but without the alert's blinking. */
 .tile.update .icon {
   color: var(--error);
@@ -1320,6 +1378,10 @@ a.tile.cursor > span {
 
 #popup .panel.reader {
   width: min(48rem, 94vw);
+}
+
+#popup .panel:has(.actions) {
+  width: min(30rem, 92vw);
 }
 
 .reader .reader-title {

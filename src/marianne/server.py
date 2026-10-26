@@ -168,6 +168,7 @@ class Dashboard:
                     "icons": panel.icons,
                     "history": panel.history,
                     "pomodoro": panel.pomodoro,
+                    "actions": panel.actions,
                     "span": panel.column_span,
                     "rows": panel.row_span,
                     "key": panel.key,
@@ -294,6 +295,24 @@ def make_app(dashboard: Dashboard) -> web.Application:
         except ValueError:
             raise web.HTTPBadRequest() from None
         return data if isinstance(data, dict) else {}
+
+    @routes.post("/api/script/{panel}/{item}")
+    async def run_script(request: web.Request) -> web.Response:
+        # Only a script of the config, by its place in it: the page can't name any other.
+        try:
+            panel = dashboard.config.panels[int(request.match_info["panel"])]
+            item = panel.items[int(request.match_info["item"])]
+        except (ValueError, IndexError):
+            raise web.HTTPNotFound() from None
+        source = dashboard.sources.get(item.get("source", ""))
+        if not item.get("script") or not hasattr(source, "run_script"):
+            raise web.HTTPNotFound()
+        try:
+            await source.run_script(item["script"])
+        except Exception as exc:
+            return web.json_response({"error": str(exc)[:80] or "ERROR"}, status=502)
+        await dashboard.reload(item["source"])
+        return web.json_response(dashboard.state())
 
     @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:

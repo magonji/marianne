@@ -37,6 +37,8 @@ class PanelConfig:
     history: bool = False
     # While a pomodoro is under way, it takes this panel's place (and leaves the header alone).
     pomodoro: bool = False
+    # A grid of buttons (icon and name) that run Home Assistant scripts (`script:` in its items).
+    actions: bool = False
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -143,6 +145,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         icons=bool(raw.get("icons", False)),
         history=bool(raw.get("history", False)),
         pomodoro=bool(raw.get("pomodoro", False)),
+        actions=bool(raw.get("actions", False)),
         key=key,
         pages=pages,
         page_key=page_key,
@@ -185,6 +188,8 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
             raise ConfigError(f"Panel '{title}': cada elemento web necesita 'url' y 'selector'")
         if kind == "rss" and not ("url" in item or item.get("feeds")):
             raise ConfigError(f"Panel '{title}': cada elemento rss necesita 'url' (un feed) o 'feeds' (varios)")
+        if "script" in item and not str(item["script"]).startswith("script."):
+            raise ConfigError(f"Panel '{title}': 'script' debe ser un script de Home Assistant (script.…), no '{item['script']}'")
         if kind == "monitor" and "url" not in item:
             raise ConfigError(f"Panel '{title}': cada servicio necesita 'url'")
         if kind == "dates" and "progress" in item:
