@@ -193,7 +193,7 @@ button {
   min-width: 0;
   min-height: 0;
   border: 3px solid color-mix(in srgb, var(--primary) 60%, transparent);
-  padding: 0.55rem 0.6rem 0.4rem;
+  padding: 0.8rem 0.6rem 0.4rem;
 }
 
 /* The rows are clipped, not the title that sits on the border. */
