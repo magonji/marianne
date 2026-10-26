@@ -1050,12 +1050,12 @@ a.tile.cursor > span {
 }
 
 .chart .heat-span {
-  fill: var(--error);
+  fill: var(--primary);
   opacity: 0.12;
 }
 
 .chart .heat-strip {
-  fill: var(--error);
+  fill: var(--primary);
   opacity: 0.85;
 }
 
