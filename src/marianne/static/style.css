@@ -685,6 +685,14 @@ a.tile.cursor > span {
   color: var(--error);
 }
 
+/* A sensor that's down or has no value: --.-- in a dim amber, label and units with it. */
+.offline,
+.big .number.offline,
+.row .label.offline,
+.value-text:has(> .offline) .unit {
+  color: var(--off);
+}
+
 .big .side {
   display: flex;
   flex-direction: column;

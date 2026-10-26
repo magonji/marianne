@@ -20,6 +20,8 @@ class Reading:
     # 0.0 - 1.0 when the value should be drawn as a bar.
     fraction: float | None = None
     error: bool = False
+    # A sensor that's down or has no value: drawn as --.-- in a dim colour, not as an error.
+    offline: bool = False
     # The value crossed a threshold set in the config: painted in red, blinking.
     alert: bool = False
     # Message for the full-width alarm strip, once an alert has lasted too long.

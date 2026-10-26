@@ -388,6 +388,8 @@ function valueLength(reading) {
 
 function styleClass(reading) {
   if (reading.alert) return "alert-text";
+  // A sensor that's down: dim amber, not red (it isn't a fault of marianne's).
+  if (reading.offline) return "offline";
   if (reading.error) return "error";
   if (reading.switch === true) return "on";
   if (reading.switch === false) return "off";
@@ -398,7 +400,7 @@ function drawRow(panel, reading, widths) {
   const alerting = parts(reading).some((part) => part.alert);
   const wide = reading.wide_bar && reading.fraction !== null;
   const label = el("span", {
-    class: `label${alerting ? " alert-text" : reading.switch !== null ? " " + styleClass(reading) : ""}`,
+    class: `label${alerting ? " alert-text" : reading.offline && !parts(reading).some((part) => !part.offline) ? " offline" : reading.switch !== null ? " " + styleClass(reading) : ""}`,
     style: wide ? `width: ${widths.labelWidth}ch; flex: none` : null,
   }, reading.link ? drawLink(panel, reading) : labelText(reading));
   const values = el("span", { class: "values" }, drawValue(panel, reading, wide ? widths.valueWidth : 0));
@@ -430,7 +432,7 @@ function drawValue(panel, reading, valueWidth) {
   const text = el("span", { class: "value-text", style: valueWidth ? `min-width: ${valueWidth}ch` : null });
   text.append(el("span", { class: `${styleClass(reading)}${blinking ? " blinking" : ""}` }, reading.value));
   if (reading.unit) text.append(el("span", { class: "unit" }, ` ${reading.unit}`));
-  if (reading.note) text.append(` ${reading.note}`);
+  if (reading.note) text.append(reading.offline ? el("span", { class: "offline" }, ` ${reading.note}`) : ` ${reading.note}`);
   out.append(text);
   return out;
 }
@@ -472,7 +474,7 @@ function drawBig(panel, reading) {
   }
   return el("div", { class: "big" }, row,
     el("div", { class: "caption" }, upper(reading.label),
-      reading.note ? el("span", { class: reading.error ? "error" : null }, `  ${reading.note}`) : ""));
+      reading.note ? el("span", { class: reading.offline ? "offline" : reading.error ? "error" : null }, `  ${reading.note}`) : ""));
 }
 
 // Calendar helpers: dates as YYYY-MM-DD in local time.

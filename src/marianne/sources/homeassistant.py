@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import ssl
 import time
 from datetime import datetime, timedelta
@@ -16,6 +17,8 @@ import websockets
 from .base import Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
+# A digit of a value that can't be trusted (a sensor that's down): 6.0 → -.-, 996 → ---.
+OFFLINE_DIGIT = "-"
 # Shortcuts for `format:`; any other value is used as a strftime pattern.
 # `format: auto` shows just the time for today and adds the day otherwise.
 TIME_FORMATS = {"time": "%H:%M", "datetime": "%d/%m %H:%M", "date": "%d/%m/%Y"}
@@ -118,7 +121,7 @@ class HomeAssistantSource(Source):
                 current *= item.get("scale", 1)
             if item.get("records") and item["entity"] in records:
                 readings += record_rows(item, reading, records[item["entity"]], current)
-            if samples is None or current is None or reading.error:
+            if samples is None or current is None or reading.error or reading.offline:
                 continue
             if "trend" in item:
                 reading.note = trend_note(item, current, samples, datetime.now().astimezone())
@@ -328,7 +331,10 @@ class HomeAssistantSource(Source):
             return Reading(label, value, alert=text_alert, alarm=alarm_message(item, label, value, changed, text_alert))
 
         if raw.lower() in UNAVAILABLE:
-            return Reading(label, "N/D", error=True)
+            # No value at all: two digits, and the item's decimals.
+            decimals = int(item.get("decimals") or 0)
+            shape = OFFLINE_DIGIT * 2 + ("." + OFFLINE_DIGIT * decimals if decimals else "")
+            return Reading(label, shape, unit, offline=True)
 
         if raw in ("on", "off"):
             # `invert` is for sensors wired the other way round (e.g. "on" means closed).
@@ -527,16 +533,25 @@ def mark_stale(item: dict[str, Any], reading: Reading, state: dict[str, Any], no
         return
     if seen is not None and seen.year == 1:
         # Not one change in all the history read: longer ago than that.
-        reading.error = True
-        reading.note = f"hace más de {SEEN_DAYS} d"
+        go_offline(reading, f"hace más de {SEEN_DAYS} d")
         return
     if seen is not None and seen < reported:
         reported = seen
     minutes = (now - reported).total_seconds() / 60
     if minutes > float(item["stale_after"]):
-        reading.error = True
-        reading.note = f"hace {format_duration(minutes)}"
+        go_offline(reading, f"hace {format_duration(minutes)}")
 
+
+
+def go_offline(reading: Reading, note: str) -> None:
+    """A value too old to trust: its digits as dashes (6.0 → -.-), in a dim colour, no bar and no
+    alert, and since when."""
+    reading.value = re.sub(r"\d", OFFLINE_DIGIT, reading.value)
+    reading.offline = True
+    reading.fraction = None
+    reading.alert = False
+    reading.alarm = None
+    reading.note = note
 
 def midnight(now: datetime) -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -595,7 +610,7 @@ def record_rows(item: dict[str, Any], reading: Reading, records: Records, curren
     for kind, name, beats in (("max", "Récord máxima", float.__gt__), ("min", "Récord mínima", float.__lt__)):
         when, value = records[kind]
         # The statistics are compiled every hour: a record being set right now isn't in them yet.
-        if current is not None and not reading.error and beats(float(current), float(value)):
+        if current is not None and not reading.error and not reading.offline and beats(float(current), float(value)):
             when, value = now, current
         rows.append(Reading(item.get(f"record_{kind}_name", name), format_number(value, decimals), reading.unit, note=f"{when:%d/%m/%y}"))
     return rows

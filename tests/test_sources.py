@@ -54,7 +54,8 @@ def test_home_assistant_readings():
     assert (temp.label, temp.value, temp.unit, temp.fraction) == ("Salón", "21.4", "°C", None)
     assert hum.fraction == 0.5
     assert (door.value, door.switch) == ("ABIERTA", True)
-    assert dead.error and missing.error
+    # A sensor that's down: --.-- and offline, not an error; one that doesn't exist, an error
+    assert (dead.value, dead.offline, dead.error) == ("--", True, False) and missing.error
     assert (outside.label, outside.value, outside.unit) == ("Fuera", "18.5", "°C")
     assert weather.value == "SOL"
 
@@ -107,7 +108,7 @@ def test_format_duration():
 def test_map_applies_before_unavailable_check():
     mapped, unmapped = run(ha_source().fetch([{"entity": "sensor.job", "map": {"none": "—"}}, {"entity": "sensor.job"}]))
     assert (mapped.value, mapped.error) == ("—", False)
-    assert unmapped.error
+    assert unmapped.offline and unmapped.value == "--"
 
 
 def test_text_state_alert_and_custom_alarm_text():
@@ -207,10 +208,10 @@ def test_stale_value_is_flagged_and_skips_trend():
     item = {"entity": "sensor.temp", "stale_after": 120}
     reading = Reading("T", "7.3", "°C")
     mark_stale(item, reading, {"last_reported": at(1, 30).isoformat()}, NOW)
-    assert reading.error and reading.note == "hace 13 h 30 min"
+    assert (reading.offline, reading.value, reading.note) == (True, "-.-", "hace 13 h 30 min") and not reading.error
     fresh = Reading("T", "7.3", "°C")
     mark_stale(item, fresh, {"last_reported": at(14).isoformat()}, NOW)
-    assert not fresh.error and fresh.note == ""
+    assert not fresh.offline and fresh.value == "7.3" and fresh.note == ""
 
 
 def test_trend_note():
@@ -371,10 +372,10 @@ def test_a_device_whose_values_dont_change_is_stale_even_if_resent():
     state = {"state": "6.02", "last_reported": stamp(1)}
     reading = Reading("Temperatura", "6.0")
     mark_stale({"stale_after": 120}, reading, state, now, seen=now - timedelta(hours=88))
-    assert reading.error and reading.note == "hace 3 d 16 h"
+    assert reading.offline and reading.value == "-.-" and reading.note == "hace 3 d 16 h"
     never = Reading("Biblioteca", "18.7")
     mark_stale({"stale_after": 180}, never, state, now, seen=datetime.min.replace(tzinfo=now.tzinfo))
-    assert never.error and never.note == "hace más de 7 d"
+    assert never.offline and never.note == "hace más de 7 d"
     fine = Reading("Salón", "19.3")
     mark_stale({"stale_after": 180}, fine, {"state": "19.3", "last_reported": stamp(0.2)}, now, seen=now - timedelta(minutes=12))
-    assert not fine.error
+    assert not fine.offline
