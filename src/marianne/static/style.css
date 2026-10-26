@@ -604,7 +604,9 @@ a.tile.cursor > span {
 .row.wide .value-note {
   flex: none;
   white-space: pre;
-  text-align: left;
+  /* The column after the figures (10 núcleos, 16.2/24.0 GB): right-aligned, dim. */
+  text-align: right;
+  color: var(--dim);
   overflow: hidden;
 }
 
