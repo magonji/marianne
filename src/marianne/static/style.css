@@ -625,9 +625,12 @@ a.tile.cursor > span {
   display: inline-block;
   position: relative;
   width: 5em;
-  height: 0.62em;
+  /* Thin upright segments, like a LED meter: a segment every --step, --segment wide. */
+  --segment: 0.27em;
+  --step: 0.5em;
+  height: 0.78em;
   margin-right: 1ch;
-  vertical-align: baseline;
+  vertical-align: -0.05em;
 }
 
 /* The empty part of the bar, and the filled part over it. */
@@ -640,8 +643,8 @@ a.tile.cursor > span {
 
 .bar::before {
   right: 0;
-  background: repeating-linear-gradient(90deg, var(--foreground) 0 0.36em, transparent 0.36em 0.5em);
-  opacity: 0.3;
+  background: repeating-linear-gradient(90deg, var(--foreground) 0 var(--segment), transparent var(--segment) var(--step));
+  opacity: 0.22;
 }
 
 .bar.short {
@@ -649,12 +652,14 @@ a.tile.cursor > span {
 }
 
 .bar > i {
-  background: repeating-linear-gradient(90deg, var(--primary) 0 0.36em, transparent 0.36em 0.5em);
-  box-shadow: var(--glow);
+  background: repeating-linear-gradient(90deg, var(--accent) 0 var(--segment), transparent var(--segment) var(--step));
+  /* The glow on the segments themselves, not on the box around them. */
+  filter: drop-shadow(0 0 2px var(--primary));
 }
 
 .bar.alerting > i {
-  background: repeating-linear-gradient(90deg, var(--error) 0 0.36em, transparent 0.36em 0.5em);
+  background: repeating-linear-gradient(90deg, var(--error) 0 var(--segment), transparent var(--segment) var(--step));
+  filter: drop-shadow(0 0 2px var(--error));
 }
 
 /* ---- big value ---- */
