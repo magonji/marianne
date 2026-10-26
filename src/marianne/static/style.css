@@ -392,6 +392,12 @@ button {
   cursor: pointer;
 }
 
+/* A countdown's date: in the accent colour and underlined; its name is in the tooltip. */
+.calendar-grid .marked {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .calendar-grid .selected {
   outline: 1px solid var(--accent);
   outline-offset: -1px;

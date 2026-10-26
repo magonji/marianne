@@ -534,8 +534,8 @@ function drawAgenda(reading) {
   }));
 }
 
-// A month like the terminal's `cal`: today in reverse video and the weekend dimmer. ‹ › go to
-// another month.
+// A month like the terminal's `cal`: today in reverse video, the countdown's dates underlined and
+// the weekend dimmer. ‹ › go to another month.
 function drawCalendar(calendar) {
   const view = calendarView || { year: calendar.year, month: calendar.month };
   const first = new Date(view.year, view.month - 1, 1);
@@ -548,10 +548,14 @@ function drawCalendar(calendar) {
   for (let blank = 0; blank < firstWeekday; blank += 1) cells.push(el("span", {}));
   const dayCell = (day) => {
     const iso = `${view.year}-${pad2(view.month)}-${pad2(day)}`;
-    // Only today stands out: no day is marked (the events are listed beside, see drawAgenda).
-    const classes = ["day", (firstWeekday + day - 1) % 7 >= 5 ? "weekend" : "",
+    // The countdown's dates are marked (their names in the tooltip); the calendars' events aren't,
+    // they're listed beside (see drawAgenda).
+    const marked = eventsOn(calendar.events || [], view.year, view.month, day);
+    const classes = ["day", (firstWeekday + day - 1) % 7 >= 5 ? "weekend" : "", marked.length ? "marked" : "",
       iso === today ? "today" : "", iso === calendarDay ? "selected" : ""].filter(Boolean);
-    return el("span", { class: classes.join(" "), onclick: () => pickCalendarDay(iso) }, String(day));
+    return el("span", {
+      class: classes.join(" "), title: marked.length ? marked.join(", ") : null, onclick: () => pickCalendarDay(iso),
+    }, String(day));
   };
   for (let day = 1; day <= length; day += 1) cells.push(dayCell(day));
   const arrow = (text, step) => el("button", { class: "calendar-arrow", onclick: () => shiftCalendarMonth(step) }, text);
