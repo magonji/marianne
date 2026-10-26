@@ -1467,7 +1467,7 @@ a.tile.cursor > span {
 
   #top {
     /* Clear of the iPhone's notch or Dynamic Island (its safe area), and a little more. */
-    padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 16px 0.3rem;
+    padding: calc(1.2rem + env(safe-area-inset-top, 0px)) 16px 0.3rem;
   }
 
   #boot {
@@ -1529,9 +1529,9 @@ a.tile.cursor > span {
     white-space: normal;
     gap: 0 1.4ch;
     font-size: 0.9rem;
-    /* On a phone, the help (and any alert) in the middle; clear of the home indicator. */
+    /* On a phone, the help (and any alert) in the middle. */
     justify-content: center;
-    padding-bottom: calc(0.05rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   /* Panels as tall as their contents: the chart has its own height. */
