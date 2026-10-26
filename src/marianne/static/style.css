@@ -101,22 +101,17 @@ button {
   line-height: 0;
 }
 
-/* The title's pixels (see drawBanner), shown hard, with a phosphor glow and scanlines over them. */
+/* The title's pixels (see drawBanner), shown hard. */
 #banner-art {
   display: block;
   max-width: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: drop-shadow(0 0 2px #f2b23a) drop-shadow(0 0 8px color-mix(in srgb, #f2b23a 60%, transparent))
-    drop-shadow(0 0 18px color-mix(in srgb, #f2b23a 30%, transparent));
-}
-
-#banner::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.35) 0 1px, transparent 1px 3px);
-  pointer-events: none;
+  /* The same halo as every letter's (--glow), as filters: a canvas has no text-shadow. The
+     scanlines are the page's, over everything. */
+  filter: drop-shadow(0 0 2px color-mix(in srgb, #f2b23a 80%, transparent))
+    drop-shadow(0 0 5px color-mix(in srgb, #f2b23a 55%, transparent))
+    drop-shadow(0 0 12px color-mix(in srgb, #f2b23a 35%, transparent));
 }
 
 #clock {
