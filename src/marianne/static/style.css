@@ -564,12 +564,9 @@ a.tile.cursor > span {
   flex: 1 1 1ch;
   min-width: 1ch;
   margin: 0 0.5ch;
-  overflow: hidden;
-  color: var(--dim);
-}
-
-.row .leader::before {
-  content: "................................................................................................................................";
+  /* Small dots close together, drawn on the text's baseline. */
+  align-self: stretch;
+  background: radial-gradient(circle, var(--dim) 0.06em, transparent 0.07em) 0 82% / 0.18em 0.3em repeat-x;
 }
 
 .row .values {
