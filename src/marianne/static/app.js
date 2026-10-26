@@ -1364,7 +1364,7 @@ function press(key) {
 
 // The title, "Marianne" (Jane Austen's Marianne Dashwood), in Mrs Saint Delafield as an early-80s
 // computer would draw it: written letter by letter on a small canvas, its alpha cut to hard
-// pixels, and blown up without smoothing. The glow and the scanlines are the CSS's.
+// pixels, and blown up without smoothing. The scanlines are the CSS's.
 const BANNER_PIXEL = 3; // pixel size, 1 to 8
 const BANNER_HEIGHT = 110; // px on screen
 
@@ -1406,7 +1406,7 @@ async function drawBanner() {
 
 // ---------------------------------------------------------------- big digits
 
-// Big figures in VT323 itself, large and glowing like a phosphor display.
+// Big figures in VT323 itself, large like a phosphor display.
 function setSegments(node, text) {
   node.textContent = text;
 }

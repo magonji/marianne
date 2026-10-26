@@ -29,13 +29,6 @@
   --dim: color-mix(in srgb, var(--foreground) 35%, transparent);
   --off: color-mix(in srgb, var(--foreground) 45%, transparent);
   --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
-  /* Every letter's halo, in its own colour: a soft edge and a wider glow, like phosphor. */
-  --glow: 0 0 1px currentColor, 0 0 3px color-mix(in srgb, currentColor 50%, transparent), 0 0 7px color-mix(in srgb, currentColor 22%, transparent);
-  /* Dark letters on a lit background (reverse video): softened, and the box glowing instead. */
-  /* Dark text on a lit background (reverse video): the light blooms into the letters, as on a CRT,
-     with a thin stroke of it over their edges (a shadow would only go behind them). */
-  --bloom: 0.6px color-mix(in srgb, var(--primary) 55%, transparent);
-  --glow-box: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
   /* Sized so the screen holds about as many lines as a full-screen terminal. */
   font-size: clamp(14px, min(2.15vh, 1.18vw), 30px);
 }
@@ -57,7 +50,6 @@ body {
   color: var(--foreground);
   font-family: "VT323", ui-monospace, "SF Mono", Menlo, monospace;
   line-height: 1.15;
-  text-shadow: var(--glow);
   overflow: hidden;
 }
 
@@ -78,7 +70,6 @@ button {
   border: 0;
   padding: 0;
   cursor: pointer;
-  text-shadow: inherit;
   /* No double-tap zoom, so a tap acts at once. */
   touch-action: manipulation;
 }
@@ -87,7 +78,6 @@ button {
   display: none !important;
 }
 
-/* ---- top bar ---- */
 
 #top {
   display: flex;
@@ -109,11 +99,6 @@ button {
   max-width: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  /* The same halo as every letter's (--glow), as filters: a canvas has no text-shadow. The
-     scanlines are the page's, over everything. */
-  filter: brightness(0.88) drop-shadow(0 0 1px color-mix(in srgb, #f2b23a 70%, transparent))
-    drop-shadow(0 0 5px color-mix(in srgb, #f2b23a 40%, transparent))
-    drop-shadow(0 0 10px color-mix(in srgb, #f2b23a 18%, transparent));
 }
 
 #clock {
@@ -143,15 +128,11 @@ button {
 /* Big digits drawn with box-drawing characters, three rows high (see segmentRows), like elinor.
    VT323 has no box-drawing glyphs, so they use a font that does, with the rows touching. */
 .segments {
-  /* VT323, large and glowing: the figures of a phosphor screen, scanlines and all (the page's). */
+  /* VT323, large: the figures of a phosphor screen, with the page's scanlines over them. */
   font-family: "VT323", ui-monospace, monospace;
   white-space: pre;
   line-height: 0.85;
   letter-spacing: 0.04em;
-  text-shadow:
-    0 0 2px currentColor,
-    0 0 8px color-mix(in srgb, currentColor 75%, transparent),
-    0 0 22px color-mix(in srgb, currentColor 45%, transparent);
 }
 
 #pomodoro {
@@ -164,7 +145,6 @@ button {
   color: color-mix(in srgb, var(--foreground) 50%, transparent);
 }
 
-/* ---- alarm and notice strips ---- */
 
 #alarm,
 #notice {
@@ -204,7 +184,6 @@ button {
   }
 }
 
-/* ---- panels ---- */
 
 #panels {
   flex: 1;
@@ -247,18 +226,11 @@ button {
   font-weight: normal;
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--primary) 70%, transparent), 0 0 14px color-mix(in srgb, var(--primary) 45%, transparent);
   white-space: nowrap;
 }
 
 .panel > h2 .page-count {
   opacity: 0.75;
-}
-
-.panel > h2 button {
-  text-shadow: inherit;
 }
 
 .panel {
@@ -301,7 +273,6 @@ button {
   color: var(--dim);
 }
 
-/* ---- calendar, in a column beside the rows ---- */
 
 .panel > .body.with-calendar {
   display: grid;
@@ -315,7 +286,6 @@ button {
   align-self: start;
 }
 
-/* ---- the history's "7 days" table ---- */
 
 .week-table {
   display: grid;
@@ -433,12 +403,8 @@ button {
 .calendar-grid .today {
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
 }
 
-/* ---- grid of icons (services) ---- */
 
 .icons {
   display: grid;
@@ -472,9 +438,7 @@ a.tile:hover .name {
   white-space: nowrap;
 }
 
-/* The glow goes on the wrapper: a filter on the masked element itself would be cut off by the mask. */
 .tile .icon {
-  filter: drop-shadow(0 0 3px color-mix(in srgb, currentColor 60%, transparent));
   margin-bottom: 0.05rem;
 }
 
@@ -559,9 +523,6 @@ a.tile:hover .name {
 .tile.action.cursor {
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
 }
 
 .tile.action.cursor > span {
@@ -588,7 +549,6 @@ a.tile:hover .name {
   }
 }
 
-/* ---- rows ---- */
 
 .row {
   display: flex;
@@ -624,9 +584,6 @@ a.tile.cursor,
 .row .label a.cursor {
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
 }
 
 a.tile.cursor > span {
@@ -771,16 +728,12 @@ a.tile.cursor > span {
 
 .bar > i {
   background: repeating-linear-gradient(90deg, var(--primary) 0 var(--segment), transparent var(--segment) var(--step));
-  /* The glow on the segments themselves, not on the box around them. */
-  filter: drop-shadow(0 0 2px var(--primary));
 }
 
 .bar.alerting > i {
   background: repeating-linear-gradient(90deg, var(--error) 0 var(--segment), transparent var(--segment) var(--step));
-  filter: drop-shadow(0 0 2px var(--error));
 }
 
-/* ---- big value ---- */
 
 .big {
   display: flex;
@@ -839,10 +792,8 @@ a.tile.cursor > span {
 .rule {
   border-top: 2px solid var(--dim);
   margin: 0.2rem -0.6rem 0.25rem;
-  box-shadow: var(--glow);
 }
 
-/* ---- the Sun ---- */
 
 .sun {
   display: block;
@@ -853,13 +804,11 @@ a.tile.cursor > span {
 }
 
 .sun text {
-  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--primary) 45%, transparent));
   font-family: "VT323", ui-monospace, monospace;
   font-size: 15px;
   fill: var(--accent);
 }
 
-/* ---- weather chart ---- */
 
 .chart-box {
   cursor: crosshair;
@@ -1024,7 +973,6 @@ a.tile.cursor > span {
   stroke: var(--error);
 }
 
-/* ---- help ---- */
 
 #popup .panel.help {
   width: min(44rem, 94vw);
@@ -1043,7 +991,6 @@ a.tile.cursor > span {
   text-decoration: underline;
 }
 
-/* ---- energy widget ---- */
 
 .energy-top {
   display: grid;
@@ -1072,7 +1019,6 @@ a.tile.cursor > span {
   margin-top: -0.15em;
   /* Like the services' icons: the SVG as a mask over scanlines, in one colour. */
   background: repeating-linear-gradient(to bottom, var(--primary) 0 2px, transparent 2px 3px);
-  filter: drop-shadow(0 0 2px var(--primary));
   mask-size: contain;
   mask-repeat: no-repeat;
   mask-position: center;
@@ -1112,12 +1058,10 @@ a.tile.cursor > span {
   height: calc(100% + 0.7em);
   margin-left: -1px;
   background: var(--accent);
-  box-shadow: 0 0 3px var(--accent);
 }
 
 .bar.thermo > .target-mark.off {
   background: var(--dim);
-  box-shadow: none;
 }
 
 .row.wide .scale-end {
@@ -1165,7 +1109,6 @@ a.tile.cursor > span {
 }
 
 
-/* ---- pomodoro, in place of a panel ---- */
 
 .pomodoro-panel > .body {
   display: flex;
@@ -1265,7 +1208,6 @@ a.tile.cursor > span {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2.5;
-  filter: drop-shadow(0 0 3px var(--primary));
 }
 
 .sun .horizon {
@@ -1303,7 +1245,6 @@ a.tile.cursor > span {
 
 .sun .body.below {
   fill: var(--dim);
-  filter: none;
 }
 
 .row.summary.sun-lengths {
@@ -1313,10 +1254,8 @@ a.tile.cursor > span {
 
 .sun .body {
   fill: var(--accent);
-  filter: drop-shadow(0 0 5px var(--primary));
 }
 
-/* ---- status bar ---- */
 
 #status {
   flex: none;
@@ -1326,9 +1265,6 @@ a.tile.cursor > span {
   padding: 0.05rem 1ch;
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
   white-space: nowrap;
 }
 
@@ -1366,7 +1302,6 @@ a.tile.cursor > span {
   animation: blink 1s steps(1) infinite;
 }
 
-/* ---- pop-up panel ---- */
 
 #popup {
   position: fixed;
@@ -1434,9 +1369,6 @@ a.tile.cursor > span {
 .reader-choices > .cursor {
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
 }
 
 .reader-choices > *::before {
@@ -1447,7 +1379,6 @@ a.tile.cursor > span {
   content: " ]";
 }
 
-/* ---- date editor ---- */
 
 #popup .panel.dates-editor {
   width: min(44rem, 94vw);
@@ -1481,7 +1412,6 @@ a.tile.cursor > span {
   min-width: 0;
   font: inherit;
   color: var(--accent);
-  text-shadow: inherit;
   background: transparent;
   border: 0;
   border-bottom: 1px dashed var(--dim);
@@ -1511,9 +1441,6 @@ a.tile.cursor > span {
   outline: none;
   background: var(--primary);
   color: var(--background);
-  text-shadow: none;
-  -webkit-text-stroke: var(--bloom);
-  box-shadow: var(--glow-box);
 }
 
 .dates-editor .row:focus .leader,
@@ -1521,7 +1448,6 @@ a.tile.cursor > span {
   color: inherit;
 }
 
-/* ---- boot ---- */
 
 #boot {
   position: fixed;
@@ -1538,7 +1464,6 @@ a.tile.cursor > span {
   overflow: hidden;
 }
 
-/* ---- narrow screens: one column that scrolls ---- */
 
 @media (max-width: 760px) {
   :root {
@@ -1673,3 +1598,4 @@ a.tile.cursor > span {
     display: none;
   }
 }
+
