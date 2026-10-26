@@ -818,7 +818,7 @@ function drawChart(chart) {
       el("div", { class: "chart-area" }, svg, marks),
       el("div", { class: "chart-axis right" }, el("span", {}, `${windTop}`), el("span", {}, "km/h"))),
     el("div", { class: "chart-hours" }, hours),
-    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, readout));
+    el("div", { class: `chart-caption${inspected === null ? "" : " inspecting"}` }, withDimUnits(readout)));
 }
 
 // The conditions at one moment of the chart: observed if it has gone by, forecast if not.
@@ -833,6 +833,18 @@ function conditionsAt(chart, day, t, interpolate) {
   const nearest = day.points.reduce((best, point) => (Math.abs(point.t - t) < Math.abs(best.t - t) ? point : best), day.points[0]);
   const when = t >= chart.now ? "previsto" : nearest && nearest.estimated ? "estimado" : "observado";
   return upper([hour, `${temp.toFixed(1)}°C`, `${windAndGusts(wind, gusts)} km/h`, rain, `︽ ${Math.round(clouds)}%`, when].join("  "));
+}
+
+// A line of figures with its units dim: "8.5°C 15–40 KM/H" → the °C and KM/H in the dim colour.
+function withDimUnits(text) {
+  const out = document.createDocumentFragment();
+  let last = 0;
+  for (const match of text.matchAll(/°C|KM\/H|MM\/H|MM\b|%/gi)) {
+    out.append(text.slice(last, match.index), el("span", { class: "unit" }, match[0]));
+    last = match.index + match[0].length;
+  }
+  out.append(text.slice(last));
+  return out;
 }
 
 // "26–40": the wind and, if they're stronger, its gusts.
@@ -1076,7 +1088,7 @@ function drawSunPath(readings, path) {
     el("span", { class: "token-label" }, upper("Oscuridad")), " ", el("span", { class: "token-value" }, String(dh)), " ",
     el("span", { class: "token-unit" }, "H"), " ", el("span", { class: "token-value" }, String(dm)), " ",
     el("span", { class: "token-unit" }, "MIN")));
-  return [svg, lengths];
+  return [svg, lengths, el("div", { class: "rule" })];
 }
 
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.

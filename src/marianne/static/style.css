@@ -1072,6 +1072,7 @@ a.tile.cursor > span {
 
 .row.summary.energy-totals {
   margin: 0.2rem 0 0;
+  justify-content: center;
 }
 
 
@@ -1180,7 +1181,8 @@ a.tile.cursor > span {
 }
 
 .row.summary.sun-lengths {
-  margin: 0 0 0.3em;
+  margin: 0;
+  justify-content: center;
 }
 
 .sun .body {
