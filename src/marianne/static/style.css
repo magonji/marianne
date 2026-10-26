@@ -116,16 +116,21 @@ button {
 
 .digits {
   color: var(--accent);
-  font-size: 1.25rem;
+  font-size: 3.6rem;
 }
 
 /* Big digits drawn with box-drawing characters, three rows high (see segmentRows), like elinor.
    VT323 has no box-drawing glyphs, so they use a font that does, with the rows touching. */
 .segments {
-  font-family: Menlo, "DejaVu Sans Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  /* VT323, large and glowing: the figures of a phosphor screen, scanlines and all (the page's). */
+  font-family: "VT323", ui-monospace, monospace;
   white-space: pre;
-  line-height: 1.05;
-  letter-spacing: 0;
+  line-height: 0.85;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 0 2px currentColor,
+    0 0 8px color-mix(in srgb, currentColor 75%, transparent),
+    0 0 22px color-mix(in srgb, currentColor 45%, transparent);
 }
 
 #pomodoro {
@@ -712,7 +717,7 @@ a.tile.cursor > span {
 }
 
 .big .number {
-  font-size: 1.2rem;
+  font-size: 4.4rem;
   color: var(--accent);
 }
 
@@ -967,7 +972,7 @@ a.tile.cursor > span {
 }
 
 .energy-now .number {
-  font-size: 0.78rem;
+  font-size: 3rem;
   color: var(--accent);
 }
 
@@ -1430,11 +1435,11 @@ a.tile.cursor > span {
   }
 
   .digits {
-    font-size: 1rem;
+    font-size: 2.6rem;
   }
 
   .big .number {
-    font-size: 0.95rem;
+    font-size: 3.4rem;
   }
 
   /* The pomodoro on its own line under the name and the clock: beside them it doesn't fit. */

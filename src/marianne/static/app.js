@@ -1320,47 +1320,9 @@ function press(key) {
 
 // ---------------------------------------------------------------- big digits
 
-// Seven-segment digits drawn with box-drawing characters, three rows high, like elinor
-// (the glyphs are Textual's bold Digits, MIT licence).
-const SEGMENTS = {
-  " ": ["   ", "   ", "   "],
-  "0": ["┏━┓", "┃ ┃", "┗━┛"],
-  "1": ["╺┓ ", " ┃ ", "╺┻╸"],
-  "2": ["╺━┓", "┏━┛", "┗━╸"],
-  "3": ["╺━┓", " ━┫", "╺━┛"],
-  "4": ["╻ ╻", "┗━┫", "  ╹"],
-  "5": ["┏━╸", "┗━┓", "╺━┛"],
-  "6": ["┏━╸", "┣━┓", "┗━┛"],
-  "7": ["╺━┓", "  ┃", "  ╹"],
-  "8": ["┏━┓", "┣━┫", "┗━┛"],
-  "9": ["┏━┓", "┗━┫", "╺━┛"],
-  "+": ["   ", "╺╋╸", "   "],
-  "-": ["   ", "╺━╸", "   "],
-  ":": ["   ", " : ", "   "],
-  "A": ["╭─╮", "├─┤", "╵ ╵"],
-  "B": ["┌─╮", "├─┤", "└─╯"],
-  "C": ["╭─╮", "│  ", "╰─╯"],
-  "D": ["┌─╮", "│ │", "└─╯"],
-  "E": ["╭─╴", "├─ ", "╰─╴"],
-  "F": ["╭─╴", "├─ ", "╵  "],
-};
-
-// The three rows of a value in big digits. A character without a glyph goes on the bottom row,
-// as a small one (".", "%"), except "°", which goes on the top row where it belongs.
-function segmentRows(text) {
-  const rows = ["", "", ""];
-  for (const character of String(text).replace(/\./g, "•")) {
-    const glyph = SEGMENTS[character.toUpperCase()];
-    if (glyph) glyph.forEach((part, row) => (rows[row] += part));
-    else if (character === "°") rows.forEach((_, row) => (rows[row] += row === 0 ? character : " "));
-    else rows.forEach((_, row) => (rows[row] += row === 2 ? character : " "));
-  }
-  return rows;
-}
-
+// Big figures in VT323 itself, large and glowing like a phosphor display.
 function setSegments(node, text) {
-  node.textContent = segmentRows(text).join("\n");
-  node.setAttribute("aria-label", text);
+  node.textContent = text;
 }
 
 // ---------------------------------------------------------------- link cursor
