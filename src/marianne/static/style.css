@@ -128,9 +128,13 @@ button {
   text-align: right;
 }
 
+#clock-date {
+  font-size: 1.6rem;
+}
+
 .digits {
   color: var(--accent);
-  font-size: 3.6rem;
+  font-size: 5.4rem;
 }
 
 /* Big digits drawn with box-drawing characters, three rows high (see segmentRows), like elinor.
