@@ -187,7 +187,8 @@ function tickClock() {
 function renderPomodoro() {
   const box = document.getElementById("pomodoro");
   const pomodoro = state.pomodoro;
-  box.hidden = !(pomodoro && pomodoro.active);
+  // With a panel for it (`pomodoro: true`), it goes there instead of in the header.
+  box.hidden = !(pomodoro && pomodoro.active) || layout.panels.some((panel) => panel.pomodoro);
   if (box.hidden) return;
   const seconds = Math.ceil(pomodoro.left - 0.001);
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -308,6 +309,7 @@ function closeReader() {
 
 function drawPanel(view) {
   if (history && view.panel.history) return drawWeekPanel(view);
+  if (view.panel.pomodoro && state && state.pomodoro && state.pomodoro.active) return drawPomodoroPanel(view);
   const { panel, data, title, index } = view;
   const alerting = data.readings.some((reading) => parts(reading).some((part) => part.alert));
   const stale = Boolean(data.error);
@@ -1445,6 +1447,34 @@ function drawHelp() {
       row("↵", "Abrir o elegir lo que tiene el cursor"),
       row("Q", "Salir: cerrar, quitar el cursor"),
       row("F1", "Esta ayuda")));
+}
+
+// ---------------------------------------------------------------- pomodoro panel
+
+// While a pomodoro is under way, in place of its panel (the news): the countdown in big figures, the
+// phase and how far into it, and its keys.
+function drawPomodoroPanel(view) {
+  const { panel } = view;
+  const pomodoro = state.pomodoro;
+  const seconds = Math.max(0, Math.ceil(pomodoro.left - 0.001));
+  const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  const digits = el("div", { class: `number segments pomodoro-time${pomodoro.running ? "" : " paused"}` });
+  setSegments(digits, time);
+  const total = (pomodoro.duration || 0) * 60;
+  const done = total ? Math.max(0, Math.min(1, 1 - pomodoro.left / total)) : null;
+  const bar = done === null ? null : el("div", { class: "row wide pomodoro-progress" },
+    el("span", { class: "values" }, el("span", { class: "bar" }, el("i", { style: `width: ${Math.round(done * 100)}%` }))));
+  const keys = layout.pomodoros[0];
+  const status = pomodoro.running ? "" : upper(pomodoro.status);
+  return el("section", { class: `panel pomodoro-panel${pomodoro.notice ? " alert" : ""}`, style: `grid-column: span ${panel.span}; grid-row: span ${panel.rows}` },
+    el("h2", {}, upper("Pomodoro")),
+    el("div", { class: "body" },
+      el("div", { class: "pomodoro-label" }, upper(pomodoro.label)),
+      digits,
+      bar,
+      el("div", { class: "pomodoro-status" }, status || "\u00a0"),
+      keys ? el("div", { class: "pomodoro-keys dim" },
+        upper(`[${keys.start_key.toUpperCase()}] ${pomodoro.running ? "pausar" : "seguir"} · [${keys.reset_key.toUpperCase()}] reiniciar`)) : null));
 }
 
 // ---------------------------------------------------------------- history

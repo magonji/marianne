@@ -217,3 +217,9 @@ def test_calendar_item_in_a_dates_panel():
     assert [bool(reading.calendar) for reading in readings] == [False, False, True]
     data = {"sources": {"fechas": {"type": "dates"}}, "panels": [{"title": "F", "source": "fechas", "items": [{"calendar": True}]}]}
     assert parse_config(data, None).panels[0].items == [{"calendar": True, "source": "fechas"}]
+
+
+def test_a_panel_can_give_way_to_the_pomodoro():
+    data = {"sources": {"pomodoro": {"type": "pomodoro"}, "noticias": {"type": "rss"}},
+            "panels": [{"title": "Noticias", "source": "noticias", "pomodoro": True, "items": [{"url": "https://x.test/rss"}]}]}
+    assert parse_config(data, None).panels[0].pomodoro

@@ -39,7 +39,8 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
 - **Fases de la luna** calculadas localmente (algoritmo de Jean Meeus, sin internet).
 - **Pomodoro**: cuenta atrás con descanso automático. Al terminar cada fase suenan tres
   campanadas y el aviso parpadea hasta pulsar una tecla. Basta con definir la fuente: mientras
-  está en uso aparece centrada en la cabecera; también puede tener su propio panel.
+  está en uso aparece centrada en la cabecera, o, con `pomodoro: true`, en lugar de un panel
+  (las noticias, para trabajar sin distracciones).
 - **Fechas señaladas**: cuántos días faltan para cumpleaños, viajes o fiestas, con aviso el
   mismo día (se añaden y cambian desde la propia página, con la tecla `F`), y barras de progreso del día, la semana, el mes, el año y la vida.
 - **Scraping web**: cualquier valor de una página con un selector CSS.
@@ -272,6 +273,7 @@ título.
 | `span`, `rows` | Columnas y filas de la rejilla que ocupa |
 | `big: true` | El primer valor, en dígitos grandes |
 | `history: true` | Sale con el historial (tecla `H`, ver abajo) |
+| `pomodoro: true` | Mientras hay un pomodoro en marcha, este panel lo muestra en grande (cuenta atrás, fase y progreso) en lugar de su contenido, y la cabecera deja de mostrarlo: p. ej. en Noticias, para no distraerse |
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
 | `pages`, `page_key: t` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |

@@ -35,6 +35,8 @@ class PanelConfig:
     icons: bool = False
     # Shown by the `history` command (its key, H): the max and min of its values over a period.
     history: bool = False
+    # While a pomodoro is under way, it takes this panel's place (and leaves the header alone).
+    pomodoro: bool = False
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -140,6 +142,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         big=bool(raw.get("big", False)),
         icons=bool(raw.get("icons", False)),
         history=bool(raw.get("history", False)),
+        pomodoro=bool(raw.get("pomodoro", False)),
         key=key,
         pages=pages,
         page_key=page_key,

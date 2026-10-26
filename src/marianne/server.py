@@ -167,6 +167,7 @@ class Dashboard:
                     "big": panel.big,
                     "icons": panel.icons,
                     "history": panel.history,
+                    "pomodoro": panel.pomodoro,
                     "span": panel.column_span,
                     "rows": panel.row_span,
                     "key": panel.key,
@@ -220,6 +221,8 @@ class Dashboard:
             "active": source.running or source.phase != "work" or source.left() < source.durations["work"],
             "running": source.running,
             "left": source.left(),
+            # The phase's length in minutes, for the progress bar.
+            "duration": source.durations[source.phase] / 60,
             "label": timer.label,
             "status": status.value,
             "notice": source.notice_text,

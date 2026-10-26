@@ -30,7 +30,7 @@
   --off: color-mix(in srgb, var(--foreground) 45%, transparent);
   --soft: color-mix(in srgb, var(--foreground) 70%, transparent);
   /* Every letter's halo, in its own colour: a soft edge and a wider glow, like phosphor. */
-  --glow: 0 0 1px color-mix(in srgb, currentColor 70%, transparent), 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
+  --glow: 0 0 2px color-mix(in srgb, currentColor 70%, transparent), 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
   /* Dark letters on a lit background (reverse video): softened, and the box glowing instead. */
   --glow-dark: 0 0 1px color-mix(in srgb, var(--background) 60%, transparent);
   --glow-box: 0 0 6px color-mix(in srgb, var(--primary) 45%, transparent);
@@ -1085,6 +1085,43 @@ a.tile.cursor > span {
   justify-content: center;
 }
 
+
+/* ---- pomodoro, in place of a panel ---- */
+
+.pomodoro-panel > .body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.2rem;
+}
+
+.pomodoro-label {
+  color: var(--soft);
+}
+
+.pomodoro-time {
+  font-size: 6rem;
+  color: var(--accent);
+}
+
+.pomodoro-time.paused {
+  color: var(--off);
+}
+
+.pomodoro-progress {
+  width: 80%;
+}
+
+.pomodoro-progress .bar {
+  flex: 1;
+  width: 100%;
+}
+
+.pomodoro-status {
+  color: var(--soft);
+}
 
 .chart-area {
   position: relative;
