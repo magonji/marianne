@@ -361,7 +361,9 @@ function drawPanel(view) {
         continue;
       }
       if (reading.energy) {
-        body.append(drawEnergy(reading), el("div", { class: "rule" }));
+        // The widget, the line under it, and the thermostat as the first row.
+        const [widget, thermostat] = drawEnergy(reading);
+        body.append(widget, el("div", { class: "rule" }), thermostat);
         continue;
       }
       if (reading.tokens) {
@@ -897,10 +899,8 @@ function drawEnergy(reading) {
     return node;
   };
 
-  // The flame: drawn, so it takes the theme's colours (an emoji wouldn't).
-  const flame = svgOf(`flame${energy.flame ? "" : " out"}`, "0 0 20 28");
-  draw(flame, "path", { d: "M10 1 C12 7 18 10 18 17 A8 8 0 0 1 2 17 C2 12 5 10 6 6 C7 9 8 10 9 10 C9 7 9 4 10 1 Z" });
-  draw(flame, "path", { class: "core", d: "M10 13 C11 16 14 17 14 20.5 A4 4 0 0 1 6 20.5 C6 18 8 17 10 13 Z" });
+  // The flame: the mdi:fire icon in scanlines, like the services' icons.
+  const flame = el("span", { class: `flame${energy.flame ? "" : " out"}`, style: 'mask-image: url("/api/icon/mdi/fire"); -webkit-mask-image: url("/api/icon/mdi/fire")' });
   const number = el("div", { class: `number segments ${styleClass(reading)}` });
   setSegments(number, `${reading.value}W`);
   const now = el("div", { class: "energy-now", title: energy.flame ? "La calefacción está calentando" : null }, flame, number);
@@ -939,22 +939,31 @@ function drawEnergy(reading) {
       el("div", { class: "chart-axis" }, el("span", {}, scaleText), el("span", {}, "W")), area),
     el("div", { class: "chart-hours energy-hours" }, hours));
 
-  // Today's totals, beside the chart.
+  // Today's totals, on a line under the chart: "HOY · LUZ 7.84 kWh · CALEFACCIÓN 5 H 12 MIN".
   const kwh = energy.kwh === null || energy.kwh === undefined ? "--" : energy.kwh.toFixed(2);
-  const totals = el("div", { class: "energy-totals" },
-    el("div", {}, el("span", { class: "dim" }, upper(reading.label)), el("br"),
-      el("span", { class: "value" }, kwh), el("span", { class: "unit" }, " kWh")),
-    el("div", {}, el("span", { class: "dim" }, upper("Calef.")), el("br"),
-      el("span", { class: energy.heat_minutes ? "value" : "dim" }, upper(energy.heat_text))));
+  const [hours_, minutes_] = [energy.heat_text.match(/(\d+) h/), energy.heat_text.match(/(\d+) min/)];
+  const heatParts = [hours_ && [hours_[1], "h"], minutes_ && [minutes_[1], "min"]].filter(Boolean);
+  const totals = el("div", { class: "row summary energy-totals" }, el("span", { class: "label" },
+    el("span", { class: "token-label" }, upper("Hoy")), " ", el("span", { class: "token-sep" }, "·"), " ",
+    el("span", { class: "token-label" }, upper(reading.label)), " ", el("span", { class: "token-value" }, kwh), " ",
+    el("span", { class: "token-unit" }, "kWh"), " ", el("span", { class: "token-sep" }, "·"), " ",
+    el("span", { class: "token-label" }, upper("Calefacción")),
+    (heatParts.length ? heatParts : [["0", "min"]]).flatMap(([number, unit]) =>
+      [" ", el("span", { class: "token-value" }, number), " ", el("span", { class: "token-unit" }, upper(unit))])));
 
   const degrees = (value) => (value === null || value === undefined ? "--" : Number(value).toFixed(1));
-  const caption = el("div", { class: "energy-caption" },
-    el("span", { class: "dim" }, upper(`${energy.room} `)), el("span", { class: "value" }, degrees(energy.room_temp)),
-    el("span", { class: "unit" }, " °C"), el("span", { class: "dim" }, upper(" · objetivo ")),
-    el("span", { class: energy.off ? "dim" : "value" }, degrees(energy.target)), el("span", { class: "unit" }, " °C"),
-    energy.eco ? el("span", { class: "on" }, upper(" · modo eco")) : null,
-    energy.off ? el("span", { class: "dim" }, upper(" · apagada")) : null);
-  return el("div", { class: "energy" }, el("div", { class: "energy-top" }, now, plot, totals), caption);
+  // A row like the others: "OBJETIVO …… 19.0 °C (18.4 °C) · MODO ECO", the target and, in
+  // brackets, the room's temperature now.
+  const thermostat = el("div", { class: "row", title: `${energy.room}: ${degrees(energy.room_temp)} °C` },
+    el("span", { class: "label" }, upper("Objetivo")),
+    el("span", { class: "leader" }),
+    el("span", { class: "values" },
+      el("span", { class: energy.off ? "dim" : "value" }, degrees(energy.target)), el("span", { class: "unit" }, " °C"),
+      el("span", { class: "dim" }, " ("), el("span", { class: "value" }, degrees(energy.room_temp)),
+      el("span", { class: "unit" }, " °C"), el("span", { class: "dim" }, ")"),
+      energy.eco ? el("span", { class: "on" }, upper(" · modo eco")) : null,
+      energy.off ? el("span", { class: "dim" }, upper(" · apagada")) : null));
+  return [el("div", { class: "energy" }, el("div", { class: "energy-top" }, now, plot), totals), thermostat];
 }
 
 // The "mañana" key (the weather chart's day_key, M by default): tomorrow's weather and tomorrow's

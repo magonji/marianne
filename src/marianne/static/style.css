@@ -958,7 +958,7 @@ a.tile.cursor > span {
 
 .energy-top {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0 1.2ch;
   align-items: center;
 }
@@ -975,15 +975,18 @@ a.tile.cursor > span {
 }
 
 .flame {
-  width: 1em;
-  height: 1.45em;
+  display: block;
+  width: 2.3em;
+  height: 2.3em;
   flex: none;
-  fill: var(--error);
-  filter: drop-shadow(0 0 4px var(--error));
-}
-
-.flame .core {
-  fill: var(--accent);
+  /* Like the services' icons: the SVG as a mask over scanlines, in one colour. */
+  background: repeating-linear-gradient(to bottom, var(--error) 0 2px, transparent 2px 3px);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
 }
 
 /* Not heating: its place is kept, so nothing moves when it lights up. */
@@ -997,7 +1000,7 @@ a.tile.cursor > span {
 
 /* More specific than the weather chart's height for panels (8em). */
 .panel > .body .energy .chart.energy-chart {
-  height: 4.6em;
+  height: 3.6em;
   min-height: 0;
 }
 
@@ -1036,21 +1039,10 @@ a.tile.cursor > span {
   pointer-events: none;
 }
 
-.energy-totals {
-  text-align: right;
-  line-height: 1.15;
+.row.summary.energy-totals {
+  margin: 0.2rem 0 0;
 }
 
-.energy-totals > div + div {
-  margin-top: 0.3em;
-}
-
-.energy-caption {
-  margin-top: 0.15rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .chart-area {
   position: relative;
@@ -1427,23 +1419,10 @@ a.tile.cursor > span {
     height: 8em;
   }
 
-  /* Energy: the power and the totals on one line, the chart the whole width under them. */
+  /* Energy: the power on its own line, the chart the whole width under it. */
   .energy-top {
-    grid-template-columns: auto 1fr;
-    grid-template-areas: "now totals" "plot plot";
-    gap: 0.3rem 1ch;
-  }
-
-  .energy-now {
-    grid-area: now;
-  }
-
-  .energy-totals {
-    grid-area: totals;
-  }
-
-  .energy-plot {
-    grid-area: plot;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem 0;
   }
 
   /* The calendar under the rows: beside them there's no room on a phone. */
