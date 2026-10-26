@@ -13,10 +13,11 @@ import psutil
 
 from .base import Reading, Source, check_alert, format_number, make_fraction
 
-FIELDS = {"cpu", "load", "memory", "swap", "disk", "temperature", "uptime", "hostname", "platform"}
+FIELDS = {"cpu", "load", "memory", "swap", "disk", "temperature", "uptime", "hostname", "platform", "summary"}
 LABELS = {
     "cpu": "CPU", "load": "Carga", "memory": "Memoria", "swap": "Swap", "disk": "Disco",
     "temperature": "Temperatura", "uptime": "Encendido", "hostname": "Equipo", "platform": "Sistema",
+    "summary": "",
 }
 
 
@@ -44,6 +45,11 @@ class SystemSource(Source):
         label = item.get("name", LABELS[field] + (f" {item['path']}" if field == "disk" and "path" in item else ""))
         hidden = bool(item.get("hidden"))
         try:
+            if field == "hostname" and item.get("title"):
+                # The panel's title: the machine's name, instead of a row.
+                return Reading(label, "", hidden=True, title=text_value(field, self.host))
+            if field == "summary":
+                return self._summary(item)
             if field in ("hostname", "platform", "uptime"):
                 return Reading(label, text_value(field, self.host), hidden=hidden)
             if field == "load":
@@ -62,6 +68,20 @@ class SystemSource(Source):
             item = {"max": 100, **item}
         return Reading(label, value, unit, fraction=make_fraction(number, item, unit), note=note,
                        alert=check_alert(item, number), hidden=hidden, wide_bar=unit == "%")
+
+
+    def _summary(self, item: dict[str, Any]) -> Reading:
+        """Uptime, load and temperature in one line: "ACTIVO 16 D 9 H · CARGA 0.27 0.30 0.27 · 56 °C".
+        The temperature, only where it can be read; red when one of them crosses its threshold."""
+        loads = os.getloadavg()
+        parts = [f"Activo {text_value('uptime', self.host)}", "Carga " + " ".join(f"{load:.2f}" for load in loads)]
+        alert = check_alert({"alert_above": item["load_above"]} if "load_above" in item else {}, loads[0])
+        temperature = cpu_temperature()
+        if temperature is not None:
+            parts.append(f"{temperature:.0f} °C")
+            if "temperature_above" in item:
+                alert = alert or temperature > float(item["temperature_above"])
+        return Reading(" · ".join(parts), "", alert=alert, hidden=bool(item.get("hidden")))
 
 
 def measure(field: str, item: dict[str, Any], host: Path | None = None) -> tuple[float | None, str]:

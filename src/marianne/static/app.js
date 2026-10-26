@@ -138,7 +138,9 @@ function panelViews() {
   return layout.panels.map((panel, index) => {
     const page = panel.pages.length > 1 ? (pages[index] || 0) % panel.pages.length : 0;
     const data = state ? state.panels[index][page] : { readings: [], updated: null, error: null };
-    return { panel, index, page, data, title: panel.pages[page] };
+    // A reading can give the panel its title (the server's: the machine's name).
+    const named = data.readings.find((reading) => reading.title);
+    return { panel, index, page, data, title: named ? named.title : panel.pages[page] };
   });
 }
 
@@ -346,7 +348,9 @@ function drawPanel(view) {
     const firstSun = rows.find((reading) => reading.sun);
     const wide = rows.filter((reading) => reading.wide_bar && reading.fraction !== null);
     const labelWidth = Math.max(0, ...wide.map((reading) => labelText(reading).length));
-    const valueWidth = Math.max(0, ...wide.map(valueLength));
+    // Two columns after the bars: the figure with its unit, right-aligned, and what comes after it.
+    const valueWidth = Math.max(0, ...wide.map((reading) => reading.value.length + (reading.unit ? reading.unit.length + 1 : 0)));
+    const noteWidth = Math.max(0, ...wide.map((reading) => (reading.note ? reading.note.length : 0)));
     for (const reading of rows) {
       if (reading.sun) {
         if (reading === firstSun) body.append(drawSun(sun));
@@ -362,7 +366,7 @@ function drawPanel(view) {
         body.append(drawChart(reading.chart), el("div", { class: "rule" }));
         continue;
       }
-      body.append(drawRow(panel, reading, { labelWidth, valueWidth }));
+      body.append(drawRow(panel, reading, { labelWidth, valueWidth, noteWidth }));
     }
   }
   if (calendar) {
@@ -384,10 +388,6 @@ function labelText(reading) {
   return label;
 }
 
-function valueLength(reading) {
-  return reading.value.length + (reading.unit ? reading.unit.length + 1 : 0) + (reading.note ? reading.note.length + 1 : 0);
-}
-
 function styleClass(reading) {
   if (reading.alert) return "alert-text";
   // A sensor that's down: dim amber, not red (it isn't a fault of marianne's).
@@ -405,9 +405,12 @@ function drawRow(panel, reading, widths) {
     class: `label${alerting ? " alert-text" : reading.offline && !parts(reading).some((part) => !part.offline) ? " offline" : reading.switch !== null ? " " + styleClass(reading) : ""}`,
     style: wide ? `width: ${widths.labelWidth}ch; flex: none` : null,
   }, reading.link ? drawLink(panel, reading) : labelText(reading));
-  const values = el("span", { class: "values" }, drawValue(panel, reading, wide ? widths.valueWidth : 0));
+  const values = el("span", { class: "values" }, drawValue(panel, reading, wide ? widths.valueWidth : 0, wide ? widths.noteWidth : 0));
   for (const extra of reading.extra || []) values.append("  ", drawValue(panel, extra, 0));
-  return el("div", { class: `row${wide ? " wide" : ""}${reading.link ? " linked" : ""}` }, label, wide ? null : el("span", { class: "leader" }), values);
+  // A row that's only its label (a summary line, "Sin avisos"): no dots leading to nothing.
+  const bare = !reading.value && !reading.unit && !reading.note && !(reading.extra || []).length;
+  return el("div", { class: `row${wide ? " wide" : ""}${reading.link ? " linked" : ""}` }, label,
+    wide || bare ? null : el("span", { class: "leader" }), bare ? null : values);
 }
 
 // A headline with its story (detail) opens the reader; ctrl/cmd-click still goes straight to the web.
@@ -423,7 +426,7 @@ function drawLink(panel, reading) {
   }, labelText(reading));
 }
 
-function drawValue(panel, reading, valueWidth) {
+function drawValue(panel, reading, valueWidth, noteWidth = 0) {
   const out = document.createDocumentFragment();
   if (reading.fraction !== null) {
     const bar = el("span", { class: `bar${reading.alert ? " alerting" : ""}` });
@@ -434,7 +437,13 @@ function drawValue(panel, reading, valueWidth) {
   const text = el("span", { class: "value-text", style: valueWidth ? `min-width: ${valueWidth}ch` : null });
   text.append(el("span", { class: `${styleClass(reading)}${blinking ? " blinking" : ""}` }, reading.value));
   if (reading.unit) text.append(el("span", { class: "unit" }, ` ${reading.unit}`));
-  if (reading.note) text.append(reading.offline ? el("span", { class: "offline" }, ` ${reading.note}`) : ` ${reading.note}`);
+  const note = reading.note ? (reading.offline ? el("span", { class: "offline" }, ` ${reading.note}`) : ` ${reading.note}`) : "";
+  if (noteWidth) {
+    // In its own column, left-aligned, so that the figures before it line up too.
+    out.append(text, el("span", { class: "value-note", style: `width: ${noteWidth + 1}ch` }, note));
+    return out;
+  }
+  if (note) text.append(note);
   out.append(text);
   return out;
 }

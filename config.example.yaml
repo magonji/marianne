@@ -271,18 +271,17 @@ panels:
     source: servidor
     refresh: 5
     items:
-      - field: hostname
-      - field: uptime
+      - field: hostname                 # el nombre del equipo, como título del panel
+        title: true
+      - field: summary                  # tiempo encendido, carga media y temperatura, en una línea
+        temperature_above: 80
       - field: cpu
         alert_above: 90
-      - field: load                     # carga media de 1, 5 y 15 min
       - field: memory
         alert_above: 90
       - field: swap
       - field: disk                     # path: /datos para otro disco (por defecto /)
         alert_above: 90
-      - field: temperature
-        alert_above: 80
 
   - title: Servicios
     source: servicios

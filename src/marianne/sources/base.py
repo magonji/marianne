@@ -52,6 +52,8 @@ class Reading:
     calendar: dict[str, Any] | None = None
     # The day's weather as a chart: points, rain bars and the scales (see openweather.chart_reading).
     chart: dict[str, Any] | None = None
+    # The panel's title, taken from the reading (e.g. the name of the machine).
+    title: str | None = None
     # A newer version is waiting (a service whose container What's Up Docker can update).
     update: bool = False
     # More to show when the link is opened in the page (a story: its feed, date and text).
