@@ -574,6 +574,8 @@ a.tile.cursor > span {
 .row.wide .bar {
   flex: 1;
   width: auto;
+  /* Here it sits on the text's baseline (a flex row): up, to the middle of the capitals. */
+  top: -0.07em;
 }
 
 .row.wide .value-text {
@@ -627,10 +629,11 @@ a.tile.cursor > span {
   width: 5em;
   /* Thin upright segments, like a LED meter: a segment every --step, --segment wide. */
   --segment: 0.27em;
-  --step: 0.62em;
-  height: 0.39em;
+  --step: 0.445em;
+  height: 0.45em;
   margin-right: 1ch;
-  vertical-align: 0.12em;
+  /* Its middle at the middle of the capitals of the label beside it. */
+  vertical-align: 0.07em;
 }
 
 /* The empty part of the bar, and the filled part over it. */
