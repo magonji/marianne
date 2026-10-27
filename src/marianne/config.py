@@ -17,7 +17,7 @@ from .sources.system import FIELDS as SYSTEM_FIELDS
 from .icons import parse as parse_icon
 from .sun import ROLES as SUN_ROLES
 
-RESERVED_KEYS = {"a", "c", "h", "q", "r"}
+RESERVED_KEYS = {"c", "h", "q", "r", "v"}
 SEARCH_PATHS = [Path("config.yaml"), Path.home() / ".config" / "marianne" / "config.yaml"]
 
 
@@ -39,6 +39,8 @@ class PanelConfig:
     pomodoro: bool = False
     # A grid of buttons (icon and name) that run Home Assistant scripts (`script:` in its items).
     actions: bool = False
+    # Its icon ("mdi:shield-home") on the phone's round button that opens it (with `key`).
+    icon: str | None = None
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -146,6 +148,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         history=bool(raw.get("history", False)),
         pomodoro=bool(raw.get("pomodoro", False)),
         actions=bool(raw.get("actions", False)),
+        icon=str(raw["icon"]) if raw.get("icon") else None,
         key=key,
         pages=pages,
         page_key=page_key,

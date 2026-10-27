@@ -172,7 +172,46 @@ function render() {
   renderPanels();
   renderPopup();
   renderStatus();
+  renderFab();
   renderCursor();
+}
+
+// ---------------------------------------------------------------- phone buttons
+
+// On a phone (only there: the CSS hides it elsewhere), a round button in the bottom right corner
+// that opens, with an animation, a grid of round buttons: the commands that need a key, which a
+// tap on the page can't do. Each one does what its key would, and the grid closes.
+let fabOpen = false;
+
+function renderFab() {
+  if (!layout) return;
+  const box = document.getElementById("fab");
+  // "palette" or "mdi:palette", "si:jellyfin".
+  const icon = (name) => {
+    const [kind, glyph] = name.includes(":") ? name.split(":") : ["mdi", name];
+    return el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${glyph}")` });
+  };
+  // In red, what has something to see: the alerts, a window with an alert not seen yet.
+  const fresh = new Set(panelViews().filter(({ panel, data }) => panel.key && data.readings.some((reading) =>
+    parts(reading).some((part) => part.alert && !seen.has(alertKey(panel, part))))).map(({ panel }) => panel.key));
+  if (state && unseenAlerts().length) fresh.add("v");
+  const commands = [...helpCommands().filter((command) => !command.touch), { key: "f1", icon: "help", short: "Ayuda" }];
+  const buttons = commands.map(({ key, icon: name, short }, index) =>
+    el("button", { class: `fab-item${fresh.has(key) ? " alerting" : ""}`, "data-key": key, style: `--i: ${commands.length - 1 - index}`, title: short },
+      el("span", { class: "fab-circle" }, icon(name)), el("span", { class: "fab-name" }, upper(short))));
+  const main = el("button", { class: `fab-main${fresh.size && !fabOpen ? " alerting" : ""}`, "data-fab": "1", "aria-label": fabOpen ? "Cerrar" : "Comandos" },
+    icon(fabOpen ? "close" : "dots-grid"));
+  // Rebuilt only when it changes, like the status bar: the state comes every second.
+  const html = `${fabOpen}|${buttons.map((button) => button.outerHTML).join("")}`;
+  box.classList.toggle("open", fabOpen);
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.replaceChildren(el("div", { class: "fab-grid" }, ...buttons), main);
+}
+
+function toggleFab(open = !fabOpen) {
+  fabOpen = open;
+  render();
 }
 
 function tickClock() {
@@ -1220,7 +1259,7 @@ function renderStatus() {
   const key = (letter, text, flashing = false) =>
     el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
   // What needs seeing stays in the bar: an alert not yet seen, a pop-up panel with one.
-  if (state && unseenAlerts().length) items.push(key("a", "VISTO", true));
+  if (state && unseenAlerts().length) items.push(key("v", "VISTO", true));
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
@@ -1376,7 +1415,7 @@ function press(key) {
   }
   if (key === "r") return post("/api/reload");
   if (key === "c") return nextTheme();
-  if (key === "a") return acknowledge();
+  if (key === "v") return acknowledge();
   const editor = (layout.date_editors || []).find((editor) => editor.key === key);
   if (editor) return openDates(editor.name);
   if (key === chartKey()) return toggleChartDay();
@@ -1524,29 +1563,37 @@ function renderCursor() {
 // the only way to them).
 function helpCommands() {
   const commands = [];
-  const add = (key, text) => commands.push({ key, text });
-  add("c", "Cambiar de color");
+  // icon and short: for the phone's round buttons; touch: a tap on the page does it already.
+  const add = (key, text, icon, short, touch = false) => commands.push({ key, text, icon, short, touch });
+  add("c", "Cambiar de color", "palette", "Color");
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
-    add(pomodoro.start_key, running ? "Pausar el pomodoro" : "Empezar o seguir el pomodoro");
-    if (state && state.pomodoro && state.pomodoro.active) add(pomodoro.reset_key, "Reiniciar el pomodoro");
+    add(pomodoro.start_key, running ? "Pausar el pomodoro" : "Empezar o seguir el pomodoro",
+      running ? "pause" : "timer-play-outline", running ? "Pausar" : "Pomodoro");
+    if (state && state.pomodoro && state.pomodoro.active) add(pomodoro.reset_key, "Reiniciar el pomodoro", "timer-refresh-outline", "Reiniciar");
   }
   for (const view of panelViews()) {
-    if (view.panel.page_key && !view.panel.key) add(view.panel.page_key, `${view.panel.title}: siguiente página`);
+    if (view.panel.page_key && !view.panel.key) add(view.panel.page_key, `${view.panel.title}: siguiente página`, "page-next-outline", view.panel.title, true);
   }
-  if (layout.history_key) add(layout.history_key, history ? "Volver a los valores de ahora" : "Historial de los últimos 7 días");
+  if (layout.history_key) {
+    add(layout.history_key, history ? "Volver a los valores de ahora" : "Historial de los últimos 7 días",
+      history ? "clock-outline" : "history", history ? "Ahora" : "Historial");
+  }
   const weatherKey = chartKey();
-  if (weatherKey) add(weatherKey, chartDay ? "Hoy: el tiempo y los eventos" : "Mañana: el tiempo y los eventos");
-  for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar");
+  if (weatherKey) {
+    add(weatherKey, chartDay ? "Hoy: el tiempo y los eventos" : "Mañana: el tiempo y los eventos",
+      chartDay ? "calendar-today" : "calendar-arrow-right", chartDay ? "Hoy" : "Mañana");
+  }
+  for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar", "calendar-edit", "Fechas");
   if (calendarReading()) {
-    add("<", "Calendario: mes anterior");
-    add(">", "Calendario: mes siguiente");
+    add("<", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
+    add(">", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
   }
   for (const view of panelViews()) {
-    if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`);
+    if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`, view.panel.icon || "dock-window", view.panel.title);
   }
-  add("a", "Dar por vistas las alertas");
-  add("r", "Refrescar todos los paneles");
+  add("v", "Dar por vistas las alertas", "eye-check-outline", "Visto");
+  add("r", "Refrescar todos los paneles", "refresh", "Refrescar");
   return commands;
 }
 
@@ -1963,6 +2010,14 @@ async function boot(lines) {
 }
 
 addEventListener("keydown", onKey);
+document.getElementById("fab").addEventListener("click", (event) => {
+  if (event.target.closest("[data-fab]")) return toggleFab();
+  const button = event.target.closest("button[data-key]");
+  if (!button) return toggleFab(false);
+  fabOpen = false;
+  press(button.dataset.key);
+  render();
+});
 document.getElementById("status").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-key]");
   if (button) press(button.dataset.key);

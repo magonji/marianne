@@ -6,8 +6,9 @@ casa: sensores de **Home Assistant**, la **previsión del tiempo** de OpenWeathe
 
 Ámbar naranja (por defecto), fósforo verde o azul Commodore 64, con líneas de barrido de
 monitor CRT, reloj grande y arranque tipo BIOS. El título, por la Marianne Dashwood de Jane
-Austen, va en la caligrafía Mrs Saint Delafield, dibujada en píxeles como en un ordenador de los 80. En pantallas estrechas (el móvil) los paneles
-se ponen en una columna.
+Austen, va en la caligrafía Mrs Saint Delafield, dibujada en píxeles como en un ordenador de los 80. Al
+reducir la ventana todo se hace más pequeño en proporción; en el móvil los paneles se ponen en
+una columna.
 
 Un pequeño servidor en Python consulta las fuentes y la página solo recibe los valores ya
 calculados: el token de Home Assistant y las claves nunca llegan al navegador.
@@ -23,7 +24,7 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   se pintan en rojo y parpadean, y el panel entero se enmarca en rojo.
 - **Franja de alarma** a lo ancho de la pantalla cuando una alerta dura demasiado
   (el congelador lleva 2 minutos abierto, hay una fuga de agua…), con pitido opcional.
-  Con la tecla `A` se da por vista: sigue en rojo, pero deja de parpadear.
+  Con la tecla `V` se da por vista: sigue en rojo, pero deja de parpadear.
 - **Franja de aviso** en verde para buenas noticias, como que mañana va a hacer buen día.
 - **Paneles emergentes**: los que no necesitas ver siempre (las baterías, por ejemplo) se
   abren con una tecla, y su opción del menú parpadea si tienen alguna alerta.
@@ -69,7 +70,7 @@ uv run marianne --demo --theme phosphor
 |---|---|
 | `R` | Refrescar todos los paneles (no sale en la barra de abajo) |
 | `C` | Cambiar de color (ámbar → Commodore 64 → fósforo verde) |
-| `A` | Alerta vista: deja de parpadear y sale de la franja de alarma (sigue en rojo); si se resuelve y vuelve, avisa de nuevo |
+| `V` | Alerta vista: deja de parpadear y sale de la franja de alarma (sigue en rojo); si se resuelve y vuelve, avisa de nuevo |
 | `P` | Pomodoro: iniciar / pausar |
 | `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
@@ -85,9 +86,14 @@ uv run marianne --demo --theme phosphor
 
 La barra de abajo muestra el estado de las fuentes de datos (■ bien, ✖ falla). Todas las teclas
 están en la ayuda (`F1`, o el botón AYUDA de la barra, el único en el móvil), donde también se
-pueden pulsar con el ratón o el dedo; en la barra solo salen las que avisan de algo (`[A]VISTO`,
+pueden pulsar con el ratón o el dedo; en la barra solo salen las que avisan de algo (`[V]VISTO`,
 una ventana con una alerta) y las del momento (`[Q]SALIR` con el cursor). El color, la página de
-cada panel y las alertas vistas se recuerdan en cada navegador. Los navegadores no
+cada panel y las alertas vistas se recuerdan en cada navegador.
+
+En el móvil, un botón redondo en la esquina de abajo a la derecha despliega una cuadrícula de
+botones redondos con los comandos que necesitan una tecla (color, pomodoro, historial, mañana,
+fechas, las ventanas, visto, refrescar, ayuda). Los que tienen algo por ver parpadean en rojo, y
+el botón cerrado lo avisa con un punto rojo. Los navegadores no
 dejan sonar nada hasta la primera tecla o clic en la página.
 
 ## Con tu Home Assistant
@@ -278,6 +284,7 @@ título.
 | `actions: true` | Una cuadrícula de 3 × 3 botones con un icono y un nombre que lanzan scripts de Home Assistant (cada elemento con `script: script.nombre`, `name` e `icon`); se pulsan con un clic o con el cursor y Enter. Pensado con `key:` para abrirlo como ventana. Solo se pueden lanzar los scripts que estén en la configuración |
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
+| `icon: mdi:battery` | El icono de su botón redondo en el móvil (con `key`) |
 | `pages`, `page_key: t` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
 
 ### Opciones de elemento

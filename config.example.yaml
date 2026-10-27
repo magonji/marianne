@@ -317,7 +317,8 @@ panels:
 
   - title: Acciones
     source: homeassistant
-    key: o                              # ventana con la tecla O: botones que lanzan scripts de Home Assistant
+    key: a                              # ventana con la tecla A: botones que lanzan scripts de Home Assistant
+    icon: mdi:gesture-tap-button        # su botón redondo en el móvil
     actions: true                       # hasta 9, en una cuadrícula de 3 × 3
     items:
       - script: script.apagar_luces     # solo se pueden lanzar los scripts que estén aquí

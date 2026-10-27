@@ -170,6 +170,7 @@ class Dashboard:
                     "history": panel.history,
                     "pomodoro": panel.pomodoro,
                     "actions": panel.actions,
+                    "icon": panel.icon,
                     "span": panel.column_span,
                     "rows": panel.row_span,
                     "key": panel.key,

@@ -1484,6 +1484,159 @@ a.tile.cursor > span {
 }
 
 
+/* ---- phone buttons ---- */
+
+/* Only on a phone (see the media query below). */
+#fab {
+  display: none;
+}
+
+#fab .glyph {
+  display: block;
+  background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 3px);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+#fab button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab-main {
+  position: fixed;
+  right: 16px;
+  bottom: calc(2.6rem + env(safe-area-inset-bottom, 0px));
+  z-index: 61;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  background: var(--primary) !important;
+  color: var(--background) !important;
+  transition: transform 0.25s ease;
+}
+
+.fab-main .glyph {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+#fab.open .fab-main {
+  transform: rotate(90deg);
+}
+
+/* While open, the page goes dim behind the buttons, and a tap on it closes them. */
+#fab::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#fab.open::before {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The grid, above the button, filled from the bottom right. */
+.fab-grid {
+  position: fixed;
+  right: 16px;
+  bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: 0.9rem 0.5rem;
+  width: min(20rem, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.fab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 4.4rem;
+  color: var(--primary) !important;
+  /* Closed: small and hidden at the main button, coming out one after another. */
+  opacity: 0;
+  transform: translate(calc(var(--col, 0) * 1rem), 2.5rem) scale(0.2);
+  transition: opacity 0.18s ease, transform 0.28s cubic-bezier(0.3, 1.4, 0.6, 1);
+  transition-delay: calc(var(--i) * 18ms);
+}
+
+#fab.open .fab-item {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: calc(var(--i) * 30ms);
+}
+
+.fab-circle {
+  display: grid;
+  place-items: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--background);
+}
+
+.fab-item:active .fab-circle {
+  background: var(--primary);
+  color: var(--background);
+}
+
+.fab-circle .glyph {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.fab-name {
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.05;
+  text-align: center;
+  color: var(--foreground);
+  /* A long name (ELECTRODOMÉSTICOS) may run past its circle's width, never onto two lines. */
+  white-space: nowrap;
+}
+
+.fab-item.alerting {
+  color: var(--error) !important;
+}
+
+.fab-item.alerting .fab-circle {
+  border-color: var(--error);
+  animation: blink 1s steps(1) infinite;
+}
+
+/* Closed, the main button says there's something to see with a red dot. */
+.fab-main.alerting::after {
+  content: "";
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--error);
+  border: 2px solid var(--background);
+}
+
 /* A phone: one column to scroll through. Only on touch screens, so that a narrow window on a
    computer keeps the grid, smaller. */
 @media (max-width: 760px) and (pointer: coarse) {
@@ -1554,6 +1707,10 @@ a.tile.cursor > span {
     grid-column: auto !important;
     grid-row: auto !important;
     padding-bottom: 1rem;
+  }
+
+  #fab {
+    display: block;
   }
 
   #status {
