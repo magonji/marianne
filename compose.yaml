@@ -14,6 +14,9 @@ services:
       - ./data:/app/data
       # El / del servidor, solo lectura, para el panel del servidor (discos, nombre, sistema).
       - /:/host:ro
+      # La carpeta de la música para el iPod (fuente `music` con `folder: /music`), solo lectura.
+      # Pon su ruta en .env (MUSIC_FOLDER=/ruta/a/la/musica); el usuario 1000 tiene que poder leerla.
+      - ${MUSIC_FOLDER:-./music}:/music:ro
     environment:
       # Zona horaria de las horas que se muestran.
       TZ: ${TZ:-Europe/London}

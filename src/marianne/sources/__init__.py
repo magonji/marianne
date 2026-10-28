@@ -11,6 +11,7 @@ from .monitor import MonitorSource
 from .ical import IcalSource
 from .metoffice import MetOfficeSource
 from .moon import MoonSource
+from .music import MusicSource
 from .openweather import OpenWeatherSource
 from .pomodoro import PomodoroSource
 from .rss import RssSource
@@ -75,6 +76,12 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
     if kind == "dates":
         return DatesSource(name, sort=bool(spec.get("sort", True)), file=spec.get("file"),
                            edit_key=str(spec.get("edit_key", "f")).lower())
+    if kind == "music":
+        if not spec.get("folder"):
+            raise ValueError(f"source '{name}': falta 'folder', la carpeta de la música")
+        key = str(spec["key"]).lower() if spec.get("key") else None
+        return MusicSource(name, folder=str(spec["folder"]), key=key, cache=spec.get("cache"),
+                           rescan_hours=float(spec.get("rescan_hours", 6)))
     if kind == "demo":
         return DemoSource(name)
     raise ValueError(f"source '{name}': tipo desconocido '{kind}'")

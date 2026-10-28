@@ -29,6 +29,7 @@ from .icons import Icons
 from .sources import Source, build_source
 from .sources.base import last_days
 from .sources.dates import DatesSource
+from .sources.music import MusicSource
 from .sources.pomodoro import PomodoroSource
 
 STATIC = Path(__file__).parent / "static"
@@ -87,6 +88,9 @@ class Dashboard:
     def date_stores(self) -> dict[str, DatesSource]:
         """The dates sources with a file the page can edit."""
         return {name: source for name, source in self.sources.items() if isinstance(source, DatesSource) and source.store}
+
+    def music(self) -> dict[str, MusicSource]:
+        return {name: source for name, source in self.sources.items() if isinstance(source, MusicSource)}
 
     def pomodoros(self) -> dict[str, PomodoroSource]:
         return {name: source for name, source in self.sources.items() if isinstance(source, PomodoroSource)}
@@ -181,6 +185,7 @@ class Dashboard:
             ],
             "history_key": self.config.history_key if any(panel.history for panel in self.config.panels) else None,
             "date_editors": [{"name": name, "key": source.edit_key} for name, source in self.date_stores().items()],
+            "music": [{"name": name, "key": source.key} for name, source in self.music().items()],
             "pomodoros": [
                 {"name": name, "start_key": source.start_key, "reset_key": source.reset_key}
                 for name, source in self.pomodoros().items()
@@ -318,6 +323,40 @@ def make_app(dashboard: Dashboard) -> web.Application:
             return web.json_response({"error": f"sin respuesta de Home Assistant ({type(exc).__name__})"}, status=502)
         await dashboard.reload(item["source"])
         return web.json_response(dashboard.state())
+
+    def music_source(request: web.Request) -> MusicSource:
+        source = dashboard.music().get(request.match_info["name"])
+        if source is None:
+            raise web.HTTPNotFound()
+        return source
+
+    @routes.get("/api/music/{name}/library")
+    async def music_library(request: web.Request) -> web.Response:
+        try:
+            library = await music_source(request).library()
+        except OSError as exc:
+            return web.json_response({"error": str(exc)[:80]}, status=503)
+        response = web.json_response(library)
+        # Thousands of songs: a few hundred KB that shrink a lot.
+        response.enable_compression()
+        return response
+
+    @routes.get("/api/music/{name}/track/{track}")
+    async def music_track(request: web.Request) -> web.StreamResponse:
+        # By its id in the library: the page never names a file. FileResponse answers ranges, so
+        # the player can jump to any point of the song.
+        path = music_source(request).track_path(request.match_info["track"])
+        if path is None:
+            raise web.HTTPNotFound()
+        return web.FileResponse(path, headers={"Cache-Control": "max-age=86400"})
+
+    @routes.get("/api/music/{name}/cover/{album}")
+    async def music_cover(request: web.Request) -> web.Response:
+        picture = await asyncio.to_thread(music_source(request).cover, request.match_info["album"])
+        if picture is None:
+            raise web.HTTPNotFound()
+        data, mime = picture
+        return web.Response(body=data, content_type=mime, headers={"Cache-Control": "max-age=86400"})
 
     @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:

@@ -145,6 +145,9 @@ docker compose up -d --build         # http://<este equipo>:1111
   servidor desde el contenedor. Para los discos, el nombre y el sistema, `compose.yaml` monta
   el `/` del servidor en `/host` (solo lectura) y la fuente lo usa con `host_root: /host`;
   `path: /mnt/datos` se refiere entonces al disco del servidor. Fuera de Docker se ignora.
+- La música del iPod (`type: music`): pon la ruta de la carpeta en `.env` como
+  `MUSIC_FOLDER=/ruta/a/la/musica`; `compose.yaml` la monta en `/music` en solo lectura y la
+  fuente usa `folder: /music`. El uid 1000 tiene que poder leerla.
 - Para actualizar tras un `git pull`: `docker compose up -d --build`.
 - Para verlo solo desde el propio equipo, cambia el puerto en `compose.yaml` a `"127.0.0.1:1111:1111"`.
 
@@ -195,6 +198,7 @@ panels:
 | `metoffice` | Avisos meteorológicos del Met Office (`region`: el código de la región, `st` para Strathclyde; opcional `area`, solo los que la nombran, p. ej. `Glasgow`), del peor al más próximo, con hasta cuándo valen; un clic abre el texto completo | sin campos; opcionales `limit` (3), `alarm_from` (`amber`: desde qué nivel van a la franja de alarma) y `none_text` |
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname` (con `title: true`, como título del panel), `platform`, `summary` (tiempo encendido, carga y temperatura en una línea; opcionales `load_above` y `temperature_above`). Opción de la fuente: `host_root` (ver Docker) |
+| `music` | Una carpeta de música para el iPod (ver abajo): `folder`, `key`, `cache`, `rescan_hours` | En un panel de acciones, un botón que abre el iPod (`name`, `icon`) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`); o `calendar: true`, el mes en una columna a la izquierda, separada por una línea (encima en el móvil), con hoy en vídeo inverso y las fechas de la cuenta atrás en el color de acento; `‹` `›` o el cursor (ver Teclas) pasan a otros meses |
 
@@ -230,6 +234,27 @@ el cursor de las flechas, que empieza en ella y va de hora en hora; `Enter` camb
 perder la hora) y `Q` sale. Debajo se lee entonces la hora, la
 temperatura, el viento, la lluvia (y su probabilidad, si es previsión), las nubes y si es lo
 observado, lo estimado o lo previsto.
+
+### El iPod
+
+Con una fuente `type: music` (`folder`, la carpeta; `key`, la tecla que lo abre; opcional
+`cache: data/musica.json`), un iPod classic aparece sobre la página con esa tecla, con el botón
+redondo del móvil o con un botón en un panel de acciones (`- source: musica`, `name: iPod`,
+`icon: mdi:ipod`). Sus menús son Artistas, Álbumes, Canciones, Aleatorio y Reproduciendo, con los
+datos de las etiquetas de cada archivo (o, si no las tiene, los nombres de las carpetas:
+`Artista/Álbum/01 Canción.mp3`) y la carátula de dentro del archivo o de un `cover.jpg` de su
+carpeta.
+
+- La rueda se gira con el dedo o el ratón para moverse por los menús (y, en Reproduciendo, para
+  el volumen); el botón del centro elige; MENU vuelve atrás; ⏮ ⏭ cambian de canción y ⏯ pausa.
+- Con el teclado: `↑` `↓` moverse (volumen), `→` o `↵` elegir, `←` MENU, `Espacio` pausa,
+  `<` `>` canción anterior y siguiente, `Q` cerrarlo.
+- Al cerrarlo la música sigue, y la barra de abajo dice qué suena (un clic lo vuelve a abrir). En
+  el móvil se controla también desde la pantalla de bloqueo.
+- La música suena en el navegador. Valen los formatos que entiende: MP3, AAC y FLAC en todos;
+  ALAC solo en Safari; OGG y Opus no siempre en el iPhone. El servidor solo manda los archivos
+  de esa carpeta, por un número de su índice, nunca por su ruta. Vuelve a mirar la carpeta cada
+  6 horas (`rescan_hours`).
 
 ### El bloque de energía
 

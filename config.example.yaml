@@ -52,6 +52,13 @@ sources:
       - name: Personal
         url: ${ICAL_PERSONAL}
 
+  musica:
+    type: music                         # una carpeta de música (MP3, FLAC, AAC…) para el iPod
+    folder: /music                      # en Docker se monta desde MUSIC_FOLDER (.env)
+    key: i                              # la tecla I abre el iPod
+    cache: data/musica.json             # opcional: guarda las etiquetas leídas (arranca antes)
+    # rescan_hours: 6                   # cada cuánto vuelve a mirar la carpeta
+
   avisos:
     type: metoffice                     # avisos meteorológicos del Met Office (Reino Unido)
     region: st                          # código de la región (st: Strathclyde); ver metoffice.gov.uk
@@ -321,6 +328,9 @@ panels:
     icon: mdi:gesture-tap-button        # su botón redondo en el móvil
     actions: true                       # hasta 9, en una cuadrícula de 3 × 3
     items:
+      - source: musica                  # un botón que abre el iPod
+        name: iPod
+        icon: mdi:ipod
       - script: script.apagar_luces     # solo se pueden lanzar los scripts que estén aquí
         name: Apagar las luces
         icon: mdi:lightbulb-off

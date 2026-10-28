@@ -1484,6 +1484,284 @@ a.tile.cursor > span {
 }
 
 
+/* ---- iPod ---- */
+
+#ipod {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--background) 75%, transparent);
+}
+
+#ipod[hidden] {
+  display: none;
+}
+
+/* An iPod classic: white front, the screen at the top, the click wheel below. */
+.ipod-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.7rem;
+  width: 17rem;
+  padding: 1.1rem 1.1rem 1.9rem;
+  border-radius: 1.6rem;
+  background: linear-gradient(160deg, #fbfbf9 0%, #ecece8 55%, #d9d9d4 100%);
+  border: 1px solid #bdbdb6;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ipod-screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 12.2rem;
+  padding: 0.25rem 0.45rem 0.35rem;
+  border: 3px solid #a9a9a2;
+  border-radius: 0.45rem;
+  background: var(--background);
+  color: var(--primary);
+  font-size: 0.95rem;
+  line-height: 1.32rem;
+  overflow: hidden;
+}
+
+.ipod-header {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr 1.4rem;
+  align-items: center;
+  border-bottom: 1px solid var(--dim);
+  margin-bottom: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.ipod-title {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A little battery, full: an iPod always has one. */
+.ipod-battery {
+  justify-self: end;
+  width: 1.05rem;
+  height: 0.55rem;
+  border: 1px solid var(--primary);
+  background: linear-gradient(to right, var(--primary) 0 80%, transparent 80%);
+  background-clip: content-box;
+  padding: 1px;
+  position: relative;
+}
+
+.ipod-battery::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: 25%;
+  width: 2px;
+  height: 50%;
+  background: var(--primary);
+}
+
+.ipod-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding-right: 0.45rem;
+}
+
+.ipod-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.3rem;
+  white-space: nowrap;
+}
+
+.ipod-row.selected {
+  background: var(--primary);
+  color: var(--background);
+}
+
+.ipod-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ipod-scroll {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0.3rem;
+  border: 1px solid var(--dim);
+}
+
+.ipod-scroll i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--primary);
+}
+
+.ipod-message {
+  margin: auto;
+  text-align: center;
+  color: var(--soft);
+}
+
+.ipod-message.waiting::after {
+  content: "_";
+  animation: blink 1s steps(1) infinite;
+}
+
+.ipod-playing {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.2rem;
+}
+
+.ipod-count {
+  font-size: 0.8rem;
+  color: var(--soft);
+}
+
+.ipod-song {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.ipod-cover {
+  flex: none;
+  width: 4.6rem;
+  height: 4.6rem;
+  object-fit: cover;
+  border: 1px solid var(--dim);
+}
+
+.ipod-cover.none {
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  color: var(--dim);
+}
+
+.ipod-tags {
+  min-width: 0;
+}
+
+.ipod-tags > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ipod-song-title {
+  color: var(--accent);
+}
+
+.ipod-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.ipod-bar {
+  flex: 1;
+  height: 0.55rem;
+  border: 1px solid var(--primary);
+  position: relative;
+}
+
+.ipod-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--primary);
+}
+
+/* The click wheel and its centre button. */
+.ipod-wheel {
+  position: relative;
+  width: 11.5rem;
+  height: 11.5rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #fdfdfc, #e4e4e0 70%, #d6d6d0);
+  border: 1px solid #c4c4bd;
+  cursor: grab;
+}
+
+.ipod-label {
+  position: absolute;
+  color: #a2a29c;
+  font-size: 0.95rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.ipod-label.top {
+  top: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  letter-spacing: 0.08em;
+}
+
+.ipod-label.bottom {
+  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ipod-label.left,
+.ipod-label.right {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ipod-label.left {
+  left: 0.8rem;
+}
+
+.ipod-label.right {
+  right: 0.8rem;
+}
+
+.ipod-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4.3rem;
+  height: 4.3rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid #c8c8c1;
+  background: linear-gradient(170deg, #fdfdfc, #e9e9e5);
+  cursor: pointer;
+}
+
+.ipod-center:active {
+  background: linear-gradient(170deg, #e9e9e5, #fdfdfc);
+}
+
+/* What's playing, in the status bar with the iPod closed. */
+#status .now-playing {
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
 /* ---- phone buttons ---- */
 
 /* Only on a phone (see the media query below). */
@@ -1711,6 +1989,10 @@ a.tile.cursor > span {
 
   #fab {
     display: block;
+  }
+
+  .ipod-open #fab {
+    display: none;
   }
 
   #status {

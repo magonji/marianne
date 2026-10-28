@@ -543,16 +543,21 @@ function drawActions(view, readings) {
     return el("button", {
       class: `tile action${busy ? " on" : ""}${reading.error ? " error" : ""}`, "data-cursor": id, "data-script": "1",
       title: reading.error ? `${reading.label}: no existe en Home Assistant` : reading.label,
-      onclick: () => runScript(id, view.index, item, reading.label),
+      // A button that opens something of the page's (the iPod) instead of running a script.
+      onclick: reading.opens ? () => openThing(reading.opens) : () => runScript(id, view.index, item, reading.label),
     },
     el("span", { class: "number-key" }, String(item + 1)),
     el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
     el("span", { class: "name" }, upper(reading.label)),
-    el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper("no existe") : "\u00a0"));
+    el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper(reading.opens ? "error" : "no existe") : "\u00a0"));
   });
   // The free places of the grid, as empty boxes: it's always three by three.
   const free = Array.from({ length: 9 - buttons.length }, () => el("div", { class: "tile action free" }));
   return el("div", { class: "actions" }, ...buttons, ...free);
+}
+
+function openThing(what) {
+  if (what.startsWith("music:")) openIpod(what.slice("music:".length));
 }
 
 // The buttons pressed and not answered yet: they show "en marcha" until Home Assistant says.
@@ -1272,6 +1277,13 @@ function renderStatus() {
   } else if (cursor === CHART_CURSOR && !reader) items.push(key("enter", chartDay ? "HOY" : "MAÑANA"), key("q", "SALIR"));
   else if (cursor && !reader) items.push(key("enter", cursor.startsWith("script:") ? "EJECUTAR" : "ABRIR"), key("q", "SALIR"));
   else if (popup !== null && !reader && !dates) items.push(key("q", "CERRAR"));
+  // What the iPod plays, with the iPod closed: a tap opens it.
+  const track = currentTrack();
+  if (track && !ipod.open) {
+    const music = (layout.music || []).find((music) => music.name === ipod.source);
+    items.push(el("button", { class: "now-playing", "data-key": (music && music.key) || "ipod" },
+      `${player.paused ? "❚❚" : "♪"} ${upper(track.title)} · ${upper(track.artist)}`));
+  }
   // On a phone only "AYUDA": the key's name means nothing there.
   items.push(el("button", { class: "help-key", "data-key": "f1" }, el("span", { class: "keycap" }, "[F1]"), "AYUDA"));
   if (!audio || audio.state !== "running") items.push(el("span", { class: "sound-hint" }, "♪ PULSA UNA TECLA PARA ACTIVAR EL SONIDO"));
@@ -1329,6 +1341,7 @@ function acknowledge() {
 function onKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (dates) return datesKey(event);
+  if (ipod.open) return ipodKey(event);
   const key = event.key.toLowerCase();
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
   // F1 is the help here, not the browser's.
@@ -1418,6 +1431,8 @@ function press(key) {
   if (key === "v") return acknowledge();
   const editor = (layout.date_editors || []).find((editor) => editor.key === key);
   if (editor) return openDates(editor.name);
+  const music = (layout.music || []).find((music) => music.key === key || (key === "ipod" && music));
+  if (music) return openIpod(music.name);
   if (key === chartKey()) return toggleChartDay();
   for (const pomodoro of layout.pomodoros) {
     if (key === pomodoro.start_key) return post(`/api/pomodoro/${pomodoro.name}/toggle`);
@@ -1585,6 +1600,7 @@ function helpCommands() {
       chartDay ? "calendar-today" : "calendar-arrow-right", chartDay ? "Hoy" : "Mañana");
   }
   for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar", "calendar-edit", "Fechas");
+  for (const music of layout.music || []) if (music.key) add(music.key, "El iPod: la música del servidor", "ipod", "iPod");
   if (calendarReading()) {
     add("<", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
     add(">", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
@@ -2008,6 +2024,380 @@ async function boot(lines) {
     screen.addEventListener("click", finish);
   });
 }
+
+// ---------------------------------------------------------------- iPod
+
+// An iPod classic for the music folder of a `music` source: its menus on the screen, the click
+// wheel (turned with a finger or the mouse, its four buttons and the centre one), or the keys.
+// The songs play in this browser; the server only sends the files, by their ids.
+const IPOD_ROWS = 7; // rows of a menu on the screen
+const WHEEL_STEP = 15; // degrees of the wheel for each row
+const ipod = {
+  open: false,
+  source: null,
+  library: null, // { albums, tracks, artists, byId }
+  error: null,
+  stack: [], // the menus gone into, the last one on the screen
+  queue: [], // the songs to play, by id
+  at: -1, // the one playing, in the queue
+  volumeUntil: 0, // the volume bar shows for a moment after the wheel turns it
+};
+const player = new Audio();
+player.preload = "auto";
+
+async function openIpod(name) {
+  ipod.open = true;
+  popup = null;
+  cursor = null;
+  fabOpen = false;
+  if (ipod.source !== name) {
+    ipod.source = name;
+    ipod.library = null;
+    ipod.stack = [];
+  }
+  render();
+  drawIpod();
+  if (!ipod.library) await loadLibrary();
+}
+
+function closeIpod() {
+  ipod.open = false;
+  drawIpod();
+  render();
+}
+
+async function loadLibrary() {
+  ipod.error = null;
+  try {
+    const response = await fetch(`/api/music/${ipod.source}/library`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    ipod.library = readLibrary(data);
+    if (!ipod.stack.length) ipod.stack = [rootMenu()];
+  } catch (error) {
+    ipod.error = String(error.message || error);
+  }
+  drawIpod();
+}
+
+// The server's short lists as albums, songs and artists that point to each other.
+function readLibrary(data) {
+  const albums = data.albums.map(([id, title, artist, year]) => ({ id, title, artist, year, tracks: [] }));
+  const tracks = data.tracks.map(([id, title, artist, album, number, length]) => {
+    const track = { id, title, artist, album: albums[album], number, length };
+    albums[album].tracks.push(track);
+    return track;
+  });
+  const artists = new Map();
+  for (const album of albums) {
+    if (!artists.has(album.artist)) artists.set(album.artist, { name: album.artist, albums: [] });
+    artists.get(album.artist).albums.push(album);
+  }
+  const byTitle = (a, b) => a.title.localeCompare(b.title, "es", { sensitivity: "base" });
+  return {
+    albums: [...albums].sort(byTitle),
+    tracks: [...tracks].sort(byTitle),
+    artists: [...artists.values()].sort((a, b) => sortName(a.name).localeCompare(sortName(b.name), "es")),
+    byId: new Map(tracks.map((track) => [track.id, track])),
+  };
+}
+
+// "The Beatles" under B, as on an iPod (and as the server sorts them).
+const sortName = (name) => name.toLowerCase().replace(/^(the|los|las|el|la) /, "");
+
+// A menu: a title and its rows, each a name and what choosing it does (another menu, or play).
+function menu(title, rows) {
+  return { title, rows, index: 0, top: 0 };
+}
+
+function rootMenu() {
+  const { library } = ipod;
+  return menu("iPod", [
+    { name: "Artistas", go: () => menu("Artistas", library.artists.map((artist) => ({ name: artist.name, go: () => artistMenu(artist) }))) },
+    { name: "Álbumes", go: () => menu("Álbumes", library.albums.map((album) => ({ name: album.title, go: () => albumMenu(album) }))) },
+    { name: "Canciones", go: () => songsMenu("Canciones", library.tracks) },
+    { name: "Aleatorio", play: () => playQueue(shuffled(library.tracks.map((track) => track.id)), 0) },
+    { name: "Reproduciendo", go: () => nowPlaying(), when: () => ipod.at >= 0 },
+  ]);
+}
+
+function artistMenu(artist) {
+  const all = artist.albums.flatMap((album) => album.tracks);
+  return menu(artist.name, [
+    { name: "Todas", go: () => songsMenu(artist.name, all) },
+    ...artist.albums.map((album) => ({ name: album.title, go: () => albumMenu(album) })),
+  ]);
+}
+
+const albumMenu = (album) => songsMenu(album.title, album.tracks);
+
+function songsMenu(title, tracks) {
+  const ids = tracks.map((track) => track.id);
+  return menu(title, tracks.map((track, index) => ({ name: track.title, play: () => playQueue(ids, index) })));
+}
+
+const nowPlaying = () => ({ title: "Reproduciendo", playing: true });
+
+function shuffled(list) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+// The rows of a menu that can be chosen now ("Reproduciendo" only once something has played).
+const menuRows = (screen) => screen.rows.filter((row) => !row.when || row.when());
+
+// ---- playing
+
+function playQueue(ids, index) {
+  ipod.queue = ids;
+  playAt(index);
+  const screen = ipod.stack[ipod.stack.length - 1];
+  if (!screen.playing) ipod.stack.push(nowPlaying());
+  drawIpod();
+}
+
+function playAt(index) {
+  if (index < 0 || index >= ipod.queue.length) {
+    player.pause();
+    return drawIpod();
+  }
+  ipod.at = index;
+  const track = currentTrack();
+  player.src = `/api/music/${ipod.source}/track/${track.id}`;
+  player.play().catch(() => {});
+  if ("mediaSession" in navigator) {
+    // On a phone's lock screen and the computer's media keys.
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title, artist: track.artist, album: track.album.title,
+      artwork: [{ src: coverUrl(track.album) }],
+    });
+  }
+  drawIpod();
+  renderStatus();
+}
+
+const currentTrack = () => (ipod.library && ipod.at >= 0 ? ipod.library.byId.get(ipod.queue[ipod.at]) : null);
+const coverUrl = (album) => `/api/music/${ipod.source}/cover/${album.id}`;
+
+function playPause() {
+  if (ipod.at < 0) return;
+  if (player.paused) player.play().catch(() => {});
+  else player.pause();
+}
+
+// ⏮ goes back to the start of the song, or to the one before if it has only just started.
+function previous() {
+  if (ipod.at < 0) return;
+  if (player.currentTime > 3) player.currentTime = 0;
+  else playAt(Math.max(0, ipod.at - 1));
+}
+
+const next = () => ipod.at >= 0 && playAt(ipod.at + 1);
+
+player.addEventListener("ended", next);
+player.addEventListener("play", () => { drawIpod(); renderStatus(); });
+player.addEventListener("pause", () => { drawIpod(); renderStatus(); });
+player.addEventListener("timeupdate", drawProgress);
+player.addEventListener("error", () => {
+  // A file the browser can't play (a format it doesn't know): on to the next one.
+  if (ipod.at < 0 || !player.src) return;
+  ipod.error = "No se puede reproducir esta canción";
+  drawIpod();
+  setTimeout(() => { ipod.error = null; next(); }, 1500);
+});
+if ("mediaSession" in navigator) {
+  navigator.mediaSession.setActionHandler("play", playPause);
+  navigator.mediaSession.setActionHandler("pause", playPause);
+  navigator.mediaSession.setActionHandler("previoustrack", previous);
+  navigator.mediaSession.setActionHandler("nexttrack", next);
+}
+
+// ---- the controls
+
+// One row up or down (the wheel turned, or the arrows); on the song playing, the volume.
+function scrollIpod(step) {
+  const screen = ipod.stack[ipod.stack.length - 1];
+  if (!screen) return;
+  if (screen.playing) {
+    player.volume = Math.max(0, Math.min(1, Math.round((player.volume + step * 0.05) * 100) / 100));
+    ipod.volumeUntil = Date.now() + 1500;
+    setTimeout(drawIpod, 1550);
+    return drawIpod();
+  }
+  const rows = menuRows(screen);
+  screen.index = Math.max(0, Math.min(rows.length - 1, screen.index + step));
+  if (screen.index < screen.top) screen.top = screen.index;
+  if (screen.index >= screen.top + IPOD_ROWS) screen.top = screen.index - IPOD_ROWS + 1;
+  drawIpod();
+}
+
+function chooseIpod() {
+  const screen = ipod.stack[ipod.stack.length - 1];
+  if (!screen || screen.playing) return playPause();
+  const row = menuRows(screen)[screen.index];
+  if (!row) return;
+  if (row.play) return row.play();
+  ipod.stack.push(row.go());
+  drawIpod();
+}
+
+// MENU: back to the menu before.
+function menuIpod() {
+  if (ipod.stack.length > 1) ipod.stack.pop();
+  drawIpod();
+}
+
+function ipodKey(event) {
+  const key = event.key.toLowerCase();
+  const actions = {
+    arrowup: () => scrollIpod(-1), arrowdown: () => scrollIpod(1),
+    arrowright: chooseIpod, enter: chooseIpod,
+    arrowleft: menuIpod, backspace: menuIpod,
+    " ": playPause, "<": previous, ">": next, pageup: previous, pagedown: next,
+    q: closeIpod, escape: closeIpod, f1: closeIpod,
+  };
+  // Its own key closes it too.
+  const own = (layout.music || []).find((music) => music.name === ipod.source);
+  if (own && own.key === key) actions[key] = closeIpod;
+  if (!actions[key]) return;
+  event.preventDefault();
+  unlockAudio();
+  actions[key]();
+}
+
+// The wheel: turned (in steps of WHEEL_STEP degrees, clockwise down), or tapped on one of its four
+// buttons: MENU at the top, ⏭ on the right, ⏯ at the bottom, ⏮ on the left.
+function wheelEvents(wheel) {
+  let last = null;
+  let turned = 0;
+  let moved = 0;
+  const angle = (event) => {
+    const box = wheel.getBoundingClientRect();
+    return (Math.atan2(event.clientY - box.top - box.height / 2, event.clientX - box.left - box.width / 2) * 180) / Math.PI;
+  };
+  wheel.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".ipod-center")) return;
+    wheel.setPointerCapture(event.pointerId);
+    last = angle(event);
+    turned = 0;
+    moved = 0;
+  });
+  wheel.addEventListener("pointermove", (event) => {
+    if (last === null) return;
+    const now = angle(event);
+    let delta = now - last;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    last = now;
+    turned += delta;
+    moved += Math.abs(delta);
+    while (Math.abs(turned) >= WHEEL_STEP) {
+      scrollIpod(turned > 0 ? 1 : -1);
+      turned -= Math.sign(turned) * WHEEL_STEP;
+    }
+  });
+  wheel.addEventListener("pointerup", (event) => {
+    if (last === null) return;
+    last = null;
+    if (moved > 8) return;
+    // A tap: which of the four buttons, by where on the ring.
+    const at = angle(event);
+    unlockAudio();
+    if (at > -135 && at < -45) menuIpod();
+    else if (at >= -45 && at <= 45) next();
+    else if (at > 45 && at < 135) playPause();
+    else previous();
+  });
+  wheel.addEventListener("pointercancel", () => { last = null; });
+}
+
+// ---- drawing
+
+// The iPod is drawn once and then only its screen changes (the state arriving every second
+// doesn't touch it, so the wheel never loses a turn).
+function drawIpod() {
+  const box = document.getElementById("ipod");
+  box.hidden = !ipod.open;
+  // The phone's round button stays out of its way.
+  document.body.classList.toggle("ipod-open", ipod.open);
+  if (!ipod.open) return;
+  if (!box.firstChild) {
+    const wheel = el("div", { class: "ipod-wheel" },
+      el("span", { class: "ipod-label top" }, "MENU"),
+      el("span", { class: "ipod-label right" }, "▶▶|"),
+      el("span", { class: "ipod-label bottom" }, "▶ ❚❚"),
+      el("span", { class: "ipod-label left" }, "|◀◀"),
+      el("button", { class: "ipod-center", "aria-label": "Elegir", onclick: () => { unlockAudio(); chooseIpod(); } }));
+    wheelEvents(wheel);
+    box.append(el("div", { class: "ipod-body" }, el("div", { class: "ipod-screen" }), wheel));
+  }
+  box.querySelector(".ipod-screen").replaceChildren(...drawIpodScreen());
+  drawProgress();
+}
+
+function drawIpodScreen() {
+  const screen = ipod.stack[ipod.stack.length - 1];
+  const header = (title) => el("div", { class: "ipod-header" },
+    el("span", { class: "ipod-state" }, ipod.at < 0 ? "" : player.paused ? "❚❚" : "▶"),
+    el("span", { class: "ipod-title" }, upper(title)),
+    el("span", { class: "ipod-battery" }));
+  if (ipod.error && !screen) return [header("iPod"), el("div", { class: "ipod-message" }, upper(ipod.error))];
+  if (!ipod.library || !screen) return [header("iPod"), el("div", { class: "ipod-message waiting" }, upper("Leyendo la música"))];
+  if (screen.playing) return [header(screen.title), drawNowPlaying()];
+  const rows = menuRows(screen);
+  const shown = rows.slice(screen.top, screen.top + IPOD_ROWS);
+  const list = el("div", { class: "ipod-menu" }, shown.map((row, index) =>
+    el("div", { class: `ipod-row${screen.top + index === screen.index ? " selected" : ""}` },
+      el("span", { class: "ipod-name" }, upper(row.name)), row.go ? el("span", { class: "ipod-arrow" }, "›") : "")));
+  // Where in a long list: a thin bar on the right.
+  const bar = rows.length > IPOD_ROWS ? el("div", { class: "ipod-scroll" }, el("i", {
+    style: `top: ${(screen.top / rows.length) * 100}%; height: ${(IPOD_ROWS / rows.length) * 100}%`,
+  })) : "";
+  if (!rows.length) list.append(el("div", { class: "ipod-message" }, upper("Vacío")));
+  return [header(screen.title), el("div", { class: "ipod-list" }, list, bar)];
+}
+
+function drawNowPlaying() {
+  const track = currentTrack();
+  if (!track) return el("div", { class: "ipod-message" }, upper("Nada sonando"));
+  const cover = el("img", { class: "ipod-cover", src: coverUrl(track.album), alt: "" });
+  cover.addEventListener("error", () => cover.replaceWith(el("div", { class: "ipod-cover none" }, "♪")));
+  const volume = Date.now() < ipod.volumeUntil;
+  return el("div", { class: "ipod-playing" },
+    el("div", { class: "ipod-count" }, upper(`${ipod.at + 1} de ${ipod.queue.length}`)),
+    el("div", { class: "ipod-song" }, cover,
+      el("div", { class: "ipod-tags" },
+        el("div", { class: "ipod-song-title" }, upper(track.title)),
+        el("div", {}, upper(track.artist)),
+        el("div", { class: "dim" }, upper(track.album.title)))),
+    ipod.error ? el("div", { class: "ipod-message" }, upper(ipod.error)) : "",
+    volume
+      ? el("div", { class: "ipod-progress volume" }, el("span", {}, "🔈"), el("span", { class: "ipod-bar" }, el("i", { style: `width: ${player.volume * 100}%` })), el("span", {}, "🔊"))
+      : el("div", { class: "ipod-progress" },
+        el("span", { class: "ipod-elapsed" }), el("span", { class: "ipod-bar" }, el("i", { class: "ipod-done" })), el("span", { class: "ipod-left" })));
+}
+
+// Only the bar and the times, several times a second while it plays.
+function drawProgress() {
+  const box = document.getElementById("ipod");
+  if (!ipod.open || box.hidden) return;
+  const track = currentTrack();
+  const done = box.querySelector(".ipod-done");
+  if (!track || !done) return;
+  const length = player.duration || track.length || 0;
+  const time = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+  done.style.width = `${length ? (player.currentTime / length) * 100 : 0}%`;
+  box.querySelector(".ipod-elapsed").textContent = time(player.currentTime);
+  box.querySelector(".ipod-left").textContent = `-${time(Math.max(0, length - player.currentTime))}`;
+}
+
+// A tap outside the iPod closes it (the music goes on).
+document.getElementById("ipod").addEventListener("click", (event) => {
+  if (event.target.id === "ipod") closeIpod();
+});
 
 addEventListener("keydown", onKey);
 document.getElementById("fab").addEventListener("click", (event) => {
