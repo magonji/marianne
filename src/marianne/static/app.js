@@ -1281,8 +1281,8 @@ function renderStatus() {
   const track = currentTrack();
   if (track && !ipod.open) {
     const music = (layout.music || []).find((music) => music.name === ipod.source);
-    items.push(el("button", { class: "now-playing", "data-key": (music && music.key) || "ipod" },
-      `${player.paused ? "❚❚" : "♪"} ${upper(track.title)} · ${upper(track.artist)}`));
+    items.push(el("button", { class: "now-playing", "data-key": "ipod" },
+      `[M]${player.paused ? "❚❚" : "♪"} ${upper(track.title)} · ${upper(track.artist)}`));
   }
   // On a phone only "AYUDA": the key's name means nothing there.
   items.push(el("button", { class: "help-key", "data-key": "f1" }, el("span", { class: "keycap" }, "[F1]"), "AYUDA"));
@@ -1343,6 +1343,12 @@ function onKey(event) {
   if (dates) return datesKey(event);
   if (ipod.open) return ipodKey(event);
   const key = event.key.toLowerCase();
+  // Minimised with music, the iPod's keys go before the page's (M opens it again, not tomorrow).
+  if (ipodPlaying() && IPOD_MINIMIZED[key]) {
+    event.preventDefault();
+    unlockAudio();
+    return IPOD_MINIMIZED[key]();
+  }
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
   // F1 is the help here, not the browser's.
   if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader)) || key === "f1" || MONTH_KEYS[key]) event.preventDefault();
@@ -1501,8 +1507,8 @@ function setSegments(node, text) {
 // ---------------------------------------------------------------- link cursor
 
 const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
-const KEY_NAMES = { enter: "↵", escape: "ESC", f1: "F1" };
-const MONTH_KEYS = { "<": -1, ">": 1, pageup: -1, pagedown: 1 };
+const KEY_NAMES = { enter: "↵", escape: "ESC", f1: "F1", " ": "ESPACIO" };
+const MONTH_KEYS = { "'": -1, "¡": 1, pageup: -1, pagedown: 1 };
 
 // What the cursor is on: a link's address, or CHART_CURSOR for the weather chart.
 const cursorId = (node) => node.getAttribute("href") || node.dataset.cursor;
@@ -1579,7 +1585,16 @@ function renderCursor() {
 function helpCommands() {
   const commands = [];
   // icon and short: for the phone's round buttons; touch: a tap on the page does it already.
-  const add = (key, text, icon, short, touch = false) => commands.push({ key, text, icon, short, touch });
+  // icon and short: for the phone's round buttons; touch: a tap on the page does it already.
+  // run: what a click on it does, for the minimised iPod's keys (they aren't the page's).
+  const add = (key, text, icon, short, touch = false, run = null) => commands.push({ key, text, icon, short, touch, run });
+  if (ipodPlaying()) {
+    add("m", "iPod: abrirlo", null, null, true, () => openIpod(ipod.source));
+    add(" ", player.paused ? "iPod: seguir" : "iPod: pausar", null, null, true, playPause);
+    add("'", "iPod: canción anterior", null, null, true, previous);
+    add("¡", "iPod: canción siguiente", null, null, true, next);
+    add("q", "iPod: cerrarlo y parar la música", null, null, true, closeIpod);
+  }
   add("c", "Cambiar de color", "palette", "Color");
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
@@ -1602,8 +1617,8 @@ function helpCommands() {
   for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar", "calendar-edit", "Fechas");
   for (const music of layout.music || []) if (music.key) add(music.key, "El iPod: la música del servidor", "ipod", "iPod");
   if (calendarReading()) {
-    add("<", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
-    add(">", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
+    add("'", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
+    add("¡", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
   }
   for (const view of panelViews()) {
     if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`, view.panel.icon || "dock-window", view.panel.title);
@@ -1614,14 +1629,16 @@ function helpCommands() {
 }
 
 function drawHelp() {
-  const row = (keyName, text, key) => el(key ? "button" : "div", {
+  const row = (keyName, text, key, run = null) => el(key ? "button" : "div", {
     class: "row help-row", "data-help-key": key || null,
-    onclick: key ? () => press(key) : null,
+    onclick: run ? () => { helpOpen = false; run(); render(); } : key ? () => press(key) : null,
   }, el("span", { class: "label" }, upper(keyName)), el("span", { class: "leader" }), el("span", { class: "values" }, upper(text)));
   return el("section", { class: "panel help" },
     el("h2", {}, upper("Ayuda")),
     el("div", { class: "body" },
-      helpCommands().map(({ key, text }) => row(KEY_NAMES[key] || key, text, key)),
+      // Without the page's keys that the minimised iPod has taken.
+      helpCommands().filter((command) => command.run || !(ipodPlaying() && IPOD_MINIMIZED[command.key]))
+        .map(({ key, text, run }) => row(KEY_NAMES[key] || key, text, key, run)),
       el("div", { class: "rule" }),
       row("→ ↓  ← ↑", "Cursor: horas del tiempo, servicios y noticias"),
       row("↵", "Abrir o elegir lo que tiene el cursor"),
@@ -2045,6 +2062,21 @@ const ipod = {
 const player = new Audio();
 player.preload = "auto";
 
+// Something to play, with the iPod minimised.
+const ipodPlaying = () => !ipod.open && ipod.at >= 0;
+
+// Its keys then, before the page's.
+const IPOD_MINIMIZED = {
+  m: () => openIpod(ipod.source),
+  " ": () => playPause(),
+  "'": () => previous(),
+  "¡": () => next(),
+  pageup: () => previous(),
+  pagedown: () => next(),
+  q: () => closeIpod(),
+  escape: () => closeIpod(),
+};
+
 async function openIpod(name) {
   ipod.open = true;
   popup = null;
@@ -2060,10 +2092,25 @@ async function openIpod(name) {
   if (!ipod.library) await loadLibrary();
 }
 
-function closeIpod() {
+// Minimised, the music goes on (the status bar says what's playing, and opens it again).
+function minimizeIpod() {
   ipod.open = false;
   drawIpod();
   render();
+}
+
+// Closed for good: the music stops and nothing is left in the status bar.
+function closeIpod() {
+  player.pause();
+  player.removeAttribute("src");
+  player.load();
+  ipod.queue = [];
+  ipod.at = -1;
+  ipod.error = null;
+  // Back to the first menu for the next time.
+  ipod.stack = ipod.stack.slice(0, 1);
+  if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+  minimizeIpod();
 }
 
 async function loadLibrary() {
@@ -2188,10 +2235,17 @@ function playPause() {
   else player.pause();
 }
 
-// ⏮ goes back to the start of the song, or to the one before if it has only just started.
+// ⏮ (or ') goes back to the start of the song; to the one before if it's in its first seconds,
+// or if pressed twice in a row quickly.
+const RESTART_SECONDS = 5;
+const DOUBLE_PRESS_MS = 600;
+let lastPrevious = 0;
+
 function previous() {
   if (ipod.at < 0) return;
-  if (player.currentTime > 3) player.currentTime = 0;
+  const twice = Date.now() - lastPrevious < DOUBLE_PRESS_MS;
+  lastPrevious = Date.now();
+  if (player.currentTime >= RESTART_SECONDS && !twice) player.currentTime = 0;
   else playAt(Math.max(0, ipod.at - 1));
 }
 
@@ -2203,7 +2257,7 @@ player.addEventListener("pause", () => { drawIpod(); renderStatus(); });
 player.addEventListener("timeupdate", drawProgress);
 player.addEventListener("error", () => {
   // A file the browser can't play (a format it doesn't know): on to the next one.
-  if (ipod.at < 0 || !player.src) return;
+  if (ipod.at < 0 || !player.getAttribute("src")) return;
   ipod.error = "No se puede reproducir esta canción";
   drawIpod();
   setTimeout(() => { ipod.error = null; next(); }, 1500);
@@ -2256,12 +2310,12 @@ function ipodKey(event) {
     arrowup: () => scrollIpod(-1), arrowdown: () => scrollIpod(1),
     arrowright: chooseIpod, enter: chooseIpod,
     arrowleft: menuIpod, backspace: menuIpod,
-    " ": playPause, "<": previous, ">": next, pageup: previous, pagedown: next,
-    q: closeIpod, escape: closeIpod, f1: closeIpod,
+    " ": playPause, "'": previous, "¡": next, pageup: previous, pagedown: next,
+    q: closeIpod, escape: closeIpod, m: minimizeIpod, f1: minimizeIpod,
   };
-  // Its own key closes it too.
+  // Its own key minimises it too.
   const own = (layout.music || []).find((music) => music.name === ipod.source);
-  if (own && own.key === key) actions[key] = closeIpod;
+  if (own && own.key === key) actions[key] = minimizeIpod;
   if (!actions[key]) return;
   event.preventDefault();
   unlockAudio();
@@ -2332,7 +2386,11 @@ function drawIpod() {
       el("span", { class: "ipod-label left" }, "|◀◀"),
       el("button", { class: "ipod-center", "aria-label": "Elegir", onclick: () => { unlockAudio(); chooseIpod(); } }));
     wheelEvents(wheel);
-    box.append(el("div", { class: "ipod-body" }, el("div", { class: "ipod-screen" }), wheel));
+    // Its two keys, also to tap (a phone has no keyboard).
+    const keys = el("div", { class: "ipod-keys" },
+      el("button", { onclick: minimizeIpod }, "[M]MINIMIZAR"),
+      el("button", { onclick: closeIpod }, "[Q]CERRAR"));
+    box.append(el("div", { class: "ipod-frame" }, keys, el("div", { class: "ipod-body" }, el("div", { class: "ipod-screen" }), wheel)));
   }
   box.querySelector(".ipod-screen").replaceChildren(...drawIpodScreen());
   drawProgress();
@@ -2394,9 +2452,9 @@ function drawProgress() {
   box.querySelector(".ipod-left").textContent = `-${time(Math.max(0, length - player.currentTime))}`;
 }
 
-// A tap outside the iPod closes it (the music goes on).
+// A tap outside the iPod minimises it (the music goes on).
 document.getElementById("ipod").addEventListener("click", (event) => {
-  if (event.target.id === "ipod") closeIpod();
+  if (event.target.id === "ipod") minimizeIpod();
 });
 
 addEventListener("keydown", onKey);

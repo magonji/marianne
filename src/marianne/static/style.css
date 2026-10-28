@@ -1499,6 +1499,31 @@ a.tile.cursor > span {
   display: none;
 }
 
+.ipod-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.ipod-keys {
+  display: flex;
+  gap: 1.4ch;
+}
+
+.ipod-keys button {
+  font: inherit;
+  color: var(--foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.ipod-keys button:hover {
+  color: var(--accent);
+}
+
 /* An iPod classic drawn in lines of the theme colour, like the rest of the page: the screen at
    the top, the click wheel below. */
 .ipod-body {
@@ -1768,7 +1793,6 @@ a.tile.cursor > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--accent);
 }
 
 /* ---- phone buttons ---- */
