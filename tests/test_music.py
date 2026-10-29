@@ -106,3 +106,19 @@ def test_music_api(tmp_path):
 def test_helpers():
     assert leading_number("3/12") == 3 and leading_number("07 Canción") == 7 and leading_number("") == 0
     assert sort_key("The Beatles") == "beatles" and sort_key("Los Planetas") == "planetas"
+
+
+def test_a_new_look_at_the_folder_doesnt_make_the_page_wait(tmp_path):
+    music = library(tmp_path)
+    source = MusicSource("musica", str(music), rescan_hours=0)
+
+    async def run():
+        assert len((await source.library())["tracks"]) == 3
+        song(music / "Nueva" / "Disco" / "01.mp3", title="Nueva", artist="Nueva", album="Disco")
+        # Out of date: the old library at once, and the new one once the folder is read again
+        assert len((await source.library())["tracks"]) == 3
+        await source._rescanning
+        source.rescan_seconds = 3600
+        assert len((await source.library())["tracks"]) == 4
+
+    asyncio.run(run())

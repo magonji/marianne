@@ -61,6 +61,9 @@ class MusicSource(Source):
         self._order: list[str] = []
         self._scanned_at = 0.0
         self._lock = asyncio.Lock()
+        self._rescanning: asyncio.Task | None = None
+        # The library as sent to the page, made once after each look at the folder.
+        self._payload: dict[str, Any] | None = None
         self._covers: dict[str, tuple[bytes, str] | None] = {}
 
     def describe(self) -> str:
@@ -82,20 +85,37 @@ class MusicSource(Source):
 
     async def library(self) -> dict[str, Any]:
         """The songs and albums, as the page wants them (short lists, not objects: there may be
-        thousands). Read again from the folder every few hours."""
+        thousands). Read again from the folder every few hours, in the background: meanwhile the
+        page gets the library it already had (reading thousands of songs takes a while)."""
         async with self._lock:
-            if not self._scanned_at or time.monotonic() - self._scanned_at > self.rescan_seconds:
-                if not self.folder.is_dir():
-                    raise FileNotFoundError("no está la carpeta de música")
-                tracks = await asyncio.to_thread(self._scan)
-                self._index(tracks)
+            if not self._scanned_at:
+                await self._rescan()
+        stale = time.monotonic() - self._scanned_at > self.rescan_seconds
+        if stale and (self._rescanning is None or self._rescanning.done()):
+            self._rescanning = asyncio.create_task(self._rescan_quietly())
+        if self._payload is None:
+            album_index = {album["id"]: number for number, album in enumerate(self.albums)}
+            self._payload = {
+                "albums": [[album["id"], album["title"], album["artist"], album["year"]] for album in self.albums],
+                "tracks": [[track.id, track.title, track.artist, album_index[track.album_id], track.track,
+                            round(track.length)] for track in (self.tracks[id] for id in self._order)],
+            }
+        return self._payload
+
+    async def _rescan(self) -> None:
+        if not self.folder.is_dir():
+            raise FileNotFoundError("no está la carpeta de música")
+        tracks = await asyncio.to_thread(self._scan)
+        self._index(tracks)
+        self._scanned_at = time.monotonic()
+
+    async def _rescan_quietly(self) -> None:
+        # If the folder is gone for a moment (a disk not mounted), the old library stays.
+        async with self._lock:
+            try:
+                await self._rescan()
+            except OSError:
                 self._scanned_at = time.monotonic()
-        album_index = {album["id"]: number for number, album in enumerate(self.albums)}
-        return {
-            "albums": [[album["id"], album["title"], album["artist"], album["year"]] for album in self.albums],
-            "tracks": [[track.id, track.title, track.artist, album_index[track.album_id], track.track, round(track.length)]
-                       for track in (self.tracks[id] for id in self._order)],
-        }
 
     def track_path(self, track_id: str) -> Path | None:
         track = self.tracks.get(track_id)
@@ -162,6 +182,7 @@ class MusicSource(Source):
         self.tracks = {track.id: track for track in tracks}
         # The songs in the order of their albums.
         self._order = [id for album in self.albums for id in album["tracks"]]
+        self._payload = None
         self._covers.clear()
 
     def _load_cache(self) -> dict[str, Any]:
