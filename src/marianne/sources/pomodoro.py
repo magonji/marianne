@@ -25,7 +25,7 @@ class PomodoroSource(Source):
         long_break: float = 15,
         long_every: int = 4,
         start_key: str = "p",
-        reset_key: str = "x",
+        reset_key: str = "o",
         sound: str | None = "Glass",
         chimes: int = 3,
         clock: Callable[[], float] = time.monotonic,

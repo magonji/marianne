@@ -72,7 +72,7 @@ uv run marianne --demo --theme phosphor
 | `C` | Cambiar de color (ámbar → Commodore 64 → fósforo verde) |
 | `V` | Alerta vista: deja de parpadear y sale de la franja de alarma (sigue en rojo); si se resuelve y vuelve, avisa de nuevo |
 | `P` | Pomodoro: iniciar / pausar |
-| `X` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
+| `O` | Pomodoro: reiniciar (en la barra de abajo, solo mientras hay un pomodoro en marcha) |
 | `B`… | Abrir / cerrar un panel emergente (la tecla la eliges tú con `key:`) |
 | `T`… | Siguiente página de un panel con páginas (la tecla la eliges tú con `page_key:`; también con un clic en el título) |
 | `→` `↓` / `←` `↑` | Mover el cursor hacia delante / hacia atrás por un solo camino: las horas de la gráfica del tiempo, los servicios (de izquierda a derecha y de arriba abajo) y los titulares de noticias; al final vuelve a empezar. Con un día del calendario elegido (tocándolo), recorren los días |
@@ -80,7 +80,7 @@ uv run marianne --demo --theme phosphor
 | `M` | Mañana: la gráfica del tiempo y los eventos de los calendarios de mañana, y vuelta a hoy |
 | `H` | Historial: los paneles con `history: true` muestran sus últimos 7 días, día a día; otra `H` (o `Q`) vuelve a lo normal |
 | `F` | Fechas: añadir, cambiar o borrar las de la cuenta atrás (`↑` `↓` para elegir, `Enter` para cambiar o guardar, `Q` para volver) |
-| `'` `¡` | Calendario: mes anterior y siguiente (también `RePág` y `AvPág`); `Q` lo devuelve a este mes |
+| `Z` `X` | Calendario: mes anterior y siguiente (también `RePág` y `AvPág`); `Q` lo devuelve a este mes |
 | `F1` | Ayuda: la lista de todas las teclas, que también se pueden pulsar ahí |
 | `Q` | Salir: cerrar el lector; si no, quitar el cursor; si no, cerrar el panel emergente (`Esc` hace lo mismo) |
 
@@ -242,19 +242,19 @@ Con una fuente `type: music` (`folder`, la carpeta; `key`, la tecla que lo abre;
 redondo del móvil o con un botón en un panel de acciones (`- source: musica`, `name: iPod`,
 `icon: mdi:ipod`). Sus menús son Artistas, Álbumes, Canciones, Aleatorio y Reproduciendo, con los
 datos de las etiquetas de cada archivo (o, si no las tiene, los nombres de las carpetas:
-`Artista/Álbum/01 Canción.mp3`) y la carátula de dentro del archivo o de un `cover.jpg` de su
-carpeta.
+`Artista/Álbum/01 Canción.mp3`). La carátula, de dentro del archivo o de un `cover.jpg` de su
+carpeta, sale en el color del tema y con líneas de barrido, como los iconos.
 
 - La rueda se gira con el dedo o el ratón para moverse por los menús (y, en Reproduciendo, para
   el volumen); el botón del centro elige; MENU vuelve atrás; ⏮ ⏭ cambian de canción y ⏯ pausa.
-  ⏮ (o `'`) vuelve al principio de la canción; a la anterior, si está en sus 5 primeros segundos
+  ⏮ (o `Z`) vuelve al principio de la canción; a la anterior, si está en sus 5 primeros segundos
   o si se pulsa dos veces seguidas.
 - Con el teclado: `↑` `↓` moverse (volumen), `→` o `↵` elegir, `←` MENU, `Espacio` pausa,
-  `'` `¡` canción anterior y siguiente; `M` lo minimiza (la música sigue) y `Q` lo cierra del
+  `Z` `X` canción anterior y siguiente; `M` lo minimiza (la música sigue) y `Q` lo cierra del
   todo (la música se para). Los dos están también como botones encima del iPod.
 - Minimizado (con `M`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un
   clic lo vuelve a abrir. Mientras tanto sus teclas van antes que las de la página: `M` lo
-  abre, `Espacio` pausa, `'` `¡` cambian de canción y `Q` lo cierra y para la música (así que
+  abre, `Espacio` pausa, `Z` `X` cambian de canción y `Q` lo cierra y para la música (así que
   mañana y los meses del calendario solo van con un clic hasta que se cierra). En
   el móvil se controla también desde la pantalla de bloqueo.
 - La música suena en el navegador. Valen los formatos que entiende: MP3, AAC y FLAC en todos;

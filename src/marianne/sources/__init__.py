@@ -69,7 +69,7 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             long_break=float(spec.get("long_break", 15)),
             long_every=int(spec.get("long_every", 4)),
             start_key=str(spec.get("start_key", "p")).lower(),
-            reset_key=str(spec.get("reset_key", "x")).lower(),
+            reset_key=str(spec.get("reset_key", "o")).lower(),
             sound=str(spec.get("sound", "Glass")) if spec.get("sound", "Glass") else None,
             chimes=int(spec.get("chimes", 3)),
         )

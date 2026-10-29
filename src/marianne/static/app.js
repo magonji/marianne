@@ -1508,7 +1508,7 @@ function setSegments(node, text) {
 
 const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
 const KEY_NAMES = { enter: "↵", escape: "ESC", f1: "F1", " ": "ESPACIO" };
-const MONTH_KEYS = { "'": -1, "¡": 1, pageup: -1, pagedown: 1 };
+const MONTH_KEYS = { z: -1, x: 1, pageup: -1, pagedown: 1 };
 
 // What the cursor is on: a link's address, or CHART_CURSOR for the weather chart.
 const cursorId = (node) => node.getAttribute("href") || node.dataset.cursor;
@@ -1591,8 +1591,8 @@ function helpCommands() {
   if (ipodPlaying()) {
     add("m", "iPod: abrirlo", null, null, true, () => openIpod(ipod.source));
     add(" ", player.paused ? "iPod: seguir" : "iPod: pausar", null, null, true, playPause);
-    add("'", "iPod: canción anterior", null, null, true, previous);
-    add("¡", "iPod: canción siguiente", null, null, true, next);
+    add("z", "iPod: canción anterior", null, null, true, previous);
+    add("x", "iPod: canción siguiente", null, null, true, next);
     add("q", "iPod: cerrarlo y parar la música", null, null, true, closeIpod);
   }
   add("c", "Cambiar de color", "palette", "Color");
@@ -1617,8 +1617,8 @@ function helpCommands() {
   for (const editor of layout.date_editors || []) add(editor.key, "Fechas: añadir, cambiar o borrar", "calendar-edit", "Fechas");
   for (const music of layout.music || []) if (music.key) add(music.key, "El iPod: la música del servidor", "ipod", "iPod");
   if (calendarReading()) {
-    add("'", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
-    add("¡", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
+    add("z", "Calendario: mes anterior", "chevron-left", "Mes antes", true);
+    add("x", "Calendario: mes siguiente", "chevron-right", "Mes después", true);
   }
   for (const view of panelViews()) {
     if (view.panel.key) add(view.panel.key, `Abrir ${view.panel.title}`, view.panel.icon || "dock-window", view.panel.title);
@@ -2069,8 +2069,8 @@ const ipodPlaying = () => !ipod.open && ipod.at >= 0;
 const IPOD_MINIMIZED = {
   m: () => openIpod(ipod.source),
   " ": () => playPause(),
-  "'": () => previous(),
-  "¡": () => next(),
+  z: () => previous(),
+  x: () => next(),
   pageup: () => previous(),
   pagedown: () => next(),
   q: () => closeIpod(),
@@ -2217,17 +2217,14 @@ function playAt(index) {
   player.play().catch(() => {});
   if ("mediaSession" in navigator) {
     // On a phone's lock screen and the computer's media keys.
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title, artist: track.artist, album: track.album.title,
-      artwork: [{ src: coverUrl(track.album) }],
-    });
+    navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: track.artist, album: track.album.title });
   }
   drawIpod();
   renderStatus();
 }
 
-const currentTrack = () => (ipod.library && ipod.at >= 0 ? ipod.library.byId.get(ipod.queue[ipod.at]) : null);
 const coverUrl = (album) => `/api/music/${ipod.source}/cover/${album.id}`;
+const currentTrack = () => (ipod.library && ipod.at >= 0 ? ipod.library.byId.get(ipod.queue[ipod.at]) : null);
 
 function playPause() {
   if (ipod.at < 0) return;
@@ -2235,7 +2232,7 @@ function playPause() {
   else player.pause();
 }
 
-// ⏮ (or ') goes back to the start of the song; to the one before if it's in its first seconds,
+// ⏮ (or Z) goes back to the start of the song; to the one before if it's in its first seconds,
 // or if pressed twice in a row quickly.
 const RESTART_SECONDS = 5;
 const DOUBLE_PRESS_MS = 600;
@@ -2310,7 +2307,7 @@ function ipodKey(event) {
     arrowup: () => scrollIpod(-1), arrowdown: () => scrollIpod(1),
     arrowright: chooseIpod, enter: chooseIpod,
     arrowleft: menuIpod, backspace: menuIpod,
-    " ": playPause, "'": previous, "¡": next, pageup: previous, pagedown: next,
+    " ": playPause, z: previous, x: next, pageup: previous, pagedown: next,
     q: closeIpod, escape: closeIpod, m: minimizeIpod, f1: minimizeIpod,
   };
   // Its own key minimises it too.
@@ -2421,22 +2418,34 @@ function drawIpodScreen() {
 function drawNowPlaying() {
   const track = currentTrack();
   if (!track) return el("div", { class: "ipod-message" }, upper("Nada sonando"));
-  const cover = el("img", { class: "ipod-cover", src: coverUrl(track.album), alt: "" });
-  cover.addEventListener("error", () => cover.replaceWith(el("div", { class: "ipod-cover none" }, "♪")));
   const volume = Date.now() < ipod.volumeUntil;
   return el("div", { class: "ipod-playing" },
     el("div", { class: "ipod-count" }, upper(`${ipod.at + 1} de ${ipod.queue.length}`)),
-    el("div", { class: "ipod-song" }, cover,
+    el("div", { class: "ipod-song" }, drawCover(track.album),
       el("div", { class: "ipod-tags" },
         el("div", { class: "ipod-song-title" }, upper(track.title)),
         el("div", {}, upper(track.artist)),
         el("div", { class: "dim" }, upper(track.album.title)))),
     ipod.error ? el("div", { class: "ipod-message" }, upper(ipod.error)) : "",
     volume
-      ? el("div", { class: "ipod-progress volume" }, el("span", {}, "🔈"), el("span", { class: "ipod-bar" }, el("i", { style: `width: ${player.volume * 100}%` })), el("span", {}, "🔊"))
+      ? el("div", { class: "ipod-progress volume" }, volumeIcon("volume-low"),
+        el("span", { class: "ipod-bar" }, el("i", { style: `width: ${player.volume * 100}%` })), volumeIcon("volume-high"))
       : el("div", { class: "ipod-progress" },
         el("span", { class: "ipod-elapsed" }), el("span", { class: "ipod-bar" }, el("i", { class: "ipod-done" })), el("span", { class: "ipod-left" })));
 }
+
+// The album's picture in the theme's colour, with the monitor's scanlines, like the icons: in grey
+// and multiplied by the colour (black stays black, white becomes amber). None, no box.
+function drawCover(album) {
+  const box = el("div", { class: "ipod-cover" });
+  const image = el("img", { src: coverUrl(album), alt: "" });
+  image.addEventListener("error", () => box.remove());
+  box.append(image);
+  return box;
+}
+
+// A speaker drawn like the icons: the SVG as a mask over scanlines, in the theme colour.
+const volumeIcon = (name) => el("span", { class: "ipod-icon", style: `--icon: url("/api/icon/mdi/${name}")` });
 
 // Only the bar and the times, several times a second while it plays.
 function drawProgress() {

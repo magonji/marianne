@@ -1671,22 +1671,41 @@ a.tile.cursor > span {
 }
 
 .ipod-cover {
+  position: relative;
   flex: none;
   width: 4.6rem;
   height: 4.6rem;
-  object-fit: cover;
+  background: var(--primary);
   border: 1px solid var(--dim);
+  isolation: isolate;
+  overflow: hidden;
 }
 
-.ipod-cover.none {
-  display: grid;
-  place-items: center;
-  font-size: 2rem;
-  color: var(--dim);
+.ipod-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.15);
+  mix-blend-mode: multiply;
+}
+
+.ipod-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, var(--background) 2px 3px);
 }
 
 .ipod-tags {
   min-width: 0;
+  flex: 1;
+  text-align: center;
+}
+
+/* With a picture, the tags beside it, on the left. */
+.ipod-cover + .ipod-tags {
+  text-align: left;
 }
 
 .ipod-tags > div {
@@ -1704,6 +1723,15 @@ a.tile.cursor > span {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.8rem;
+}
+
+.ipod-icon {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 3px);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
 }
 
 .ipod-bar {
