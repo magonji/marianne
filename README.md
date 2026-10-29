@@ -253,15 +253,16 @@ música del sistema.
   ⏮ (o `Z`) vuelve al principio de la canción; a la anterior, si está en sus 5 primeros segundos
   o si se pulsa dos veces seguidas.
 - Con el teclado: `↑` `↓` moverse (volumen), `→` o `↵` elegir, `←` MENU, `Espacio` pausa,
-  `Z` `X` canción anterior y siguiente; `M` lo minimiza (la música sigue) y `Q` lo cierra del
+  `Z` `X` canción anterior y siguiente; `-` lo minimiza (la música sigue) y `Q` lo cierra del
   todo (la música se para); `V` pone en su pantalla un visualizador psicodélico, como el de
   Winamp. Los tres están también como botones encima del iPod.
 - El visualizador sigue la música en el ordenador. En el móvil solo lo aparenta, porque en el
   iPhone una canción que pasa por el analizador de audio se para al bloquear la pantalla.
-- Minimizado (con `M`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un
-  clic lo vuelve a abrir. Mientras tanto sus teclas van antes que las de la página: `M` lo
+- Minimizado (con `-`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un
+  clic lo vuelve a abrir. Mientras tanto sus teclas van antes que las de la página: `-` lo
   abre, `Espacio` pausa, `Z` `X` cambian de canción y `Q` lo cierra y para la música (así que
-  mañana y los meses del calendario solo van con un clic hasta que se cierra). En
+  los meses del calendario solo van con un clic mientras suena). Con la música en pausa vuelven a
+  mandar las de la página, y al iPod le quedan `Espacio` para seguir y `-` para abrirlo. En
   el móvil se controla también desde la pantalla de bloqueo.
 - La música suena en el navegador. Valen los formatos que entiende: MP3, AAC y FLAC en todos;
   ALAC solo en Safari; OGG y Opus no siempre en el iPhone. El servidor solo manda los archivos

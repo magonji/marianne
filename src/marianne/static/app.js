@@ -1282,7 +1282,7 @@ function renderStatus() {
   if (track && !ipod.open) {
     const music = (layout.music || []).find((music) => music.name === ipod.source);
     items.push(el("button", { class: "now-playing", "data-key": "ipod" },
-      `[M]${player.paused ? "❚❚" : "♪"} ${upper(track.title)} · ${upper(track.artist)}`));
+      `[-]${player.paused ? "❚❚" : "♪"} ${upper(track.title)} · ${upper(track.artist)}`));
   }
   // On a phone only "AYUDA": the key's name means nothing there.
   items.push(el("button", { class: "help-key", "data-key": "f1" }, el("span", { class: "keycap" }, "[F1]"), "AYUDA"));
@@ -1344,10 +1344,11 @@ function onKey(event) {
   if (ipod.open) return ipodKey(event);
   const key = event.key.toLowerCase();
   // Minimised with music, the iPod's keys go before the page's (M opens it again, not tomorrow).
-  if (ipodPlaying() && IPOD_MINIMIZED[key]) {
+  const ipodKeys = minimizedIpodKeys();
+  if (ipodKeys[key]) {
     event.preventDefault();
     unlockAudio();
-    return IPOD_MINIMIZED[key]();
+    return ipodKeys[key]();
   }
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
   // F1 is the help here, not the browser's.
@@ -1588,13 +1589,12 @@ function helpCommands() {
   // icon and short: for the phone's round buttons; touch: a tap on the page does it already.
   // run: what a click on it does, for the minimised iPod's keys (they aren't the page's).
   const add = (key, text, icon, short, touch = false, run = null) => commands.push({ key, text, icon, short, touch, run });
-  if (ipodPlaying()) {
-    add("m", "iPod: abrirlo", null, null, true, () => openIpod(ipod.source));
-    add(" ", player.paused ? "iPod: seguir" : "iPod: pausar", null, null, true, playPause);
-    add("z", "iPod: canción anterior", null, null, true, previous);
-    add("x", "iPod: canción siguiente", null, null, true, next);
-    add("q", "iPod: cerrarlo y parar la música", null, null, true, closeIpod);
-  }
+  const ipodKeys = minimizedIpodKeys();
+  if (ipodKeys["-"]) add("-", "iPod: abrirlo", null, null, true, ipodKeys["-"]);
+  if (ipodKeys[" "]) add(" ", player.paused ? "iPod: seguir" : "iPod: pausar", null, null, true, ipodKeys[" "]);
+  if (ipodKeys.z) add("z", "iPod: canción anterior", null, null, true, ipodKeys.z);
+  if (ipodKeys.x) add("x", "iPod: canción siguiente", null, null, true, ipodKeys.x);
+  if (ipodKeys.q) add("q", "iPod: cerrarlo y parar la música", null, null, true, ipodKeys.q);
   add("c", "Cambiar de color", "palette", "Color");
   for (const pomodoro of layout.pomodoros) {
     const running = state && state.pomodoro && state.pomodoro.running;
@@ -1637,7 +1637,7 @@ function drawHelp() {
     el("h2", {}, upper("Ayuda")),
     el("div", { class: "body" },
       // Without the page's keys that the minimised iPod has taken.
-      helpCommands().filter((command) => command.run || !(ipodPlaying() && IPOD_MINIMIZED[command.key]))
+      helpCommands().filter((command) => command.run || !minimizedIpodKeys()[command.key])
         .map(({ key, text, run }) => row(KEY_NAMES[key] || key, text, key, run)),
       el("div", { class: "rule" }),
       row("→ ↓  ← ↑", "Cursor: horas del tiempo, servicios y noticias"),
@@ -2065,9 +2065,15 @@ player.preload = "auto";
 // Something to play, with the iPod minimised.
 const ipodPlaying = () => !ipod.open && ipod.at >= 0;
 
-// Its keys then, before the page's.
+// Its keys then, before the page's, while the music plays. Paused, the page's win: only Space and
+// -, which the page doesn't use, are left to the iPod, to go on and to open it.
+function minimizedIpodKeys() {
+  if (!ipodPlaying()) return {};
+  return player.paused ? { " ": IPOD_MINIMIZED[" "], "-": IPOD_MINIMIZED["-"] } : IPOD_MINIMIZED;
+}
+
 const IPOD_MINIMIZED = {
-  m: () => openIpod(ipod.source),
+  "-": () => openIpod(ipod.source),
   " ": () => playPause(),
   z: () => previous(),
   x: () => next(),
@@ -2338,7 +2344,7 @@ function ipodKey(event) {
     arrowright: chooseIpod, enter: chooseIpod,
     arrowleft: menuIpod, backspace: menuIpod,
     " ": playPause, z: previous, x: next, pageup: previous, pagedown: next,
-    q: closeIpod, escape: closeIpod, m: minimizeIpod, f1: minimizeIpod, v: toggleViz,
+    q: closeIpod, escape: closeIpod, "-": minimizeIpod, f1: minimizeIpod, v: toggleViz,
   };
   // Its own key minimises it too.
   const own = (layout.music || []).find((music) => music.name === ipod.source);
@@ -2552,7 +2558,7 @@ function drawIpod() {
     // Its two keys, also to tap (a phone has no keyboard).
     const keys = el("div", { class: "ipod-keys" },
       el("button", { onclick: () => { unlockAudio(); toggleViz(); } }, "[V]VISUALIZADOR"),
-      el("button", { onclick: minimizeIpod }, "[M]MINIMIZAR"),
+      el("button", { onclick: minimizeIpod }, "[-]MINIMIZAR"),
       el("button", { onclick: closeIpod }, "[Q]CERRAR"));
     box.append(el("div", { class: "ipod-frame" }, keys, el("div", { class: "ipod-body" }, el("div", { class: "ipod-screen" }), wheel)));
   }
