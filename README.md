@@ -242,8 +242,9 @@ Con una fuente `type: music` (`folder`, la carpeta; `key`, la tecla que lo abre;
 redondo del móvil o con un botón en un panel de acciones (`- source: musica`, `name: iPod`,
 `icon: mdi:ipod`). Sus menús son Artistas, Álbumes, Canciones, Aleatorio y Reproduciendo, con los
 datos de las etiquetas de cada archivo (o, si no las tiene, los nombres de las carpetas:
-`Artista/Álbum/01 Canción.mp3`). La carátula, de dentro del archivo o de un `cover.jpg` de su
-carpeta, sale en el color del tema y con líneas de barrido, como los iconos.
+`Artista/Álbum/01 Canción.mp3`). La carátula (de dentro del archivo o de un `cover.jpg` de su
+carpeta) no sale en el iPod, pero sí en la pantalla de bloqueo del móvil y en los controles de
+música del sistema.
 
 - La rueda se gira con el dedo o el ratón para moverse por los menús (y, en Reproduciendo, para
   el volumen); el botón del centro elige; MENU vuelve atrás; ⏮ ⏭ cambian de canción y ⏯ pausa.
@@ -251,7 +252,10 @@ carpeta, sale en el color del tema y con líneas de barrido, como los iconos.
   o si se pulsa dos veces seguidas.
 - Con el teclado: `↑` `↓` moverse (volumen), `→` o `↵` elegir, `←` MENU, `Espacio` pausa,
   `Z` `X` canción anterior y siguiente; `M` lo minimiza (la música sigue) y `Q` lo cierra del
-  todo (la música se para). Los dos están también como botones encima del iPod.
+  todo (la música se para); `V` pone en su pantalla un visualizador psicodélico, como el de
+  Winamp. Los tres están también como botones encima del iPod.
+- El visualizador sigue la música en el ordenador. En el móvil solo lo aparenta, porque en el
+  iPhone una canción que pasa por el analizador de audio se para al bloquear la pantalla.
 - Minimizado (con `M`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un
   clic lo vuelve a abrir. Mientras tanto sus teclas van antes que las de la página: `M` lo
   abre, `Espacio` pausa, `Z` `X` cambian de canción y `Q` lo cierra y para la música (así que

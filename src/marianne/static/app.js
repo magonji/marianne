@@ -2217,7 +2217,11 @@ function playAt(index) {
   player.play().catch(() => {});
   if ("mediaSession" in navigator) {
     // On a phone's lock screen and the computer's media keys.
-    navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: track.artist, album: track.album.title });
+    // With the album's picture: on the lock screen and the system's media controls, not on the iPod.
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title, artist: track.artist, album: track.album.title,
+      artwork: [{ src: new URL(coverUrl(track.album), location.href).href }],
+    });
   }
   drawIpod();
   renderStatus();
@@ -2308,7 +2312,7 @@ function ipodKey(event) {
     arrowright: chooseIpod, enter: chooseIpod,
     arrowleft: menuIpod, backspace: menuIpod,
     " ": playPause, z: previous, x: next, pageup: previous, pagedown: next,
-    q: closeIpod, escape: closeIpod, m: minimizeIpod, f1: minimizeIpod,
+    q: closeIpod, escape: closeIpod, m: minimizeIpod, f1: minimizeIpod, v: toggleViz,
   };
   // Its own key minimises it too.
   const own = (layout.music || []).find((music) => music.name === ipod.source);
@@ -2365,6 +2369,140 @@ function wheelEvents(wheel) {
   wheel.addEventListener("pointercancel", () => { last = null; });
 }
 
+// ---- the visualiser
+
+// A psychedelic animation on the iPod's screen, like Winamp's (MilkDrop): each frame is the one
+// before, a little bigger and turned, fading, with the music drawn on top as a ring that the bass
+// swells, rays from the spectrum and a flash on each beat. Small and blown up without smoothing,
+// in the theme's colours. On a computer it follows the music (Web Audio); on a phone it only
+// pretends to, because a song run through Web Audio stops on the iPhone with the screen locked.
+const VIZ_WIDTH = 120;
+const VIZ_HEIGHT = 72;
+const viz = { canvas: null, frame: 0, analyser: undefined, bass: 0, flash: 0, t: 0 };
+
+function toggleViz() {
+  ipod.viz = !ipod.viz;
+  const screen = ipod.stack[ipod.stack.length - 1];
+  // It goes on the song playing: from a menu, to that screen.
+  if (ipod.viz && currentTrack() && screen && !screen.playing) ipod.stack.push(nowPlaying());
+  drawIpod();
+}
+
+function vizAnalyser() {
+  if (viz.analyser !== undefined) return viz.analyser;
+  viz.analyser = null;
+  if (matchMedia("(pointer: coarse)").matches) return null;
+  unlockAudio();
+  if (!audio) return null;
+  try {
+    const source = audio.createMediaElementSource(player);
+    const analyser = audio.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.7;
+    source.connect(analyser);
+    analyser.connect(audio.destination);
+    viz.analyser = analyser;
+  } catch {
+    /* without it, the pretend one */
+  }
+  return viz.analyser;
+}
+
+function vizCanvas() {
+  if (!viz.canvas) {
+    viz.canvas = el("canvas", { class: "ipod-viz", width: VIZ_WIDTH, height: VIZ_HEIGHT });
+    viz.canvas.addEventListener("click", toggleViz);
+  }
+  if (!viz.frame) viz.frame = requestAnimationFrame(drawViz);
+  return viz.canvas;
+}
+
+function drawViz() {
+  viz.frame = 0;
+  const canvas = viz.canvas;
+  if (!ipod.open || !ipod.viz || !canvas.isConnected) return;
+  viz.frame = requestAnimationFrame(drawViz);
+  const context = canvas.getContext("2d");
+  // Hard pixels in the trails too, not a blur.
+  context.imageSmoothingEnabled = false;
+  const style = getComputedStyle(document.documentElement);
+  const color = (name) => style.getPropertyValue(name).trim();
+  const [w, h] = [VIZ_WIDTH, VIZ_HEIGHT];
+  const playing = !player.paused;
+  viz.t += 1 / 60;
+
+  // The music now: the spectrum (0..1 each) and the wave (-1..1 each).
+  const bins = 48;
+  let spectrum, wave;
+  const analyser = vizAnalyser();
+  if (analyser) {
+    const bytes = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(bytes);
+    spectrum = Array.from({ length: bins }, (_, i) => bytes[Math.floor((i / bins) ** 1.6 * bytes.length * 0.8)] / 255);
+    analyser.getByteTimeDomainData(bytes);
+    wave = Array.from({ length: 64 }, (_, i) => (bytes[Math.floor((i / 64) * bytes.length)] - 128) / 128);
+  } else {
+    // Pretended: a beat at about 120 per minute and something that moves over it.
+    const beat = playing ? Math.max(0, Math.sin(viz.t * Math.PI * 2)) ** 6 : 0;
+    spectrum = Array.from({ length: bins }, (_, i) => (playing ? 0.15 + 0.5 * beat * (1 - i / bins) + 0.25 * Math.random() * (1 - i / bins) : 0));
+    wave = Array.from({ length: 64 }, (_, i) => (playing ? Math.sin(i * 0.6 + viz.t * 9) * (0.2 + beat * 0.5) : 0));
+  }
+  const bass = spectrum.slice(0, 6).reduce((sum, value) => sum + value, 0) / 6;
+  if (bass - viz.bass > 0.12) viz.flash = 1;
+  viz.bass = viz.bass * 0.8 + bass * 0.2;
+
+  // The frame before, bigger and turned, a little faded: the trails.
+  context.save();
+  context.globalAlpha = 0.9;
+  context.translate(w / 2, h / 2);
+  context.rotate(0.02 * Math.sin(viz.t * 0.7) + viz.bass * 0.03);
+  const zoom = 1.03 + viz.bass * 0.06;
+  context.scale(zoom, zoom);
+  context.drawImage(canvas, -w / 2, -h / 2);
+  context.restore();
+  context.fillStyle = color("--background");
+  context.globalAlpha = 0.12;
+  context.fillRect(0, 0, w, h);
+  context.globalAlpha = 1;
+
+  // Rays from the spectrum, all round the middle, slowly turning.
+  context.strokeStyle = color("--accent");
+  context.lineWidth = 1;
+  spectrum.forEach((value, i) => {
+    if (value < 0.2) return;
+    const angle = (i / bins) * Math.PI * 2 + viz.t * 0.4;
+    const r = 10 + value * 26;
+    context.beginPath();
+    context.moveTo(w / 2 + Math.cos(angle) * 8, h / 2 + Math.sin(angle) * 8);
+    context.lineTo(w / 2 + Math.cos(angle) * r * 1.5, h / 2 + Math.sin(angle) * r);
+    context.stroke();
+  });
+
+  // The wave as a ring the bass swells.
+  context.strokeStyle = color("--primary");
+  context.lineWidth = 1.5;
+  context.beginPath();
+  wave.forEach((value, i) => {
+    const angle = (i / wave.length) * Math.PI * 2 - viz.t;
+    const r = 9 + viz.bass * 18 + value * 10;
+    const x = w / 2 + Math.cos(angle) * r * 1.5;
+    const y = h / 2 + Math.sin(angle) * r;
+    if (i) context.lineTo(x, y);
+    else context.moveTo(x, y);
+  });
+  context.closePath();
+  context.stroke();
+
+  // A flash on each beat.
+  if (viz.flash > 0.05) {
+    context.globalAlpha = viz.flash * 0.35;
+    context.fillStyle = color("--primary");
+    context.fillRect(0, 0, w, h);
+    context.globalAlpha = 1;
+    viz.flash *= 0.6;
+  }
+}
+
 // ---- drawing
 
 // The iPod is drawn once and then only its screen changes (the state arriving every second
@@ -2385,6 +2523,7 @@ function drawIpod() {
     wheelEvents(wheel);
     // Its two keys, also to tap (a phone has no keyboard).
     const keys = el("div", { class: "ipod-keys" },
+      el("button", { onclick: () => { unlockAudio(); toggleViz(); } }, "[V]VISUALIZADOR"),
       el("button", { onclick: minimizeIpod }, "[M]MINIMIZAR"),
       el("button", { onclick: closeIpod }, "[Q]CERRAR"));
     box.append(el("div", { class: "ipod-frame" }, keys, el("div", { class: "ipod-body" }, el("div", { class: "ipod-screen" }), wheel)));
@@ -2401,6 +2540,7 @@ function drawIpodScreen() {
     el("span", { class: "ipod-battery" }));
   if (ipod.error && !screen) return [header("iPod"), el("div", { class: "ipod-message" }, upper(ipod.error))];
   if (!ipod.library || !screen) return [header("iPod"), el("div", { class: "ipod-message waiting" }, upper("Leyendo la música"))];
+  if (screen.playing && ipod.viz && currentTrack()) return [header(screen.title), vizCanvas(), drawVizProgress()];
   if (screen.playing) return [header(screen.title), drawNowPlaying()];
   const rows = menuRows(screen);
   const shown = rows.slice(screen.top, screen.top + IPOD_ROWS);
@@ -2421,7 +2561,7 @@ function drawNowPlaying() {
   const volume = Date.now() < ipod.volumeUntil;
   return el("div", { class: "ipod-playing" },
     el("div", { class: "ipod-count" }, upper(`${ipod.at + 1} de ${ipod.queue.length}`)),
-    el("div", { class: "ipod-song" }, drawCover(track.album),
+    el("div", { class: "ipod-song" },
       el("div", { class: "ipod-tags" },
         el("div", { class: "ipod-song-title" }, upper(track.title)),
         el("div", {}, upper(track.artist)),
@@ -2434,18 +2574,14 @@ function drawNowPlaying() {
         el("span", { class: "ipod-elapsed" }), el("span", { class: "ipod-bar" }, el("i", { class: "ipod-done" })), el("span", { class: "ipod-left" })));
 }
 
-// The album's picture in the theme's colour, with the monitor's scanlines, like the icons: in grey
-// and multiplied by the colour (black stays black, white becomes amber). None, no box.
-function drawCover(album) {
-  const box = el("div", { class: "ipod-cover" });
-  const image = el("img", { src: coverUrl(album), alt: "" });
-  image.addEventListener("error", () => box.remove());
-  box.append(image);
-  return box;
-}
-
 // A speaker drawn like the icons: the SVG as a mask over scanlines, in the theme colour.
 const volumeIcon = (name) => el("span", { class: "ipod-icon", style: `--icon: url("/api/icon/mdi/${name}")` });
+
+// Under the visualiser, only the bar and the times.
+function drawVizProgress() {
+  return el("div", { class: "ipod-progress" },
+    el("span", { class: "ipod-elapsed" }), el("span", { class: "ipod-bar" }, el("i", { class: "ipod-done" })), el("span", { class: "ipod-left" }));
+}
 
 // Only the bar and the times, several times a second while it plays.
 function drawProgress() {
