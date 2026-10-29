@@ -248,6 +248,8 @@ música del sistema.
 
 - La rueda se gira con el dedo o el ratón para moverse por los menús (y, en Reproduciendo, para
   el volumen); el botón del centro elige; MENU vuelve atrás; ⏮ ⏭ cambian de canción y ⏯ pausa.
+  Como el de verdad, hace clic en cada paso de la rueda y en cada botón (no al llegar al final de
+  una lista).
   ⏮ (o `Z`) vuelve al principio de la canción; a la anterior, si está en sus 5 primeros segundos
   o si se pulsa dos veces seguidas.
 - Con el teclado: `↑` `↓` moverse (volumen), `→` o `↵` elegir, `←` MENU, `Espacio` pausa,

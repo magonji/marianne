@@ -2272,18 +2272,44 @@ if ("mediaSession" in navigator) {
 
 // ---- the controls
 
-// One row up or down (the wheel turned, or the arrows); on the song playing, the volume.
+// The click of the wheel: a few milliseconds of noise that dies away at once, like the iPod's
+// little speaker. Made once; each click plays it again (quietly, and only from the iPod itself).
+let clickBuffer = null;
+
+function ipodClick() {
+  unlockAudio();
+  if (!audio || audio.state !== "running") return;
+  if (!clickBuffer) {
+    const length = Math.floor(audio.sampleRate * 0.004);
+    clickBuffer = audio.createBuffer(1, length, audio.sampleRate);
+    const data = clickBuffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3;
+  }
+  const source = audio.createBufferSource();
+  const gain = audio.createGain();
+  gain.gain.value = 0.35;
+  source.buffer = clickBuffer;
+  source.connect(gain).connect(audio.destination);
+  source.start();
+}
+
+// One row up or down (the wheel turned, or the arrows); on the song playing, the volume. It clicks
+// on each step, but not against the end of a list (as on the iPod).
 function scrollIpod(step) {
   const screen = ipod.stack[ipod.stack.length - 1];
   if (!screen) return;
   if (screen.playing) {
-    player.volume = Math.max(0, Math.min(1, Math.round((player.volume + step * 0.05) * 100) / 100));
+    const volume = Math.max(0, Math.min(1, Math.round((player.volume + step * 0.05) * 100) / 100));
+    if (volume !== player.volume) ipodClick();
+    player.volume = volume;
     ipod.volumeUntil = Date.now() + 1500;
     setTimeout(drawIpod, 1550);
     return drawIpod();
   }
   const rows = menuRows(screen);
+  const before = screen.index;
   screen.index = Math.max(0, Math.min(rows.length - 1, screen.index + step));
+  if (screen.index !== before) ipodClick();
   if (screen.index < screen.top) screen.top = screen.index;
   if (screen.index >= screen.top + IPOD_ROWS) screen.top = screen.index - IPOD_ROWS + 1;
   drawIpod();
@@ -2320,6 +2346,8 @@ function ipodKey(event) {
   if (!actions[key]) return;
   event.preventDefault();
   unlockAudio();
+  // The keys that stand for the wheel's buttons click like them (the arrows click as they scroll).
+  if ([" ", "z", "x", "pageup", "pagedown", "arrowright", "enter", "arrowleft", "backspace"].includes(key)) ipodClick();
   actions[key]();
 }
 
@@ -2360,7 +2388,7 @@ function wheelEvents(wheel) {
     if (moved > 8) return;
     // A tap: which of the four buttons, by where on the ring.
     const at = angle(event);
-    unlockAudio();
+    ipodClick();
     if (at > -135 && at < -45) menuIpod();
     else if (at >= -45 && at <= 45) next();
     else if (at > 45 && at < 135) playPause();
@@ -2519,7 +2547,7 @@ function drawIpod() {
       el("span", { class: "ipod-label right" }, "▶▶|"),
       el("span", { class: "ipod-label bottom" }, "▶ ❚❚"),
       el("span", { class: "ipod-label left" }, "|◀◀"),
-      el("button", { class: "ipod-center", "aria-label": "Elegir", onclick: () => { unlockAudio(); chooseIpod(); } }));
+      el("button", { class: "ipod-center", "aria-label": "Elegir", onclick: () => { ipodClick(); chooseIpod(); } }));
     wheelEvents(wheel);
     // Its two keys, also to tap (a phone has no keyboard).
     const keys = el("div", { class: "ipod-keys" },
