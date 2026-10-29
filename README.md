@@ -261,6 +261,9 @@ música del sistema.
   las teclas `0` a `5` las ponen directamente. Se guardan en ese fichero (la música está en solo
   lectura), así que valen en todos los dispositivos. El menú Favoritas tiene las de 4 y 5
   estrellas, en orden o en aleatorio.
+- Como un iPod, recuerda en cada navegador lo que sonaba: la lista, la canción, el segundo y el
+  volumen. Al volver a abrirlo (aunque se haya recargado la página o se cerrara con `Q`) está en
+  esa canción, en pausa, donde se dejó.
 - El visualizador sigue la música en el ordenador. En el móvil solo lo aparenta, porque en el
   iPhone una canción que pasa por el analizador de audio se para al bloquear la pantalla.
 - Minimizado (con `-`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un

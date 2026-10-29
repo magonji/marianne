@@ -2094,8 +2094,12 @@ async function openIpod(name) {
     ipod.stack = [];
   }
   render();
+  if (!ipod.library) {
+    drawIpod();
+    await loadLibrary();
+  }
+  restoreIpod();
   drawIpod();
-  if (!ipod.library) await loadLibrary();
 }
 
 // Minimised, the music goes on (the status bar says what's playing, and opens it again).
@@ -2107,6 +2111,7 @@ function minimizeIpod() {
 
 // Closed for good: the music stops and nothing is left in the status bar.
 function closeIpod() {
+  rememberIpod();
   player.pause();
   player.removeAttribute("src");
   player.load();
@@ -2236,23 +2241,63 @@ function playAt(index) {
     player.pause();
     return drawIpod();
   }
+  loadTrack(index);
+  player.play().catch(() => {});
+  rememberIpod();
+  drawIpod();
+  renderStatus();
+}
+
+// A song of the queue in the player, without playing it yet.
+function loadTrack(index) {
   ipod.at = index;
   // The stars being given were for the song before.
   ipod.rating = null;
   const track = currentTrack();
   player.src = `/api/music/${ipod.source}/track/${track.id}`;
-  player.play().catch(() => {});
   if ("mediaSession" in navigator) {
-    // On a phone's lock screen and the computer's media keys.
-    // With the album's picture: on the lock screen and the system's media controls, not on the iPod.
+    // On a phone's lock screen and the computer's media keys, with the album's picture (not on
+    // the iPod's own screen).
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title, artist: track.artist, album: track.album.title,
       artwork: [{ src: new URL(coverUrl(track.album), location.href).href }],
     });
   }
-  drawIpod();
-  renderStatus();
 }
+
+// ---- what was playing, for next time
+
+// Like an iPod, it remembers in this browser what was playing (the list, the song, where in it,
+// and the volume): opened again, even after reloading the page or closing it with Q, it's on that
+// song, paused at that second.
+const IPOD_MEMORY = "marianne.ipod";
+const REMEMBER_EVERY_MS = 5000;
+let rememberedAt = 0;
+
+function rememberIpod() {
+  if (!ipod.source || ipod.at < 0) return;
+  rememberedAt = Date.now();
+  save(IPOD_MEMORY, { source: ipod.source, queue: ipod.queue, at: ipod.at, time: player.currentTime, volume: player.volume });
+}
+
+function restoreIpod() {
+  const memory = load(IPOD_MEMORY, null);
+  if (!memory || memory.source !== ipod.source || !ipod.library || ipod.at >= 0) return;
+  if (typeof memory.volume === "number") player.volume = Math.max(0, Math.min(1, memory.volume));
+  // Without the songs that are no longer in the folder.
+  const id = (memory.queue || [])[memory.at];
+  const queue = (memory.queue || []).filter((track) => ipod.library.byId.has(track));
+  const at = queue.indexOf(id);
+  if (at < 0) return;
+  ipod.queue = queue;
+  loadTrack(at);
+  const time = Number(memory.time) || 0;
+  player.addEventListener("loadedmetadata", () => { player.currentTime = Math.min(time, player.duration || time); }, { once: true });
+  ipod.stack = [rootMenu(), nowPlaying()];
+}
+
+addEventListener("pagehide", rememberIpod);
+document.addEventListener("visibilitychange", () => { if (document.hidden) rememberIpod(); });
 
 const coverUrl = (album) => `/api/music/${ipod.source}/cover/${album.id}`;
 const currentTrack = () => (ipod.library && ipod.at >= 0 ? ipod.library.byId.get(ipod.queue[ipod.at]) : null);
@@ -2282,7 +2327,12 @@ const next = () => ipod.at >= 0 && playAt(ipod.at + 1);
 player.addEventListener("ended", next);
 player.addEventListener("play", () => { drawIpod(); renderStatus(); });
 player.addEventListener("pause", () => { drawIpod(); renderStatus(); });
-player.addEventListener("timeupdate", drawProgress);
+player.addEventListener("timeupdate", () => {
+  drawProgress();
+  if (Date.now() - rememberedAt > REMEMBER_EVERY_MS) rememberIpod();
+});
+player.addEventListener("pause", rememberIpod);
+player.addEventListener("volumechange", rememberIpod);
 player.addEventListener("error", () => {
   // A file the browser can't play (a format it doesn't know): on to the next one.
   if (ipod.at < 0 || !player.getAttribute("src")) return;
