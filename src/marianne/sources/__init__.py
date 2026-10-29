@@ -81,7 +81,7 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
             raise ValueError(f"source '{name}': falta 'folder', la carpeta de la música")
         key = str(spec["key"]).lower() if spec.get("key") else None
         return MusicSource(name, folder=str(spec["folder"]), key=key, cache=spec.get("cache"),
-                           rescan_hours=float(spec.get("rescan_hours", 6)))
+                           rescan_hours=float(spec.get("rescan_hours", 6)), ratings=spec.get("ratings"))
     if kind == "demo":
         return DemoSource(name)
     raise ValueError(f"source '{name}': tipo desconocido '{kind}'")

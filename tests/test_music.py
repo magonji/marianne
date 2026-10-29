@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from aiohttp.test_utils import TestClient, TestServer
 from mutagen.easyid3 import EasyID3
@@ -83,7 +84,7 @@ def test_music_api(tmp_path):
     async def run():
         async with TestClient(TestServer(make_app(dashboard))) as client:
             layout = await (await client.get("/api/layout")).json()
-            assert layout["music"] == [{"name": "musica", "key": "i"}]
+            assert layout["music"] == [{"name": "musica", "key": "i", "ratings": False}]
             assert str(music) not in str(layout)
             await dashboard.reload()
             (button,) = dashboard.state()["panels"][0][0]["readings"]
@@ -120,5 +121,35 @@ def test_a_new_look_at_the_folder_doesnt_make_the_page_wait(tmp_path):
         await source._rescanning
         source.rescan_seconds = 3600
         assert len((await source.library())["tracks"]) == 4
+
+    asyncio.run(run())
+
+
+def test_ratings(tmp_path):
+    music = library(tmp_path)
+    ratings = tmp_path / "data" / "valoraciones.json"
+    data = {"boot": False, "sources": {"musica": {"type": "music", "folder": str(music), "ratings": str(ratings)},
+                                       "sin": {"type": "music", "folder": str(music)}},
+            "panels": [{"title": "A", "source": "musica", "items": [{"name": "iPod"}, {"source": "sin"}]}]}
+    dashboard = Dashboard(parse_config(data, None), demo=False)
+
+    async def run():
+        async with TestClient(TestServer(make_app(dashboard))) as client:
+            layout = await (await client.get("/api/layout")).json()
+            assert [m["ratings"] for m in layout["music"]] == [True, False]
+            library_data = await (await client.get("/api/music/musica/library")).json()
+            assert library_data["ratings"] == {}
+            first, second = library_data["tracks"][1][0], library_data["tracks"][2][0]
+            assert (await client.put(f"/api/music/musica/rating/{first}", json={"stars": 5})).status == 200
+            assert (await client.put(f"/api/music/musica/rating/{second}", json={"stars": 3})).status == 200
+            assert (await client.put(f"/api/music/musica/rating/{second}", json={"stars": 0})).status == 200
+            assert (await (await client.get("/api/music/musica/library")).json())["ratings"] == {first: 5}
+            assert json.loads(ratings.read_text()) == {first: 5}
+            assert (await client.put(f"/api/music/musica/rating/{first}", json={"stars": 6})).status == 400
+            assert (await client.put(f"/api/music/musica/rating/{first}", json={"stars": "x"})).status == 400
+            assert (await client.put("/api/music/musica/rating/nada", json={"stars": 2})).status == 404
+            assert (await client.put(f"/api/music/sin/rating/{first}", json={"stars": 2})).status == 403
+        # Read back on the next start
+        assert MusicSource("musica", str(music), ratings=str(ratings)).ratings == {first: 5}
 
     asyncio.run(run())

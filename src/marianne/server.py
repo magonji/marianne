@@ -185,7 +185,8 @@ class Dashboard:
             ],
             "history_key": self.config.history_key if any(panel.history for panel in self.config.panels) else None,
             "date_editors": [{"name": name, "key": source.edit_key} for name, source in self.date_stores().items()],
-            "music": [{"name": name, "key": source.key} for name, source in self.music().items()],
+            "music": [{"name": name, "key": source.key, "ratings": source.ratings_file is not None}
+                      for name, source in self.music().items()],
             "pomodoros": [
                 {"name": name, "start_key": source.start_key, "reset_key": source.reset_key}
                 for name, source in self.pomodoros().items()
@@ -349,6 +350,20 @@ def make_app(dashboard: Dashboard) -> web.Application:
         if path is None:
             raise web.HTTPNotFound()
         return web.FileResponse(path, headers={"Cache-Control": "max-age=86400"})
+
+    @routes.put("/api/music/{name}/rating/{track}")
+    async def music_rating(request: web.Request) -> web.Response:
+        source = music_source(request)
+        try:
+            stars = int((await request.json()).get("stars"))
+            source.rate(request.match_info["track"], stars)
+        except KeyError:
+            raise web.HTTPNotFound() from None
+        except PermissionError as exc:
+            return web.json_response({"error": str(exc)}, status=403)
+        except (TypeError, ValueError, AttributeError):
+            return web.json_response({"error": "de 0 a 5 estrellas"}, status=400)
+        return web.json_response({"stars": stars})
 
     @routes.get("/api/music/{name}/cover/{album}")
     async def music_cover(request: web.Request) -> web.Response:

@@ -1686,6 +1686,19 @@ a.tile.cursor > span {
   color: var(--accent);
 }
 
+.ipod-stars {
+  color: var(--accent);
+  letter-spacing: 0.15em;
+}
+
+/* Being given (the wheel turns them): in reverse video, blinking its cursor. */
+.ipod-stars.editing {
+  display: inline-block;
+  padding: 0 0.3em;
+  background: var(--primary);
+  color: var(--background);
+}
+
 .ipod-progress {
   display: flex;
   align-items: center;

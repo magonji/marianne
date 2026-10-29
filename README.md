@@ -198,7 +198,7 @@ panels:
 | `metoffice` | Avisos meteorológicos del Met Office (`region`: el código de la región, `st` para Strathclyde; opcional `area`, solo los que la nombran, p. ej. `Glasgow`), del peor al más próximo, con hasta cuándo valen; un clic abre el texto completo | sin campos; opcionales `limit` (3), `alarm_from` (`amber`: desde qué nivel van a la franja de alarma) y `none_text` |
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname` (con `title: true`, como título del panel), `platform`, `summary` (tiempo encendido, carga y temperatura en una línea; opcionales `load_above` y `temperature_above`). Opción de la fuente: `host_root` (ver Docker) |
-| `music` | Una carpeta de música para el iPod (ver abajo): `folder`, `key`, `cache`, `rescan_hours` | En un panel de acciones, un botón que abre el iPod (`name`, `icon`) |
+| `music` | Una carpeta de música para el iPod (ver abajo): `folder`, `key`, `cache`, `ratings`, `rescan_hours` | En un panel de acciones, un botón que abre el iPod (`name`, `icon`) |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`); o `calendar: true`, el mes en una columna a la izquierda, separada por una línea (encima en el móvil), con hoy en vídeo inverso y las fechas de la cuenta atrás en el color de acento; `‹` `›` o el cursor (ver Teclas) pasan a otros meses |
 
@@ -237,8 +237,8 @@ observado, lo estimado o lo previsto.
 
 ### El iPod
 
-Con una fuente `type: music` (`folder`, la carpeta; `key`, la tecla que lo abre; opcional
-`cache: data/musica.json`), un iPod classic aparece sobre la página con esa tecla, con el botón
+Con una fuente `type: music` (`folder`, la carpeta; `key`, la tecla que lo abre; opcionales
+`cache: data/musica.json` y `ratings: data/valoraciones.json`), un iPod classic aparece sobre la página con esa tecla, con el botón
 redondo del móvil o con un botón en un panel de acciones (`- source: musica`, `name: iPod`,
 `icon: mdi:ipod`). Sus menús son Artistas, Álbumes, Canciones, Aleatorio y Reproduciendo, con los
 datos de las etiquetas de cada archivo (o, si no las tiene, los nombres de las carpetas:
@@ -256,6 +256,11 @@ música del sistema.
   `Z` `X` canción anterior y siguiente; `-` lo minimiza (la música sigue) y `Q` lo cierra del
   todo (la música se para); `V` pone en su pantalla un visualizador psicodélico, como el de
   Winamp. Los tres están también como botones encima del iPod.
+- Con `ratings`, cada canción puede tener de 0 a 5 estrellas: en Reproduciendo, el botón del
+  centro (o `→`, `↵`) hace que la rueda las cambie en lugar del volumen durante unos segundos, y
+  las teclas `0` a `5` las ponen directamente. Se guardan en ese fichero (la música está en solo
+  lectura), así que valen en todos los dispositivos. El menú Favoritas tiene las de 4 y 5
+  estrellas, en orden o en aleatorio.
 - El visualizador sigue la música en el ordenador. En el móvil solo lo aparenta, porque en el
   iPhone una canción que pasa por el analizador de audio se para al bloquear la pantalla.
 - Minimizado (con `-`, su tecla o un toque fuera de él), la barra de abajo dice qué suena y un

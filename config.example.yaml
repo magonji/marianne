@@ -57,6 +57,7 @@ sources:
     folder: /music                      # en Docker se monta desde MUSIC_FOLDER (.env)
     key: i                              # la tecla I abre el iPod
     cache: data/musica.json             # opcional: guarda las etiquetas leídas (arranca antes)
+    ratings: data/valoraciones.json     # opcional: estrellas para las canciones y el menú Favoritas
     # rescan_hours: 6                   # cada cuánto vuelve a mirar la carpeta
 
   avisos:

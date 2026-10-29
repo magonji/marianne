@@ -49,13 +49,16 @@ class MusicSource(Source):
     remote = False
 
     def __init__(self, name: str, folder: str, key: str | None = None, cache: str | None = None,
-                 rescan_hours: float = 6) -> None:
+                 rescan_hours: float = 6, ratings: str | None = None) -> None:
         super().__init__(name)
         self.folder = Path(folder)
         self.key = key
         # The tags already read (by path, size and time), so a new look only reads new files.
         self.cache = Path(cache) if cache else None
         self.rescan_seconds = rescan_hours * 3600
+        # The stars given on the iPod (by song id), kept in this file: the music is read-only.
+        self.ratings_file = Path(ratings) if ratings else None
+        self.ratings: dict[str, int] = self._load_ratings()
         self.tracks: dict[str, Track] = {}
         self.albums: list[dict[str, Any]] = []
         self._order: list[str] = []
@@ -100,7 +103,34 @@ class MusicSource(Source):
                 "tracks": [[track.id, track.title, track.artist, album_index[track.album_id], track.track,
                             round(track.length)] for track in (self.tracks[id] for id in self._order)],
             }
-        return self._payload
+        # The stars apart: they change without the library changing.
+        return {**self._payload, "ratings": dict(self.ratings)} if self.ratings_file else self._payload
+
+    def rate(self, track_id: str, stars: int) -> None:
+        """0 to 5 stars for a song (0, none); saved at once."""
+        if not self.ratings_file:
+            raise PermissionError("las valoraciones no están activadas")
+        if track_id not in self.tracks:
+            raise KeyError(track_id)
+        if not 0 <= stars <= 5:
+            raise ValueError("de 0 a 5 estrellas")
+        if stars:
+            self.ratings[track_id] = stars
+        else:
+            self.ratings.pop(track_id, None)
+        self.ratings_file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.ratings_file.with_suffix(".tmp")
+        temporary.write_text(json.dumps(self.ratings, indent=1, sort_keys=True))
+        temporary.replace(self.ratings_file)
+
+    def _load_ratings(self) -> dict[str, int]:
+        if not self.ratings_file:
+            return {}
+        try:
+            data = json.loads(self.ratings_file.read_text())
+        except (OSError, ValueError):
+            return {}
+        return {str(id): int(stars) for id, stars in data.items() if isinstance(stars, int) and 1 <= stars <= 5}
 
     async def _rescan(self) -> None:
         if not self.folder.is_dir():

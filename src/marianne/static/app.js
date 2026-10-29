@@ -2115,6 +2115,7 @@ function closeIpod() {
   ipod.error = null;
   // Back to the first menu for the next time.
   ipod.stack = ipod.stack.slice(0, 1);
+  ipod.rating = null;
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
   minimizeIpod();
 }
@@ -2136,8 +2137,9 @@ async function loadLibrary() {
 // The server's short lists as albums, songs and artists that point to each other.
 function readLibrary(data) {
   const albums = data.albums.map(([id, title, artist, year]) => ({ id, title, artist, year, tracks: [] }));
+  const ratings = data.ratings || {};
   const tracks = data.tracks.map(([id, title, artist, album, number, length]) => {
-    const track = { id, title, artist, album: albums[album], number, length };
+    const track = { id, title, artist, album: albums[album], number, length, stars: ratings[id] || 0 };
     albums[album].tracks.push(track);
     return track;
   });
@@ -2152,6 +2154,8 @@ function readLibrary(data) {
     tracks: [...tracks].sort(byTitle),
     artists: [...artists.values()].sort((a, b) => sortName(a.name).localeCompare(sortName(b.name), "es")),
     byId: new Map(tracks.map((track) => [track.id, track])),
+    // Stars can be given (the source has a `ratings` file).
+    rated: Boolean(data.ratings),
   };
 }
 
@@ -2169,6 +2173,7 @@ function rootMenu() {
     { name: "Artistas", go: () => menu("Artistas", library.artists.map((artist) => ({ name: artist.name, go: () => artistMenu(artist) }))) },
     { name: "Álbumes", go: () => menu("Álbumes", library.albums.map((album) => ({ name: album.title, go: () => albumMenu(album) }))) },
     { name: "Canciones", go: () => songsMenu("Canciones", library.tracks) },
+    { name: "Favoritas", go: favoritesMenu, when: () => library.rated },
     { name: "Aleatorio", play: () => playQueue(shuffled(library.tracks.map((track) => track.id)), 0) },
     { name: "Reproduciendo", go: () => nowPlaying(), when: () => ipod.at >= 0 },
   ]);
@@ -2183,6 +2188,20 @@ function artistMenu(artist) {
 }
 
 const albumMenu = (album) => songsMenu(album.title, album.tracks);
+
+// The songs with 4 or 5 stars: the 5 first. All of them in order or shuffled, or one to start.
+const FAVORITE_STARS = 4;
+
+function favoritesMenu() {
+  const favorites = ipod.library.tracks.filter((track) => track.stars >= FAVORITE_STARS)
+    .sort((a, b) => b.stars - a.stars);
+  const ids = favorites.map((track) => track.id);
+  if (!favorites.length) return menu("Favoritas", [{ name: "Sin favoritas: dales 4 o 5 estrellas", play: () => {} }]);
+  return menu("Favoritas", [
+    { name: "Aleatorio", play: () => playQueue(shuffled([...ids]), 0) },
+    ...favorites.map((track, index) => ({ name: `${"★".repeat(track.stars)} ${track.title}`, play: () => playQueue(ids, index) })),
+  ]);
+}
 
 function songsMenu(title, tracks) {
   const ids = tracks.map((track) => track.id);
@@ -2218,6 +2237,8 @@ function playAt(index) {
     return drawIpod();
   }
   ipod.at = index;
+  // The stars being given were for the song before.
+  ipod.rating = null;
   const track = currentTrack();
   player.src = `/api/music/${ipod.source}/track/${track.id}`;
   player.play().catch(() => {});
@@ -2276,6 +2297,56 @@ if ("mediaSession" in navigator) {
   navigator.mediaSession.setActionHandler("nexttrack", next);
 }
 
+// ---- the stars
+
+// As on the iPod: on the song playing, the centre button turns the wheel into the stars (instead
+// of the volume) for a moment; 0 to 5 on the keyboard give them at once. Saved on the server, so
+// every device has them.
+const RATING_MS = 3000;
+let ratingTimer = 0;
+
+function startRating() {
+  const track = currentTrack();
+  if (!track) return;
+  ipod.rating = track.id;
+  keepRating();
+  drawIpod();
+}
+
+function keepRating() {
+  clearTimeout(ratingTimer);
+  ratingTimer = setTimeout(() => { ipod.rating = null; drawIpod(); }, RATING_MS);
+}
+
+function stopRating() {
+  clearTimeout(ratingTimer);
+  ipod.rating = null;
+  drawIpod();
+}
+
+async function rateTrack(track, stars) {
+  const before = track.stars;
+  track.stars = Math.max(0, Math.min(5, stars));
+  drawIpod();
+  try {
+    const response = await fetch(`/api/music/${ipod.source}/rating/${track.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stars: track.stars }),
+    });
+    if (!response.ok) throw new Error();
+  } catch {
+    track.stars = before;
+    ipod.error = "No se han podido guardar las estrellas";
+    setTimeout(() => { ipod.error = null; drawIpod(); }, 2000);
+    drawIpod();
+  }
+}
+
+function drawStars(track) {
+  const editing = ipod.rating === track.id;
+  return el("div", { class: `ipod-stars${editing ? " editing" : ""}` },
+    "★".repeat(track.stars) + "☆".repeat(5 - track.stars));
+}
+
 // ---- the controls
 
 // The click of the wheel: a few milliseconds of noise that dies away at once, like the iPod's
@@ -2304,6 +2375,16 @@ function ipodClick() {
 function scrollIpod(step) {
   const screen = ipod.stack[ipod.stack.length - 1];
   if (!screen) return;
+  if (screen.playing && ipod.rating) {
+    const track = currentTrack();
+    const stars = Math.max(0, Math.min(5, track.stars + step));
+    keepRating();
+    if (stars !== track.stars) {
+      ipodClick();
+      rateTrack(track, stars);
+    }
+    return;
+  }
   if (screen.playing) {
     const volume = Math.max(0, Math.min(1, Math.round((player.volume + step * 0.05) * 100) / 100));
     if (volume !== player.volume) ipodClick();
@@ -2323,6 +2404,8 @@ function scrollIpod(step) {
 
 function chooseIpod() {
   const screen = ipod.stack[ipod.stack.length - 1];
+  // On the song playing: the stars (with ratings), or else play and pause.
+  if (screen && screen.playing && ipod.library && ipod.library.rated && currentTrack()) return ipod.rating ? stopRating() : startRating();
   if (!screen || screen.playing) return playPause();
   const row = menuRows(screen)[screen.index];
   if (!row) return;
@@ -2349,6 +2432,15 @@ function ipodKey(event) {
   // Its own key minimises it too.
   const own = (layout.music || []).find((music) => music.name === ipod.source);
   if (own && own.key === key) actions[key] = minimizeIpod;
+  // 0 to 5: the stars of the song playing.
+  const track = currentTrack();
+  if (/^[0-5]$/.test(key) && track && ipod.library.rated) {
+    actions[key] = () => {
+      rateTrack(track, Number(key));
+      ipod.rating = track.id;
+      keepRating();
+    };
+  }
   if (!actions[key]) return;
   event.preventDefault();
   unlockAudio();
@@ -2599,7 +2691,8 @@ function drawNowPlaying() {
       el("div", { class: "ipod-tags" },
         el("div", { class: "ipod-song-title" }, upper(track.title)),
         el("div", {}, upper(track.artist)),
-        el("div", { class: "dim" }, upper(track.album.title)))),
+        el("div", { class: "dim" }, upper(track.album.title)),
+        ipod.library.rated ? drawStars(track) : "")),
     ipod.error ? el("div", { class: "ipod-message" }, upper(ipod.error)) : "",
     volume
       ? el("div", { class: "ipod-progress volume" }, volumeIcon("volume-low"),
