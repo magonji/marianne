@@ -74,8 +74,10 @@ class HomeAssistantSource(Source):
         self._alert_since: dict[tuple[str, str | None], datetime] = {}
         # Home Assistant's latitude and longitude, for the Sun's path (asked once).
         self._place: tuple[float, float] | None = None
-        # When each device last really changed a value (see _last_seen), by device, for a few minutes.
-        self._seen: tuple[float, dict[str, datetime]] = (0.0, {})
+        # When each device last really changed a value (see _last_seen): by device, that time and
+        # when it was looked up, each kept a few minutes on its own. (One time for all of them let a
+        # panel polled often keep another's devices from ever being looked up again.)
+        self._seen: dict[str, tuple[float, datetime]] = {}
         # The `history` command's rows, by items, for a few minutes.
         self._history_rows: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
@@ -292,10 +294,13 @@ class HomeAssistantSource(Source):
                   if "stale_after" in part and "entity" in part}
         if not wanted:
             return {}
-        cached_at, cached = self._seen
-        if time.monotonic() - cached_at < HISTORY_CACHE_SECONDS and wanted <= cached.keys():
+        fresh = {name for name, (looked_at, _) in self._seen.items()
+                 if time.monotonic() - looked_at < HISTORY_CACHE_SECONDS}
+        cached = {name: when for name, (_, when) in self._seen.items()}
+        missing = wanted - fresh
+        if not missing:
             return cached
-        entities = sorted(entity for entity in states if device(entity) in wanted)
+        entities = sorted(entity for entity in states if device(entity) in missing)
         now = datetime.now().astimezone()
         start = now - timedelta(days=SEEN_DAYS)
         try:
@@ -309,16 +314,17 @@ class HomeAssistantSource(Source):
         except httpx.HTTPError:
             return cached  # Without history, the last report is all there is.
         # A device with no change at all in those days: before the start (mark_stale says "más de").
-        found: dict[str, datetime] = {name: datetime.min.replace(tzinfo=now.tzinfo) for name in wanted}
+        found: dict[str, datetime] = {name: datetime.min.replace(tzinfo=now.tzinfo) for name in missing}
         for series in response.json():
             if not series:
                 continue
             changed = last_change(series)
             name = device(series[0]["entity_id"])
-            if changed is not None and changed > found[name]:
+            if name in found and changed is not None and changed > found[name]:
                 found[name] = changed
-        self._seen = (time.monotonic(), {**cached, **found})
-        return self._seen[1]
+        looked_at = time.monotonic()
+        self._seen.update({name: (looked_at, when) for name, when in found.items()})
+        return {name: when for name, (_, when) in self._seen.items()}
 
     async def _statistics(self, queries: list[dict[str, Any]]) -> list[dict[str, list[dict[str, Any]]]] | None:
         """Answers to `recorder/statistics_during_period` queries, over one WebSocket (the statistics
@@ -608,8 +614,14 @@ def week_totals(part: dict[str, Any], rows: list[dict[str, Any]], days: list) ->
 
 
 def device(entity: str) -> str:
-    """The device an entity belongs to, by its id: sensor.0x00124b…_temperature → 0x00124b…."""
-    return entity.split(".", 1)[-1].rsplit("_", 1)[0]
+    """The device an entity belongs to, by its id: sensor.0x00124b…_temperature → 0x00124b… (a
+    Zigbee address, also before _soil_moisture); otherwise all but its last word."""
+    name = entity.split(".", 1)[-1]
+    zigbee = ZIGBEE_ADDRESS.match(name)
+    return zigbee.group(0) if zigbee else name.rsplit("_", 1)[0]
+
+
+ZIGBEE_ADDRESS = re.compile(r"0x[0-9a-f]{16}")
 
 
 def last_change(series: list[dict[str, Any]]) -> datetime | None:
