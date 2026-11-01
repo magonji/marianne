@@ -13,7 +13,8 @@ PLAN = {"size": [10, 8], "rooms": [{"name": "Salón", "rect": [0, 0, 6, 8], "lab
                                    {"name": "Pasillo", "points": [[6, 0], [10, 0], [10, 8]]},
                                    {"name": "", "rect": [6, 6, 1, 1]}],
         "outside": [0, 8, 10, 2],
-        "doors": [{"name": "Entrada", "from": [6, 4], "to": [6, 6], "swing": -1, "leaves": 2}]}
+        "doors": [{"name": "Entrada", "from": [6, 4], "to": [6, 6], "swing": -1, "leaves": 2}],
+        "lines": [{"points": [[0, 1], [6, 1]]}]}
 
 
 def test_plan_is_read_and_sent_with_the_layout():
@@ -21,6 +22,7 @@ def test_plan_is_read_and_sent_with_the_layout():
     assert panel.plan["size"] == [10.0, 8.0]
     assert panel.plan["rooms"][2] == {"name": "Pasillo", "points": [[6.0, 0.0], [10.0, 0.0], [10.0, 8.0]]}
     assert panel.plan["outside"] == [0.0, 8.0, 10.0, 2.0]
+    assert panel.plan["lines"] == [{"points": [[0.0, 1.0], [6.0, 1.0]]}]
     assert panel.plan["doors"] == [{"name": "Entrada", "from": [6.0, 4.0], "to": [6.0, 6.0], "swing": -1, "leaves": 2}]
     door = config(PLAN, [{"entity": "binary_sensor.puerta", "door": "Entrada"}]).panels[0]
     assert door.items[0]["door"] == "Entrada"
@@ -42,6 +44,7 @@ def test_plan_is_read_and_sent_with_the_layout():
     ({**PLAN, "doors": [{"name": "Entrada", "from": [0, 0], "to": [1, 1], "swing": 2}]}, []),
     ({**PLAN, "doors": [{"name": "Entrada", "from": [0, 0], "to": [1, 1], "leaves": 3}]}, []),
     ({**PLAN, "doors": [{"from": [0, 0], "to": [1, 1]}]}, []),
+    ({**PLAN, "lines": [{"points": [[0, 1]]}]}, []),
 ])
 def test_wrong_plans(plan, items):
     with pytest.raises(ConfigError):

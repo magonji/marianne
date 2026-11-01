@@ -82,7 +82,8 @@ def test_vacuum_rows_robot_and_map():
             {"entity": "sensor.robot_last_end", "name": "Última", "format": "auto", "also": "sensor.robot_area",
              "notice_within": 30, "notice_text": "Limpieza terminada"}]},
         {"title": "Casa", "plan": PLAN, "items": [
-            {"entity": "sensor.robot_room", "robot": "vacuum.robot", "charging": "binary_sensor.robot_charging", "map": {"Hall": "Vestíbulo"}}]},
+            {"entity": "sensor.robot_room", "robot": "vacuum.robot", "charging": "binary_sensor.robot_charging",
+             "last_clean": "sensor.robot_last_end", "map": {"Hall": "Vestíbulo"}}]},
     ]
     calls = []
     board = dashboard(panels, calls)
@@ -95,7 +96,8 @@ def test_vacuum_rows_robot_and_map():
             assert last["notice"] == "Limpieza terminada · 38.2 m²"
             (robot,) = board.state()["panels"][1][0]["readings"]
             assert robot["value"] == "Vestíbulo"
-            assert robot["robot"] == {"state": "cleaning", "rooms": ["Salón", "Vestíbulo"], "charging": True}
+            assert robot["robot"] == {"state": "cleaning", "rooms": ["Salón", "Vestíbulo"], "charging": True,
+                                      "last_clean": next(state["state"] for state in STATES if state["entity_id"] == "sensor.robot_last_end")}
             layout = await (await client.get("/api/layout")).json()
             assert layout["panels"][1]["plan"]["map"]["rotate"] == 90
             picture = await client.get("/api/plan/1/map")
@@ -172,6 +174,7 @@ def test_only_the_path_is_kept():
     assert where == [65.0, 155.0]
     path = Image.open(io.BytesIO(content)).convert("RGBA")
     assert path.getpixel((60, 100))[3] == 255          # on the path
-    assert path.getpixel((60, 102))[3] == 255          # a little thicker
+    assert path.getpixel((60, 101))[3] == 255          # a little thicker
+    assert path.getpixel((60, 103))[3] == 0            # but thin
     assert path.getpixel((60, 150))[3] == 0            # the room, a close blue: gone
     assert path.getpixel((150, 250))[3] == 0           # around the house

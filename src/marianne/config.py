@@ -206,6 +206,13 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
         plan["rooms"].append(shape)
     if raw.get("outside") is not None:
         plan["outside"] = numbers(raw["outside"], 4, "'outside'")
+    # `lines`: dotted lines that don't close (the edge of the kitchen counters), each its `points`.
+    plan["lines"] = []
+    for line in raw.get("lines") or []:
+        points = [numbers(point, 2, "cada punto de 'lines'") for point in (line or {}).get("points") or []]
+        if len(points) < 2:
+            raise ConfigError(problem + "cada línea de 'lines' necesita al menos 2 puntos")
+        plan["lines"].append({"points": points})
     if raw.get("map") is not None:
         # A robot vacuum's path on the plan, taken from its map (an image entity): `box`, the house
         # in that picture in pixels [left, top, right, bottom]; `rotate` it 0, 90, 180 or 270

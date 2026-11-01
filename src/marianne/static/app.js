@@ -154,6 +154,19 @@ function unseenAlerts() {
   return allAlerts().filter(({ panel, part }) => !seen.has(alertKey(panel, part)));
 }
 
+// A robot vacuum's last path stays on the plan, after it's back, until V marks it as seen: by
+// when that cleaning began, so the next one shows again. Kept apart from the alerts (which are
+// forgotten as they clear).
+let seenPaths = new Set(load("marianne.paths", []));
+
+function pendingPaths() {
+  return panelViews().flatMap(({ panel, data }) => data.readings
+    .filter((reading) => reading.robot && reading.robot.last_clean && !seenPaths.has(pathKey(panel, reading)))
+    .map((reading) => pathKey(panel, reading)));
+}
+
+const pathKey = (panel, reading) => `${panel.title}|${reading.robot.last_clean}`;
+
 // An alert that has cleared is forgotten, so it warns again if it comes back.
 function forgetCleared() {
   const active = new Set(allAlerts().map(({ panel, part }) => alertKey(panel, part)));
@@ -194,7 +207,7 @@ function renderFab() {
   // In red, what has something to see: the alerts, a window with an alert not seen yet.
   const fresh = new Set(panelViews().filter(({ panel, data }) => panel.key && data.readings.some((reading) =>
     parts(reading).some((part) => part.alert && !seen.has(alertKey(panel, part))))).map(({ panel }) => panel.key));
-  if (state && unseenAlerts().length) fresh.add("v");
+  if (state && (unseenAlerts().length || pendingPaths().length)) fresh.add("v");
   const commands = [...helpCommands().filter((command) => !command.touch), { key: "f1", icon: "help", short: "Ayuda" }];
   const buttons = commands.map(({ key, icon: name, short }, index) =>
     el("button", { class: `fab-item${fresh.has(key) ? " alerting" : ""}`, "data-key": key, style: `--i: ${commands.length - 1 - index}`, title: short },
@@ -1227,7 +1240,9 @@ function drawPlan(panel, readings, index) {
   // and itself where it is.
   const robot = readings.find((reading) => reading.robot);
   const out = robot && ROBOT_OUT.has(robot.robot.state);
-  if (panel.plan.map && (out || !robot)) drawPlanPath(svg, panel.plan.map, index);
+  // Its path while it's out, and after, until it's marked as seen (V).
+  const pending = robot && robot.robot.last_clean && !seenPaths.has(pathKey(panel, robot));
+  if (panel.plan.map && (out || pending || !robot)) drawPlanPath(svg, panel.plan.map, index);
   const visited = new Set(out ? robot.robot.rooms : []);
   const roomBoxes = new Map();
 
@@ -1265,6 +1280,9 @@ function drawPlan(panel, readings, index) {
     if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
   }
 
+  for (const line of panel.plan.lines || []) {
+    add("polyline", { class: "plan-line", points: line.points.map((point) => point.join(",")).join(" ") });
+  }
   for (const door of panel.plan.doors || []) drawDoor(add, door, readings.find((reading) => reading.door === door.name));
   // The machines that are on (the washing machine while it washes), where they are.
   for (const reading of readings) {
@@ -1580,7 +1598,7 @@ function renderStatus() {
   const key = (letter, text, flashing = false) =>
     el("button", { class: flashing ? "flashing" : null, "data-key": letter }, `[${KEY_NAMES[letter] || letter.toUpperCase()}]${text}`);
   // What needs seeing stays in the bar: an alert not yet seen, a pop-up panel with one.
-  if (state && unseenAlerts().length) items.push(key("v", "VISTO", true));
+  if (state && (unseenAlerts().length || pendingPaths().length)) items.push(key("v", "VISTO", true));
   for (const view of panelViews()) {
     if (!view.panel.key) continue;
     const fresh = view.data.readings.some((reading) => parts(reading).some((part) => part.alert && !seen.has(alertKey(view.panel, part))));
@@ -1652,6 +1670,9 @@ function togglePopup(index) {
 function acknowledge() {
   for (const { panel, part } of allAlerts()) seen.add(alertKey(panel, part));
   save("marianne.seen", [...seen]);
+  // Only the last few: one per vacuum is enough.
+  seenPaths = new Set([...seenPaths, ...pendingPaths()].slice(-20));
+  save("marianne.paths", [...seenPaths]);
   render();
 }
 

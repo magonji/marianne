@@ -269,6 +269,10 @@ class HomeAssistantSource(Source):
         # `charging`: a sensor that's on while it charges (binary_sensor.…_charging).
         charging = (states.get(item["charging"]) or {}).get("state") == "on" if item.get("charging") else False
         robot: dict[str, Any] = {"state": state, "rooms": [], "charging": charging}
+        # `last_clean`: when its last cleaning began (sensor.…_last_clean_begin): its path stays on
+        # the plan, after it's back, until it's marked as seen.
+        if item.get("last_clean"):
+            robot["last_clean"] = (states.get(item["last_clean"]) or {}).get("state")
         if state not in ROBOT_OUT:
             return robot
         since = parse_timestamp(vacuum.get("last_changed", ""))
@@ -754,7 +758,7 @@ def colour_mask(image: Image.Image, color: list[int], tolerance: int) -> Image.I
 def path_only(image: Image.Image, color: list[int], tolerance: int = 6) -> bytes:
     """The path alone: the pixels within `tolerance` of its colour (on a Roborock, light blue: 147,
     194, 238), in white on transparent and a little thicker."""
-    mask = colour_mask(image, color, tolerance).filter(ImageFilter.MaxFilter(5))
+    mask = colour_mask(image, color, tolerance).filter(ImageFilter.MaxFilter(3))
     path = Image.new("RGBA", image.size, (255, 255, 255, 0))
     path.putalpha(mask)
     out = io.BytesIO()

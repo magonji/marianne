@@ -325,6 +325,9 @@ centro, y `furniture: true` para un mueble (una isla de cocina), que se dibuja m
 Un elemento con `appliance: {kind: washer, at: [x, y]}` (la lavadora, con `on_states`) se dibuja
 ahí mientras está encendido, con el tambor girando (quieto en pausa).
 
+Con `lines`, líneas de puntos que no cierran (el borde de los muebles de la cocina): cada una
+con sus `points`.
+
 Con `doors`, las puertas: `name`, los extremos de su hueco (`from`, la bisagra, y `to`), hacia
 qué lado se abren (`swing`: 1 o -1) y `leaves: 2` si es doble. Un elemento con `door: <nombre>`
 (un sensor de contacto) la abre en el plano mientras está abierta, y en rojo si tiene alerta
@@ -427,7 +430,7 @@ título.
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 | `room` | En un panel con `plan`: la habitación donde va su valor, o `fuera` |
 | `door` | En un panel con `plan`, en un sensor de contacto: la puerta del plano que abre (ver arriba) |
-| `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), las que ya ha recorrido se iluminan y, con el `map` del plano, se ve su recorrido. Con `charging` (su `binary_sensor.…_charging`), un rayo junto a ella mientras carga |
+| `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), las que ya ha recorrido se iluminan y, con el `map` del plano, se ve su recorrido. Con `charging` (su `binary_sensor.…_charging`), un rayo junto a ella mientras carga; con `last_clean` (su `sensor.…_last_clean_begin`), su recorrido se queda en el plano al volver a la base, hasta pulsar `V` |
 | `vacuum`, `command` | En un panel de acciones, un botón para un robot aspirador: `command` es `start`, `pause`, `stop`, `return_to_base`, `locate` o `clean_rooms`, con `rooms`: una lista de los números de sus habitaciones (los da el servicio `roborock.get_maps`), o sus nombres con su número (`Cocina: 21`) para elegir al pulsar cuáles y cuántas pasadas (de 1 a 3: los números marcan las habitaciones, `P` las pasadas, `↵` limpia y `Q` vuelve). Mientras limpia, los botones de `start` y `clean_rooms` pasan a Pausar, y en pausa, a Reanudar |
 
 ## Desarrollo
