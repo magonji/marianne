@@ -1253,18 +1253,19 @@ function mapToPlan(map, [px, py]) {
   return [X + W / 2 + dx * Math.cos(angle) - dy * Math.sin(angle), Y + H / 2 + dx * Math.sin(angle) + dy * Math.cos(angle)];
 }
 
-// A little robot vacuum seen from above: the round body, its laser turret, the button and the two
-// side brushes. "out" in the accent colour, "home" dimmer, "stuck" blinking in red.
+// A little robot vacuum seen from above: the round body, its laser turret, the button and its side
+// brush (on the left). "out" in the accent colour, "home" dimmer, "stuck" blinking in red.
+const VACUUM_SIZE = 0.5; // of the first drawing, which was too big
+
 function drawVacuum(add, [x, y], mode) {
   const look = `plan-vacuum plan-vacuum-${mode}`;
-  add("circle", { class: `${look} plan-vacuum-body`, cx: x, cy: y, r: 2.3 });
-  add("circle", { class: `${look} plan-vacuum-ring`, cx: x, cy: y, r: 1.55 });
-  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y - 0.75, r: 0.7 });
-  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y + 1.05, r: 0.28 });
-  for (const side of [-1, 1]) {
-    add("line", { class: `${look} plan-vacuum-brush`, x1: x + side * 1.7, y1: y - 1.6, x2: x + side * 2.9, y2: y - 2.5 });
-    add("line", { class: `${look} plan-vacuum-brush`, x1: x + side * 1.7, y1: y - 1.6, x2: x + side * 1.9, y2: y - 3.0 });
-  }
+  const k = VACUUM_SIZE;
+  add("circle", { class: `${look} plan-vacuum-body`, cx: x, cy: y, r: 2.3 * k });
+  add("circle", { class: `${look} plan-vacuum-ring`, cx: x, cy: y, r: 1.55 * k });
+  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y - 0.75 * k, r: 0.7 * k });
+  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y + 1.05 * k, r: 0.28 * k });
+  add("line", { class: `${look} plan-vacuum-brush`, x1: x - 1.7 * k, y1: y - 1.6 * k, x2: x - 2.9 * k, y2: y - 2.5 * k });
+  add("line", { class: `${look} plan-vacuum-brush`, x1: x - 1.7 * k, y1: y - 1.6 * k, x2: x - 1.9 * k, y2: y - 3.0 * k });
 }
 
 // The robot vacuum's path, out of its own map (the server keeps only the path, cut to the house's
