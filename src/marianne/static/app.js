@@ -1150,10 +1150,11 @@ function drawPlan(panel, readings, index) {
     if (!byRoom.has(reading.room)) byRoom.set(reading.room, []);
     byRoom.get(reading.room).push(reading);
   }
-  if (panel.plan.map) drawPlanMap(svg, panel.plan.map, index);
-  // A robot vacuum: the rooms it has been through this time, faintly lit, and itself where it is.
+  // A robot vacuum: the rooms it has been through this time, faintly lit, its path while it's out,
+  // and itself where it is.
   const robot = readings.find((reading) => reading.robot);
   const out = robot && ROBOT_OUT.has(robot.robot.state);
+  if (panel.plan.map && (out || !robot)) drawPlanPath(svg, panel.plan.map, index);
   const visited = new Set(out ? robot.robot.rooms : []);
   const roomBoxes = new Map();
 
@@ -1220,24 +1221,12 @@ function drawPlan(panel, readings, index) {
 
 // The vacuum's states in which it's away from its base, as the server says (ROBOT_OUT there).
 const ROBOT_OUT = new Set(["cleaning", "returning", "paused", "error", "idle"]);
-// The map's picture, asked for again every half minute (the server keeps it 20 s).
-const PLAN_MAP_MS = 30000;
-const planMapSizes = new Map();
+// Its path, asked for again every 20 seconds (as often as the server reads the map).
+const PLAN_PATH_MS = 20000;
 
-// A picture under the plan (the robot vacuum's own map): its `box` (the house in it, in pixels)
-// turned `rotate` degrees and stretched over `to` on the plan, in the theme's colour and faint: an
-// SVG filter makes each pixel the colour, as opaque as the pixel is dark (the white around the
-// house disappears, its walls come out strongest).
-function drawPlanMap(svg, map, index) {
-  const url = `/api/plan/${index}/map?v=${Math.floor(Date.now() / PLAN_MAP_MS)}`;
-  const size = planMapSizes.get(index);
-  if (!size || size.url !== url) {
-    // Its size first (an SVG image needs it); drawn on the next turn, a second later.
-    const probe = new Image();
-    probe.onload = () => planMapSizes.set(index, { url, width: probe.naturalWidth, height: probe.naturalHeight });
-    probe.src = url;
-    if (!size) return;
-  }
+// The robot vacuum's path, out of its own map (the server keeps only the path, cut to the house's
+// `box`): that box turned `rotate` degrees and stretched over `to` on the plan, in the accent colour.
+function drawPlanPath(svg, map, index) {
   const ns = "http://www.w3.org/2000/svg";
   const make = (tag, attrs) => {
     const node = document.createElementNS(ns, tag);
@@ -1249,21 +1238,18 @@ function drawPlanMap(svg, map, index) {
   const turned = map.rotate % 180 !== 0;
   const sx = (turned ? H : W) / (x1 - x0), sy = (turned ? W : H) / (y1 - y0);
   const transform = `translate(${X + W / 2} ${Y + H / 2}) rotate(${map.rotate}) scale(${sx} ${sy}) translate(${-(x0 + x1) / 2} ${-(y0 + y1) / 2})`;
-  const clip = `plan-map-${index}`;
-  const tint = `plan-tint-${index}`;
-  const defs = make("defs", {});
-  const clipPath = make("clipPath", { id: clip });
-  clipPath.append(make("rect", { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }));
-  const filter = make("filter", { id: tint, "color-interpolation-filters": "sRGB" });
-  // Alpha = its own alpha - luminance (the map is transparent around the house, and white there
-  // too would vanish); then the colour, only where there's alpha.
+  const tint = `plan-path-${index}`;
+  const filter = make("filter", { id: tint, x: 0, y: 0, width: 1, height: 1 });
   filter.append(
-    make("feColorMatrix", { type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 1 0", result: "dark" }),
-    make("feFlood", { "flood-color": getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() }),
-    make("feComposite", { in2: "dark", operator: "in" }));
-  defs.append(clipPath, filter);
-  const group = make("g", { class: "plan-map", transform, opacity: map.opacity, "clip-path": `url(#${clip})` });
-  group.append(make("image", { href: (size && size.url) || url, x: 0, y: 0, width: size.width, height: size.height, filter: `url(#${tint})` }));
+    make("feFlood", { "flood-color": getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() }),
+    make("feComposite", { in2: "SourceAlpha", operator: "in" }));
+  const defs = make("defs", {});
+  defs.append(filter);
+  const group = make("g", { class: "plan-path", transform });
+  group.append(make("image", {
+    href: `/api/plan/${index}/map?v=${Math.floor(Date.now() / PLAN_PATH_MS)}`,
+    x: x0, y: y0, width: x1 - x0, height: y1 - y0, preserveAspectRatio: "none", filter: `url(#${tint})`,
+  }));
   svg.append(defs, group);
 }
 

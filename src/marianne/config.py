@@ -159,6 +159,8 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
 
 
 OUTSIDE = "fuera"
+# The colour of the path on a Roborock's map in Home Assistant.
+ROBOROCK_PATH = [147, 194, 238]
 VACUUM_COMMANDS = {"start", "pause", "stop", "return_to_base", "locate", "clean_rooms"}
 
 
@@ -196,9 +198,10 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
     if raw.get("outside") is not None:
         plan["outside"] = numbers(raw["outside"], 4, "'outside'")
     if raw.get("map") is not None:
-        # A picture under the plan (a robot vacuum's map): `box`, the house in it in pixels
-        # [left, top, right, bottom]; `rotate` it 0, 90, 180 or 270 degrees; `to`, where that box
-        # goes on the plan [x, y, width, height].
+        # A robot vacuum's path on the plan, taken from its map (an image entity): `box`, the house
+        # in that picture in pixels [left, top, right, bottom]; `rotate` it 0, 90, 180 or 270
+        # degrees; `to`, where that box goes on the plan [x, y, width, height]; `path_color`, the
+        # colour of the path in the picture.
         picture = raw["map"]
         if not str(picture.get("entity", "")).startswith(("image.", "camera.")):
             raise ConfigError(problem + "'map' necesita 'entity', una entidad image.… o camera.…")
@@ -207,7 +210,7 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
             raise ConfigError(problem + "'rotate' debe ser 0, 90, 180 o 270")
         plan["map"] = {"entity": str(picture["entity"]), "box": numbers(picture.get("box"), 4, "el 'box' de 'map'"),
                        "rotate": rotate, "to": numbers(picture.get("to") or [0, 0, *plan["size"]], 4, "el 'to' de 'map'"),
-                       "opacity": float(picture.get("opacity", 0.35))}
+                       "path_color": [int(value) for value in numbers(picture.get("path_color", ROBOROCK_PATH), 3, "'path_color'")]}
     names = {room["name"] for room in plan["rooms"] if room["name"]} | ({OUTSIDE} if "outside" in plan else set())
     for item in items:
         if "room" in item and item["room"] not in names:

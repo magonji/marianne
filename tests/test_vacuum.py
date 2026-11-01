@@ -2,13 +2,32 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
+import io
+
 import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from marianne.config import ConfigError, parse_config
 from marianne.server import Dashboard, make_app
-from marianne.sources.homeassistant import HomeAssistantSource
+from PIL import Image
+
+from marianne.sources.homeassistant import HomeAssistantSource, path_only
+
+PATH = (147, 194, 238, 255)
+
+
+def robot_map() -> bytes:
+    """A map 200 × 300: transparent, a room in a close light blue, and the path across it."""
+    image = Image.new("RGBA", (200, 300), (0, 0, 0, 0))
+    for x in range(20, 120):
+        for y in range(40, 200):
+            image.putpixel((x, y), (133, 193, 233, 255))
+    for x in range(30, 100):
+        image.putpixel((x, 100), PATH)
+    out = io.BytesIO()
+    image.save(out, "PNG")
+    return out.getvalue()
 
 NOW = datetime.now(timezone.utc)
 STATES = [
@@ -35,7 +54,7 @@ def dashboard(panels, calls):
             return httpx.Response(200, json=[[{"entity_id": "sensor.robot_room", "state": "Salón"},
                                               {"state": "Hall"}, {"state": "unavailable"}, {"state": "Salón"}]])
         if request.url.path.startswith("/api/image_proxy/"):
-            return httpx.Response(200, content=b"\x89PNG mapa", headers={"content-type": "image/png"})
+            return httpx.Response(200, content=robot_map(), headers={"content-type": "image/jpeg"})
         return httpx.Response(200, json=STATES)
 
     board = Dashboard(config(panels), demo=False)
@@ -73,7 +92,9 @@ def test_vacuum_rows_robot_and_map():
             layout = await (await client.get("/api/layout")).json()
             assert layout["panels"][1]["plan"]["map"]["rotate"] == 90
             picture = await client.get("/api/plan/1/map")
-            assert picture.status == 200 and await picture.read() == b"\x89PNG mapa"
+            assert picture.status == 200 and picture.content_type == "image/png"
+            path = Image.open(io.BytesIO(await picture.read()))
+            assert path.size == (100, 200)  # cut to the box
             assert (await client.get("/api/plan/0/map")).status == 404
 
     asyncio.run(run())
@@ -120,3 +141,11 @@ def test_wrong_vacuum_buttons(item):
 def test_wrong_plan_maps(map_):
     with pytest.raises(ConfigError):
         config([{"title": "Casa", "plan": {**PLAN, "map": map_}, "items": []}])
+
+
+def test_only_the_path_is_kept():
+    path = Image.open(io.BytesIO(path_only(robot_map(), [0, 0, 200, 300], list(PATH[:3])))).convert("RGBA")
+    assert path.getpixel((60, 100))[3] == 255          # on the path
+    assert path.getpixel((60, 102))[3] == 255          # a little thicker
+    assert path.getpixel((60, 150))[3] == 0            # the room, a close blue: gone
+    assert path.getpixel((150, 250))[3] == 0           # around the house

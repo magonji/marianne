@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import re
 import ssl
@@ -12,6 +13,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+from PIL import Image, ImageChops, ImageFilter
 import websockets
 
 from ..sun import sun_path
@@ -85,7 +87,7 @@ class HomeAssistantSource(Source):
         # when it was looked up, each kept a few minutes on its own. (One time for all of them let a
         # panel polled often keep another's devices from ever being looked up again.)
         self._seen: dict[str, tuple[float, datetime]] = {}
-        self._images: dict[str, tuple[float, bytes, str]] = {}
+        self._images: dict[str, tuple[float, bytes]] = {}
         self._robot_rooms: dict[tuple[str, str], tuple[float, list[str]]] = {}
         # The `history` command's rows, by items, for a few minutes.
         self._history_rows: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -217,16 +219,17 @@ class HomeAssistantSource(Source):
         response.raise_for_status()
         self._fetched_at = 0.0
 
-    async def image(self, entity: str) -> tuple[bytes, str]:
-        """An image entity's picture (a robot vacuum's map), kept a few seconds: every open page
+    async def vacuum_path(self, entity: str, box: list[float], color: list[int]) -> bytes:
+        """The path a robot vacuum has drawn on its map (an image entity), without the rest of the
+        map: the pixels of its colour, inside `box`, as a PNG. Kept a few seconds: every open page
         asks for it."""
         cached = self._images.get(entity)
         if cached and time.monotonic() - cached[0] < IMAGE_CACHE_SECONDS:
-            return cached[1], cached[2]
+            return cached[1]
         response = await self.client.get(f"/api/image_proxy/{entity}")
         response.raise_for_status()
-        picture = (response.content, response.headers.get("content-type", "image/png").split(";")[0])
-        self._images[entity] = (time.monotonic(), *picture)
+        picture = await asyncio.to_thread(path_only, response.content, box, color)
+        self._images[entity] = (time.monotonic(), picture)
         return picture
 
     async def _robot(self, item: dict[str, Any], states: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -695,6 +698,25 @@ def week_totals(part: dict[str, Any], rows: list[dict[str, Any]], days: list) ->
     by_day = {row_time(row).date(): row["change"] * part.get("scale", 1)
               for row in rows if row.get("change") is not None and row["change"] >= 0}
     return [{"total": format_number(by_day[day], part.get("decimals", 1))} if day in by_day else None for day in days]
+
+
+def path_only(content: bytes, box: list[float], color: list[int], tolerance: int = 6) -> bytes:
+    """From a robot vacuum's map, its path alone: the pixels within `tolerance` of its colour (on a
+    Roborock, light blue: 147, 194, 238), in white on transparent and a little thicker, cut to the
+    house's `box` [left, top, right, bottom]."""
+    image = Image.open(io.BytesIO(content)).convert("RGBA")
+    left, top, right, bottom = (int(round(value)) for value in box)
+    image = image.crop((left, top, right, bottom))
+    red, green, blue, alpha = image.split()
+    near = [ImageChops.difference(channel, Image.new("L", image.size, value)).point(lambda v: 255 if v <= tolerance else 0)
+            for channel, value in zip((red, green, blue), color)]
+    mask = ImageChops.multiply(ImageChops.multiply(near[0], near[1]), ImageChops.multiply(near[2], alpha))
+    mask = mask.filter(ImageFilter.MaxFilter(5))
+    path = Image.new("RGBA", image.size, (255, 255, 255, 0))
+    path.putalpha(mask)
+    out = io.BytesIO()
+    path.save(out, "PNG", optimize=True)
+    return out.getvalue()
 
 
 def recent_notice(item: dict[str, Any], state: dict[str, Any], reading: Reading, now: datetime) -> str | None:

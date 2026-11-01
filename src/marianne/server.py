@@ -379,21 +379,21 @@ def make_app(dashboard: Dashboard) -> web.Application:
 
     @routes.get("/api/plan/{panel}/map")
     async def plan_map(request: web.Request) -> web.Response:
-        # The picture under a plan (a robot vacuum's map), from Home Assistant: the page never
-        # sees its address or token.
+        # A robot vacuum's path for a plan, out of its map in Home Assistant: the page never sees
+        # Home Assistant's address or token.
         try:
             panel = dashboard.config.panels[int(request.match_info["panel"])]
         except (ValueError, IndexError):
             raise web.HTTPNotFound() from None
         picture = (panel.plan or {}).get("map")
         source = dashboard.sources.get(panel.source)
-        if not picture or not hasattr(source, "image"):
+        if not picture or not hasattr(source, "vacuum_path"):
             raise web.HTTPNotFound()
         try:
-            data, mime = await source.image(picture["entity"])
+            data = await source.vacuum_path(picture["entity"], picture["box"], picture["path_color"])
         except Exception:
             raise web.HTTPBadGateway() from None
-        return web.Response(body=data, content_type=mime, headers={"Cache-Control": "no-cache"})
+        return web.Response(body=data, content_type="image/png", headers={"Cache-Control": "no-cache"})
 
     @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:
