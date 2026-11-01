@@ -237,7 +237,9 @@ class HomeAssistantSource(Source):
         through since it set off, from the history of its room sensor, with the names of the plan."""
         vacuum = states.get(item["robot"]) or {}
         state = vacuum.get("state", "unavailable")
-        robot: dict[str, Any] = {"state": state, "rooms": []}
+        # `charging`: a sensor that's on while it charges (binary_sensor.…_charging).
+        charging = (states.get(item["charging"]) or {}).get("state") == "on" if item.get("charging") else False
+        robot: dict[str, Any] = {"state": state, "rooms": [], "charging": charging}
         if state not in ROBOT_OUT:
             return robot
         since = parse_timestamp(vacuum.get("last_changed", ""))

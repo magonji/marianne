@@ -1197,7 +1197,7 @@ function drawPlan(panel, readings, index) {
     const spot = panel.plan.map ? robotSpot(panel.plan.map, index, out) : null;
     const room = out && roomBoxes.get(robot.value);
     const at = spot || (room ? [room.x + room.w - 3, room.y + room.h - 3] : null);
-    if (at) drawVacuum(add, at, robot.robot.state === "error" ? "stuck" : out ? "out" : "home");
+    if (at) drawVacuum(add, at, robot.robot.state === "error" ? "stuck" : out ? "out" : "home", robot.robot.charging);
   }
 
   // Outside: the first value large (the temperature, with its trend, max and min), the rest in rows.
@@ -1257,7 +1257,7 @@ function mapToPlan(map, [px, py]) {
 // brush (on the left). "out" in the accent colour, "home" dimmer, "stuck" blinking in red.
 const VACUUM_SIZE = 0.5; // of the first drawing, which was too big
 
-function drawVacuum(add, [x, y], mode) {
+function drawVacuum(add, [x, y], mode, charging = false) {
   const look = `plan-vacuum plan-vacuum-${mode}`;
   const k = VACUUM_SIZE;
   add("circle", { class: `${look} plan-vacuum-body`, cx: x, cy: y, r: 2.3 * k });
@@ -1266,6 +1266,12 @@ function drawVacuum(add, [x, y], mode) {
   add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y + 1.05 * k, r: 0.28 * k });
   add("line", { class: `${look} plan-vacuum-brush`, x1: x - 1.7 * k, y1: y - 1.6 * k, x2: x - 2.9 * k, y2: y - 2.5 * k });
   add("line", { class: `${look} plan-vacuum-brush`, x1: x - 1.7 * k, y1: y - 1.6 * k, x2: x - 1.9 * k, y2: y - 3.0 * k });
+  if (charging) {
+    // A lightning bolt beside it, slowly fading in and out, while it charges.
+    const bolt = [[0.55, 0], [-0.25, 1.15], [0.15, 1.15], [-0.4, 2.3], [0.6, 0.9], [0.15, 0.9], [0.55, 0]]
+      .map(([bx, by]) => `${(x + 2.3 * k + 0.7 + bx * 1.5).toFixed(2)},${(y - 1.7 + by * 1.5).toFixed(2)}`).join(" ");
+    add("polygon", { class: "plan-vacuum-charging", points: bolt });
+  }
 }
 
 // The robot vacuum's path, out of its own map (the server keeps only the path, cut to the house's

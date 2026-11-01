@@ -36,6 +36,7 @@ NOW = datetime.now(timezone.utc)
 STATES = [
     {"entity_id": "vacuum.robot", "state": "cleaning", "attributes": {}, "last_changed": (NOW - timedelta(minutes=20)).isoformat()},
     {"entity_id": "sensor.robot_room", "state": "Hall", "attributes": {}},
+    {"entity_id": "binary_sensor.robot_charging", "state": "on", "attributes": {}},
     {"entity_id": "sensor.robot_error", "state": "none", "attributes": {}},
     {"entity_id": "sensor.robot_error2", "state": "wheels_jammed", "attributes": {},
      "last_changed": (NOW - timedelta(minutes=1)).isoformat()},
@@ -78,7 +79,7 @@ def test_vacuum_rows_robot_and_map():
             {"entity": "sensor.robot_last_end", "name": "Última", "format": "auto", "also": "sensor.robot_area",
              "notice_within": 30, "notice_text": "Limpieza terminada"}]},
         {"title": "Casa", "plan": PLAN, "items": [
-            {"entity": "sensor.robot_room", "robot": "vacuum.robot", "map": {"Hall": "Vestíbulo"}}]},
+            {"entity": "sensor.robot_room", "robot": "vacuum.robot", "charging": "binary_sensor.robot_charging", "map": {"Hall": "Vestíbulo"}}]},
     ]
     calls = []
     board = dashboard(panels, calls)
@@ -91,7 +92,7 @@ def test_vacuum_rows_robot_and_map():
             assert last["notice"] == "Limpieza terminada · 38.2 m²"
             (robot,) = board.state()["panels"][1][0]["readings"]
             assert robot["value"] == "Vestíbulo"
-            assert robot["robot"] == {"state": "cleaning", "rooms": ["Salón", "Vestíbulo"]}
+            assert robot["robot"] == {"state": "cleaning", "rooms": ["Salón", "Vestíbulo"], "charging": True}
             layout = await (await client.get("/api/layout")).json()
             assert layout["panels"][1]["plan"]["map"]["rotate"] == 90
             picture = await client.get("/api/plan/1/map")

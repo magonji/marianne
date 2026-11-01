@@ -411,7 +411,7 @@ título.
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 | `room` | En un panel con `plan`: la habitación donde va su valor, o `fuera` |
-| `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), las que ya ha recorrido se iluminan y, con el `map` del plano, se ve su recorrido |
+| `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), las que ya ha recorrido se iluminan y, con el `map` del plano, se ve su recorrido. Con `charging` (su `binary_sensor.…_charging`), un rayo junto a ella mientras carga |
 | `vacuum`, `command` | En un panel de acciones, un botón para un robot aspirador: `command` es `start`, `pause`, `stop`, `return_to_base`, `locate` o `clean_rooms` (con `rooms`, los números de sus habitaciones, que da el servicio `roborock.get_maps`) |
 
 ## Desarrollo
