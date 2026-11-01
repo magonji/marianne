@@ -1599,6 +1599,49 @@ a.tile.cursor > span {
   stroke-dasharray: 3 2;
 }
 
+/* A room with a light on, faintly lit; its bulbs, lit or not (a tap switches them). */
+.plan-lit {
+  fill: var(--accent);
+  fill-opacity: 0.08;
+  stroke: none;
+  pointer-events: none;
+}
+
+.plan-bulb {
+  cursor: pointer;
+}
+
+.plan-bulb-hit {
+  fill: transparent;
+}
+
+.plan-bulb-glass,
+.plan-bulb-base,
+.plan-bulb-ray {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-bulb.on .plan-bulb-glass {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.plan-bulb.on .plan-bulb-base,
+.plan-bulb.on .plan-bulb-ray {
+  stroke: var(--accent);
+}
+
+.plan-bulb.gone .plan-bulb-glass {
+  stroke-dasharray: 1 1;
+}
+
+.plan-bulb:hover .plan-bulb-glass {
+  stroke: var(--foreground);
+}
+
 /* A dotted line on the plan (the edge of the kitchen counters). */
 .plan-line {
   fill: none;

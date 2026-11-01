@@ -322,6 +322,10 @@ plan:
 
 Una habitación puede llevar `label: [x, y]`, dónde van su nombre y sus valores si no es en el
 centro, y `furniture: true` para un mueble (una isla de cocina), que se dibuja más tenue.
+Un elemento con `light: <habitación>` (una `light.…` o un enchufe `switch.…`) es una bombilla en
+esa habitación, encendida o apagada; la habitación se ilumina un poco si alguna está encendida, y
+un toque en la bombilla la enciende o la apaga (solo las de la configuración). Van en fila desde
+la esquina de arriba a la derecha, o desde `lights: [x, y]` de la habitación.
 Un elemento con `appliance: {kind: washer, at: [x, y]}` (la lavadora, con `on_states`) se dibuja
 ahí mientras está encendido, con el tambor girando (quieto en pausa).
 
@@ -429,6 +433,7 @@ título.
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 | `room` | En un panel con `plan`: la habitación donde va su valor, o `fuera` |
+| `light` | En un panel con `plan`: la habitación de una luz (ver arriba) |
 | `door` | En un panel con `plan`, en un sensor de contacto: la puerta del plano que abre (ver arriba) |
 | `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), las que ya ha recorrido se iluminan y, con el `map` del plano, se ve su recorrido. Con `charging` (su `binary_sensor.…_charging`), un rayo junto a ella mientras carga; con `last_clean` (su `sensor.…_last_clean_begin`), su recorrido se queda en el plano al volver a la base, hasta pulsar `V` |
 | `vacuum`, `command` | En un panel de acciones, un botón para un robot aspirador: `command` es `start`, `pause`, `stop`, `return_to_base`, `locate` o `clean_rooms`, con `rooms`: una lista de los números de sus habitaciones (los da el servicio `roborock.get_maps`), o sus nombres con su número (`Cocina: 21`) para elegir al pulsar cuáles y cuántas pasadas (de 1 a 3: los números marcan las habitaciones, `P` las pasadas, `↵` limpia y `Q` vuelve). Mientras limpia, los botones de `start` y `clean_rooms` pasan a Pausar, y en pausa, a Reanudar |

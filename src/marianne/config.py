@@ -201,6 +201,9 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
         # furniture (a kitchen island), drawn fainter than the walls.
         if room.get("label") is not None:
             shape["label"] = numbers(room["label"], 2, f"el 'label' de '{name}'")
+        # `lights`: where its first light bulb goes (the rest, leftwards), if not its top right corner.
+        if room.get("lights") is not None:
+            shape["lights"] = numbers(room["lights"], 2, f"el 'lights' de '{name}'")
         if room.get("furniture"):
             shape["furniture"] = True
         plan["rooms"].append(shape)
@@ -247,6 +250,8 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
     for item in items:
         if "room" in item and item["room"] not in names:
             raise ConfigError(problem + f"no hay ninguna habitación '{item['room']}' (son {', '.join(sorted(names))})")
+        if "light" in item and item["light"] not in names:
+            raise ConfigError(problem + f"no hay ninguna habitación '{item['light']}' para la luz (son {', '.join(sorted(names))})")
         if "door" in item and item["door"] not in doors:
             raise ConfigError(problem + f"no hay ninguna puerta '{item['door']}' (son {', '.join(sorted(doors)) or 'ninguna'})")
         if "appliance" in item:

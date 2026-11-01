@@ -1263,7 +1263,7 @@ function drawPlan(panel, readings, index) {
       box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
     }
     if (!room.name) continue;
-    roomBoxes.set(room.name, box);
+    roomBoxes.set(room.name, { ...box, lights: room.lights });
     // Its name and values in its middle, or at its `label` (away from an island, say).
     const [cx, cy] = room.label || [box.x + box.w / 2, box.y + box.h / 2];
     // A text too wide for a narrow room (the pantry) gets smaller: VT323 is about half as wide as high.
@@ -1280,6 +1280,7 @@ function drawPlan(panel, readings, index) {
     if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
   }
 
+  drawLights(add, readings.filter((reading) => reading.light), roomBoxes, index);
   for (const line of panel.plan.lines || []) {
     add("polyline", { class: "plan-line", points: line.points.map((point) => point.join(",")).join(" ") });
   }
@@ -1321,6 +1322,59 @@ function drawPlan(panel, readings, index) {
 const ROBOT_OUT = new Set(["cleaning", "returning", "paused", "error", "idle"]);
 // Its path, asked for again every 20 seconds (as often as the server reads the map).
 const PLAN_PATH_MS = 20000;
+
+// The lights of each room: a small bulb each, in a row from the room's top right corner, lit
+// (filled, with rays) or not; a room with one on glows faintly. A tap switches it.
+function drawLights(add, lights, roomBoxes, index) {
+  const byRoom = new Map();
+  lights.forEach((reading, light) => {
+    if (!byRoom.has(reading.light)) byRoom.set(reading.light, []);
+    byRoom.get(reading.light).push({ reading, light });
+  });
+  for (const [room, list] of byRoom) {
+    const box = roomBoxes.get(room);
+    if (!box) continue;
+    if (list.some(({ reading }) => reading.switch)) {
+      add("rect", { class: "plan-lit", x: box.x, y: box.y, width: box.w, height: box.h });
+    }
+    list.forEach(({ reading, light }, n) => {
+      const [x0, y] = box.lights || [box.x + box.w - 1.9, box.y + 2.1];
+      const x = x0 - n * 2.6;
+      const on = Boolean(reading.switch);
+      const group = add("g", { class: `plan-bulb${on ? " on" : ""}${reading.offline || reading.error ? " gone" : ""}` });
+      const part = (tag, attrs) => {
+        const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+        for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+        group.append(node);
+      };
+      part("title", {});
+      group.lastChild.textContent = `${reading.label}: ${on ? "encendida" : "apagada"} (toca para cambiar)`;
+      // A larger invisible circle, easier to hit with a finger.
+      part("circle", { class: "plan-bulb-hit", cx: x, cy: y, r: 1.3 });
+      part("circle", { class: "plan-bulb-glass", cx: x, cy: y - 0.15, r: 0.65 });
+      part("rect", { class: "plan-bulb-base", x: x - 0.32, y: y + 0.5, width: 0.64, height: 0.42 });
+      if (on) {
+        for (const angle of [-150, -90, -30, 30, 150]) {
+          const a = (angle * Math.PI) / 180;
+          part("line", { class: "plan-bulb-ray", x1: x + Math.cos(a) * 0.95, y1: y - 0.15 + Math.sin(a) * 0.95,
+            x2: x + Math.cos(a) * 1.35, y2: y - 0.15 + Math.sin(a) * 1.35 });
+        }
+      }
+      group.addEventListener("click", () => toggleLight(index, light, reading.label));
+    });
+  }
+}
+
+async function toggleLight(panel, light, name) {
+  try {
+    const response = await fetch(`/api/light/${panel}/${light}`, { method: "POST" });
+    const answer = await response.json().catch(() => ({}));
+    if (response.ok) update(answer);
+    else showToast(`✖ ${name} · no se ha podido cambiar${answer.error ? `: ${answer.error}` : ""}`);
+  } catch {
+    showToast(`✖ ${name} · sin conexión con Marianne`);
+  }
+}
 
 // A washing machine seen from the front: its body, the controls along the top and the round door,
 // with the drum turning inside (stopped while it's paused).

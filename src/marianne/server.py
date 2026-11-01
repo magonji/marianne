@@ -333,6 +333,26 @@ def make_app(dashboard: Dashboard) -> web.Application:
         await dashboard.reload(item["source"])
         return web.json_response({**dashboard.state(), "done": done})
 
+    @routes.post("/api/light/{panel}/{light}")
+    async def toggle_light(request: web.Request) -> web.Response:
+        # Only a light of a plan, by its place among the panel's lights: the page can't name any other.
+        try:
+            panel = dashboard.config.panels[int(request.match_info["panel"])]
+            item = [item for item in panel.items if item.get("light")][int(request.match_info["light"])]
+        except (ValueError, IndexError):
+            raise web.HTTPNotFound() from None
+        source = dashboard.sources.get(item.get("source", ""))
+        if not hasattr(source, "toggle"):
+            raise web.HTTPNotFound()
+        try:
+            await source.toggle(item["entity"])
+        except httpx.HTTPStatusError as exc:
+            return web.json_response({"error": f"Home Assistant responde {exc.response.status_code}"}, status=502)
+        except Exception as exc:
+            return web.json_response({"error": f"sin respuesta de Home Assistant ({type(exc).__name__})"}, status=502)
+        await dashboard.reload(item["source"])
+        return web.json_response(dashboard.state())
+
     def music_source(request: web.Request) -> MusicSource:
         source = dashboard.music().get(request.match_info["name"])
         if source is None:

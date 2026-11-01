@@ -52,6 +52,8 @@ class Reading:
     room: str | None = None
     # The door of the house plan it opens and closes (`door:`): a contact sensor.
     door: str | None = None
+    # The room of the house plan a light is in (`light:`): drawn there as a bulb, lit or not.
+    light: str | None = None
     # A machine drawn on the house plan while it's on (`appliance:`): its kind and where.
     appliance: dict[str, Any] | None = None
     # A robot vacuum on the house plan: its state, and the rooms it has been through this time

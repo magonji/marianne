@@ -143,6 +143,7 @@ class HomeAssistantSource(Source):
             reading.hidden = bool(item.get("hidden"))
             reading.room = item.get("room")
             reading.door = item.get("door")
+            reading.light = item.get("light")
             reading.appliance = item.get("appliance")
             reading.sun = item.get("sun")
             if reading.sun and path is not None:
@@ -211,6 +212,12 @@ class HomeAssistantSource(Source):
         response = await self.client.post("/api/services/script/turn_on", json={"entity_id": script})
         response.raise_for_status()
         self._fetched_at = 0.0  # its state (running) on the next look
+
+    async def toggle(self, entity: str) -> None:
+        """Switch a light (or a plug) on or off: only those of the config (the server checks)."""
+        response = await self.client.post("/api/services/homeassistant/toggle", json={"entity_id": entity})
+        response.raise_for_status()
+        self._fetched_at = 0.0
 
     async def run_vacuum(self, item: dict[str, Any], chosen: dict[str, Any] | None = None) -> str:
         """A robot vacuum's command of the config: start, pause, back to its base, find it, or clean
