@@ -159,6 +159,8 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
 
 
 OUTSIDE = "fuera"
+# What an item can draw on the plan while it's on (`appliance: {kind, at}`).
+APPLIANCES = {"washer"}
 # The colour of the path on a Roborock's map in Home Assistant.
 ROBOROCK_PATH = [147, 194, 238]
 VACUUM_COMMANDS = {"start", "pause", "stop", "return_to_base", "locate", "clean_rooms"}
@@ -187,14 +189,21 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
     for room in raw.get("rooms") or []:
         name = str(room.get("name") or "")
         if "rect" in room:
-            plan["rooms"].append({"name": name, "rect": numbers(room["rect"], 4, f"el 'rect' de '{name}'")})
+            shape: dict[str, Any] = {"name": name, "rect": numbers(room["rect"], 4, f"el 'rect' de '{name}'")}
         elif "points" in room:
             points = [numbers(point, 2, f"cada punto de '{name}'") for point in room["points"] or []]
             if len(points) < 3:
                 raise ConfigError(problem + f"'{name}' necesita al menos 3 puntos")
-            plan["rooms"].append({"name": name, "points": points})
+            shape = {"name": name, "points": points}
         else:
             raise ConfigError(problem + f"'{name}' necesita 'rect' o 'points'")
+        # `label`: where its name (and values) go, if not in its middle; `furniture`: a piece of
+        # furniture (a kitchen island), drawn fainter than the walls.
+        if room.get("label") is not None:
+            shape["label"] = numbers(room["label"], 2, f"el 'label' de '{name}'")
+        if room.get("furniture"):
+            shape["furniture"] = True
+        plan["rooms"].append(shape)
     if raw.get("outside") is not None:
         plan["outside"] = numbers(raw["outside"], 4, "'outside'")
     if raw.get("map") is not None:
@@ -211,10 +220,33 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
         plan["map"] = {"entity": str(picture["entity"]), "box": numbers(picture.get("box"), 4, "el 'box' de 'map'"),
                        "rotate": rotate, "to": numbers(picture.get("to") or [0, 0, *plan["size"]], 4, "el 'to' de 'map'"),
                        "path_color": [int(value) for value in numbers(picture.get("path_color", ROBOROCK_PATH), 3, "'path_color'")]}
+    # Doors: a `name`, the two ends of its gap (`from`, `to`) and to which side it opens (`swing`,
+    # 1 or -1). An item with `door: <name>` (a contact sensor) opens it, red if it's alerting.
+    plan["doors"] = []
+    for door in raw.get("doors") or []:
+        name = str(door.get("name") or "")
+        if not name:
+            raise ConfigError(problem + "cada puerta necesita 'name'")
+        swing = int(door.get("swing", 1))
+        if swing not in (1, -1):
+            raise ConfigError(problem + f"el 'swing' de '{name}' debe ser 1 o -1")
+        leaves = int(door.get("leaves", 1))
+        if leaves not in (1, 2):
+            raise ConfigError(problem + f"las 'leaves' de '{name}' deben ser 1 o 2 (puerta doble)")
+        plan["doors"].append({"name": name, "from": numbers(door.get("from"), 2, f"el 'from' de '{name}'"),
+                              "to": numbers(door.get("to"), 2, f"el 'to' de '{name}'"), "swing": swing, "leaves": leaves})
     names = {room["name"] for room in plan["rooms"] if room["name"]} | ({OUTSIDE} if "outside" in plan else set())
+    doors = {door["name"] for door in plan["doors"]}
     for item in items:
         if "room" in item and item["room"] not in names:
             raise ConfigError(problem + f"no hay ninguna habitación '{item['room']}' (son {', '.join(sorted(names))})")
+        if "door" in item and item["door"] not in doors:
+            raise ConfigError(problem + f"no hay ninguna puerta '{item['door']}' (son {', '.join(sorted(doors)) or 'ninguna'})")
+        if "appliance" in item:
+            appliance = item["appliance"] if isinstance(item["appliance"], dict) else {}
+            if appliance.get("kind") not in APPLIANCES:
+                raise ConfigError(problem + f"'appliance' necesita 'kind', uno de {', '.join(sorted(APPLIANCES))}")
+            item["appliance"] = {"kind": appliance["kind"], "at": numbers(appliance.get("at"), 2, "el 'at' de 'appliance'")}
     return plan
 
 
@@ -258,7 +290,8 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
             if item.get("command") not in VACUUM_COMMANDS:
                 raise ConfigError(f"Panel '{title}': 'command' de la aspiradora debe ser uno de {', '.join(sorted(VACUUM_COMMANDS))}")
             if item["command"] == "clean_rooms" and not item.get("rooms"):
-                raise ConfigError(f"Panel '{title}': 'clean_rooms' necesita 'rooms', los números de las habitaciones")
+                raise ConfigError(f"Panel '{title}': 'clean_rooms' necesita 'rooms': los números de las habitaciones, "
+                                  "o sus nombres con su número para elegirlas al pulsar")
         if "script" in item and not str(item["script"]).startswith("script."):
             raise ConfigError(f"Panel '{title}': 'script' debe ser un script de Home Assistant (script.…), no '{item['script']}'")
         if kind == "monitor" and "url" not in item:

@@ -50,6 +50,10 @@ class Reading:
     link: str | None = None
     # The room of the house plan its value goes in (`room:`), or "fuera".
     room: str | None = None
+    # The door of the house plan it opens and closes (`door:`): a contact sensor.
+    door: str | None = None
+    # A machine drawn on the house plan while it's on (`appliance:`): its kind and where.
+    appliance: dict[str, Any] | None = None
     # A robot vacuum on the house plan: its state, and the rooms it has been through this time
     # (the reading's value is the room it's in now).
     robot: dict[str, Any] | None = None

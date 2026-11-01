@@ -316,18 +316,22 @@ def make_app(dashboard: Dashboard) -> web.Application:
         source = dashboard.sources.get(item.get("source", ""))
         if not (item.get("script") or item.get("vacuum")) or not hasattr(source, "run_script"):
             raise web.HTTPNotFound()
+        done = None
         try:
             if item.get("vacuum"):
-                await source.run_vacuum(item)
+                chosen = await request.json() if request.can_read_body else None
+                done = await source.run_vacuum(item, chosen if isinstance(chosen, dict) else None)
             else:
                 await source.run_script(item["script"])
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
         except httpx.HTTPStatusError as exc:
             # Never the error's text: it has Home Assistant's address.
             return web.json_response({"error": f"Home Assistant responde {exc.response.status_code}"}, status=502)
         except Exception as exc:
             return web.json_response({"error": f"sin respuesta de Home Assistant ({type(exc).__name__})"}, status=502)
         await dashboard.reload(item["source"])
-        return web.json_response(dashboard.state())
+        return web.json_response({**dashboard.state(), "done": done})
 
     def music_source(request: web.Request) -> MusicSource:
         source = dashboard.music().get(request.match_info["name"])

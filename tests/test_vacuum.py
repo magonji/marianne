@@ -57,6 +57,9 @@ def dashboard(panels, calls):
         if request.url.path.startswith("/api/history/period"):
             return httpx.Response(200, json=[[{"entity_id": "sensor.robot_room", "state": "Salón"},
                                               {"state": "Hall"}, {"state": "unavailable"}, {"state": "Salón"}]])
+        if request.url.path.startswith("/api/states/"):
+            entity = request.url.path.rsplit("/", 1)[1]
+            return httpx.Response(200, json=next(state for state in STATES if state["entity_id"] == entity))
         if request.url.path.startswith("/api/image_proxy/"):
             return httpx.Response(200, content=robot_map(), headers={"content-type": "image/jpeg"})
         return httpx.Response(200, json=STATES)
@@ -106,26 +109,41 @@ def test_vacuum_rows_robot_and_map():
     asyncio.run(run())
 
 
-def test_vacuum_buttons_run_only_their_command():
+def test_vacuum_buttons(monkeypatch):
     panels = [{"title": "Acciones", "actions": True, "items": [
         {"vacuum": "vacuum.robot", "command": "return_to_base", "name": "A la base"},
-        {"vacuum": "vacuum.robot", "command": "clean_rooms", "rooms": [21, "22"], "name": "Cocina y salón"}]}]
+        {"vacuum": "vacuum.robot", "command": "clean_rooms", "rooms": {"Cocina": 21, "Salón": 22}, "name": "Limpiar habitación"},
+        {"vacuum": "vacuum.robot", "command": "start", "name": "Limpiar casa"}]}]
     calls = []
     board = dashboard(panels, calls)
+    vacuum = STATES[0]
 
     async def run():
         async with TestClient(TestServer(make_app(board))) as client:
             await board.reload()
-            buttons = board.state()["panels"][0][0]["readings"]
-            assert [(b["label"], b["icon"]) for b in buttons] == [("A la base", "mdi:home-import-outline"),
-                                                                ("Cocina y salón", "mdi:robot-vacuum")]
+            back, rooms, house = board.state()["panels"][0][0]["readings"]
+            assert back["icon"] == "mdi:home-import-outline" and back["detail"] == {"command": "return_to_base"}
+            assert rooms["detail"] == {"command": "clean_rooms", "rooms": ["Cocina", "Salón"]}
+            assert house["value"] == "cleaning"
+
+            # While it cleans, the cleaning buttons pause it; paused, they go on with it
+            answer = await (await client.post("/api/script/0/2")).json()
+            assert answer["done"] == "pause" and calls.pop() == ("/api/services/vacuum/pause", {"entity_id": "vacuum.robot"})
+            monkeypatch.setitem(vacuum, "state", "paused")
+            assert (await (await client.post("/api/script/0/1", json={"rooms": ["Cocina"]})).json())["done"] == "start"
+            assert calls.pop() == ("/api/services/vacuum/start", {"entity_id": "vacuum.robot"})
+
+            # At its base: the rooms chosen on the page, by their names, and how many passes
+            monkeypatch.setitem(vacuum, "state", "docked")
+            response = await client.post("/api/script/0/1", json={"rooms": ["Salón", "Cocina"], "repeat": 2})
+            assert (await response.json())["done"] == "clean_rooms"
+            assert calls.pop() == ("/api/services/vacuum/send_command", {
+                "entity_id": "vacuum.robot", "command": "app_segment_clean", "params": [{"segments": [22, 21], "repeat": 2}]})
+            # Only rooms of the config, and 1 to 3 passes
+            for wrong in ({"rooms": ["Garaje"]}, {"rooms": []}, {"rooms": ["Cocina"], "repeat": 9}, None):
+                assert (await client.post("/api/script/0/1", json=wrong)).status == 400
             assert (await client.post("/api/script/0/0")).status == 200
-            assert (await client.post("/api/script/0/1")).status == 200
-            assert calls == [
-                ("/api/services/vacuum/return_to_base", {"entity_id": "vacuum.robot"}),
-                ("/api/services/vacuum/send_command", {"entity_id": "vacuum.robot", "command": "app_segment_clean",
-                                                       "params": [{"segments": [21, 22], "repeat": 1}]}),
-            ]
+            assert calls == [("/api/services/vacuum/return_to_base", {"entity_id": "vacuum.robot"})]
 
     asyncio.run(run())
 

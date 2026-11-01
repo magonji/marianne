@@ -128,15 +128,22 @@ class HomeAssistantSource(Source):
                                         error=not script, icon=item.get("icon", "mdi:script-text")))
                 continue
             if item.get("vacuum"):
-                # A button for a robot vacuum: what it does, and the vacuum's state.
+                # A button for a robot vacuum: what it does, and the vacuum's state (the page turns a
+                # cleaning button into "pause" while it cleans), and the rooms it can choose from.
                 vacuum = states.get(item["vacuum"]) or {}
+                detail = {"command": item["command"]}
+                if isinstance(item.get("rooms"), dict):
+                    detail["rooms"] = list(item["rooms"])
                 readings.append(Reading(item.get("name") or item["command"], vacuum.get("state", "NO EXISTE"),
-                                        error=not vacuum, icon=item.get("icon", VACUUM_ICONS.get(item["command"], "mdi:robot-vacuum"))))
+                                        error=not vacuum, detail=detail,
+                                        icon=item.get("icon", VACUUM_ICONS.get(item["command"], "mdi:robot-vacuum"))))
                 continue
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
             reading.room = item.get("room")
+            reading.door = item.get("door")
+            reading.appliance = item.get("appliance")
             reading.sun = item.get("sun")
             if reading.sun and path is not None:
                 # The diagram's curves go with the first of its readings.
@@ -205,19 +212,41 @@ class HomeAssistantSource(Source):
         response.raise_for_status()
         self._fetched_at = 0.0  # its state (running) on the next look
 
-    async def run_vacuum(self, item: dict[str, Any]) -> None:
+    async def run_vacuum(self, item: dict[str, Any], chosen: dict[str, Any] | None = None) -> str:
         """A robot vacuum's command of the config: start, pause, back to its base, find it, or clean
-        some rooms (`rooms:`, the vacuum's own ids for them; see roborock.get_maps)."""
+        some rooms (`rooms:`, the vacuum's own ids for them; see roborock.get_maps). A button that
+        starts a cleaning pauses it while it cleans, and goes on with it while it's paused. With
+        `rooms` as names and ids, the page chooses some of them (`chosen`: their names and how many
+        passes, 1 to 3); only those of the config. Says what it did."""
         entity = item["vacuum"]
-        if item["command"] == "clean_rooms":
+        command = item["command"]
+        if command in ("start", "clean_rooms"):
+            response = await self.client.get(f"/api/states/{entity}")
+            state = response.json().get("state") if response.status_code == 200 else None
+            if state == "cleaning":
+                command = "pause"
+            elif state == "paused":
+                command = "start"  # goes on with the cleaning it paused
+        if command == "clean_rooms":
+            rooms = item["rooms"]
+            if isinstance(rooms, dict):
+                names = list((chosen or {}).get("rooms") or [])
+                if not names or any(name not in rooms for name in names):
+                    raise ValueError("elige habitaciones de la lista")
+                segments = [int(rooms[name]) for name in names]
+                repeat = int((chosen or {}).get("repeat", 1))
+                if not 1 <= repeat <= 3:
+                    raise ValueError("de 1 a 3 pasadas")
+            else:
+                segments, repeat = [int(room) for room in rooms], int(item.get("repeat", 1))
             service = "send_command"
-            body = {"entity_id": entity, "command": "app_segment_clean",
-                    "params": [{"segments": [int(room) for room in item["rooms"]], "repeat": int(item.get("repeat", 1))}]}
+            body = {"entity_id": entity, "command": "app_segment_clean", "params": [{"segments": segments, "repeat": repeat}]}
         else:
-            service, body = item["command"], {"entity_id": entity}
+            service, body = command, {"entity_id": entity}
         response = await self.client.post(f"/api/services/vacuum/{service}", json=body)
         response.raise_for_status()
         self._fetched_at = 0.0
+        return command
 
     async def vacuum_map(self, entity: str, box: list[float], color: list[int]) -> tuple[bytes, list[float] | None]:
         """From a robot vacuum's map (an image entity): the path it has drawn, without the rest of the

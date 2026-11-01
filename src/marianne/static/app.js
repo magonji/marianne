@@ -541,24 +541,91 @@ function drawIcons(panel, readings) {
 // their number (1 to 9) while the window is open.
 // The server only runs the scripts of the config, by their place in the panel.
 function drawActions(view, readings) {
+  if (roomChooser && roomChooser.panel === view.index) return drawRoomChooser();
   const buttons = readings.slice(0, 9).map((reading, item) => {
-    const [kind, name] = (reading.icon || "mdi:script-text").split(":");
     const id = `script:${view.index}:${item}`;
     const busy = running.has(id) || reading.switch === true;
+    const { label, icon, choose } = actionLook(reading);
+    const [kind, name] = (icon || "mdi:script-text").split(":");
+    // A button that opens something of the page's (the iPod), or the rooms to choose, instead of
+    // running something at once.
+    const run = reading.opens ? () => openThing(reading.opens)
+      : choose ? () => openRoomChooser(view.index, item, reading)
+        : () => runScript(id, view.index, item, label);
     return el("button", {
       class: `tile action${busy ? " on" : ""}${reading.error ? " error" : ""}`, "data-cursor": id, "data-script": "1",
-      title: reading.error ? `${reading.label}: no existe en Home Assistant` : reading.label,
-      // A button that opens something of the page's (the iPod) instead of running a script.
-      onclick: reading.opens ? () => openThing(reading.opens) : () => runScript(id, view.index, item, reading.label),
+      title: reading.error ? `${label}: no existe en Home Assistant` : label, onclick: run,
     },
     el("span", { class: "number-key" }, String(item + 1)),
     el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
-    el("span", { class: "name" }, upper(reading.label)),
+    el("span", { class: "name" }, upper(label)),
     el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper(reading.opens ? "error" : "no existe") : "\u00a0"));
   });
   // The free places of the grid, as empty boxes: it's always three by three.
   const free = Array.from({ length: 9 - buttons.length }, () => el("div", { class: "tile action free" }));
   return el("div", { class: "actions" }, ...buttons, ...free);
+}
+
+// A robot vacuum's button that starts a cleaning: "Pausar" while it cleans, "Reanudar" while it's
+// paused (the server does the same with it); the one of the rooms to choose opens the chooser.
+function actionLook(reading) {
+  const detail = reading.detail || {};
+  const cleaning = ["start", "clean_rooms"].includes(detail.command);
+  if (cleaning && reading.value === "cleaning") return { label: "Pausar", icon: "mdi:pause" };
+  if (cleaning && reading.value === "paused") return { label: "Reanudar", icon: "mdi:play" };
+  return { label: reading.label, icon: reading.icon, choose: detail.command === "clean_rooms" && Boolean(detail.rooms) };
+}
+
+// ---- choosing the rooms to clean
+
+// In the actions window, in place of its buttons: the rooms (the numbers tick them), how many
+// passes (P), and Enter to clean them or Q to go back.
+let roomChooser = null; // { panel, item, label, rooms, chosen: Set, repeat }
+
+function openRoomChooser(panel, item, reading) {
+  roomChooser = { panel, item, label: reading.label, rooms: reading.detail.rooms, chosen: new Set(), repeat: 1 };
+  cursor = null;
+  render();
+}
+
+function closeRoomChooser() {
+  roomChooser = null;
+  render();
+}
+
+function toggleRoom(name) {
+  if (roomChooser.chosen.has(name)) roomChooser.chosen.delete(name);
+  else roomChooser.chosen.add(name);
+  render();
+}
+
+function nextRepeat() {
+  roomChooser.repeat = (roomChooser.repeat % 3) + 1;
+  render();
+}
+
+function cleanChosenRooms() {
+  const { panel, item, label, rooms, chosen, repeat } = roomChooser;
+  if (!chosen.size) return showToast("Elige al menos una habitación");
+  roomChooser = null;
+  // In the order of the list, not the order they were ticked.
+  runScript(`script:${panel}:${item}`, panel, item, label, { rooms: rooms.filter((room) => chosen.has(room)), repeat });
+}
+
+function drawRoomChooser() {
+  const { rooms, chosen, repeat } = roomChooser;
+  const key = (text, onclick, extra = "") => el("button", { class: `chooser-key${extra}`, onclick }, text);
+  return el("div", { class: "room-chooser" },
+    el("div", { class: "chooser-rooms" }, rooms.map((room, index) =>
+      el("button", { class: `chooser-room${chosen.has(room) ? " on" : ""}`, onclick: () => toggleRoom(room) },
+        el("span", { class: "number-key" }, String(index + 1)),
+        `${chosen.has(room) ? "[X]" : "[ ]"} ${upper(room)}`))),
+    el("div", { class: "chooser-repeat" }, upper("Pasadas "),
+      [1, 2, 3].map((n) => key(String(n), () => { roomChooser.repeat = n; render(); }, n === repeat ? " on" : "")),
+      el("span", { class: "dim" }, " [P]")),
+    el("div", { class: "chooser-go" },
+      key(upper(`[↵] Limpiar${chosen.size ? ` (${chosen.size})` : ""}`), cleanChosenRooms, chosen.size ? "" : " dim"),
+      key(upper("[Q] Volver"), closeRoomChooser)));
 }
 
 function openThing(what) {
@@ -579,18 +646,24 @@ function showToast(text) {
 }
 
 // The window closes at once, and the notice strip says what Home Assistant answered.
-async function runScript(id, panel, item, name) {
+// What a vacuum's button ended up doing, for the notice.
+const DONE = { pause: "en pausa", start: "en marcha", clean_rooms: "en marcha", return_to_base: "volviendo a la estación" };
+
+async function runScript(id, panel, item, name, choice = null) {
   if (running.has(id)) return;
   running.add(id);
   if (popup === panel) popup = null;
   cursor = null;
   showToast(`${name} · ejecutando…`);
   try {
-    const response = await fetch(`/api/script/${panel}/${item}`, { method: "POST" });
+    const request = choice
+      ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(choice) }
+      : { method: "POST" };
+    const response = await fetch(`/api/script/${panel}/${item}`, request);
     const answer = await response.json().catch(() => ({}));
     if (response.ok) {
       update(answer);
-      showToast(`✓ ${name} · ejecutado`);
+      showToast(`✓ ${name} · ${DONE[answer.done] || "ejecutado"}`);
     } else showToast(`✖ ${name} · no se ha podido ejecutar${answer.error ? `: ${answer.error}` : ""}`);
   } catch {
     showToast(`✖ ${name} · sin conexión con Marianne`);
@@ -1164,7 +1237,7 @@ function drawPlan(panel, readings, index) {
 
   for (const room of rooms) {
     let box;
-    const lit = visited.has(room.name) ? " plan-visited" : "";
+    const lit = (visited.has(room.name) ? " plan-visited" : "") + (room.furniture ? " plan-furniture" : "");
     if (room.rect) {
       const [x, y, w, h] = room.rect;
       add("rect", { class: `plan-room${lit}`, x, y, width: w, height: h });
@@ -1176,7 +1249,8 @@ function drawPlan(panel, readings, index) {
     }
     if (!room.name) continue;
     roomBoxes.set(room.name, box);
-    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    // Its name and values in its middle, or at its `label` (away from an island, say).
+    const [cx, cy] = room.label || [box.x + box.w / 2, box.y + box.h / 2];
     // A text too wide for a narrow room (the pantry) gets smaller: VT323 is about half as wide as high.
     const fit = (text, size) => ({ style: `font-size: ${Math.min(size, (box.w * 0.9) / (text.length * 0.5)).toFixed(2)}px` });
     const [reading] = byRoom.get(room.name) || [];
@@ -1189,6 +1263,12 @@ function drawPlan(panel, readings, index) {
     add("text", { class: `plan-temp ${tone(reading) || ""}`, x: cx, y: cy + 1.4, "text-anchor": "middle", ...fit(short(reading), 3.6) }, short(reading));
     const humidity = (reading.extra || [])[0];
     if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
+  }
+
+  for (const door of panel.plan.doors || []) drawDoor(add, door, readings.find((reading) => reading.door === door.name));
+  // The machines that are on (the washing machine while it washes), where they are.
+  for (const reading of readings) {
+    if (reading.appliance && reading.switch) drawAppliance(add, reading.appliance, reading.value);
   }
 
   // The robot where its own map says it is (at its base too, dimmer); without that, while it's out,
@@ -1223,6 +1303,59 @@ function drawPlan(panel, readings, index) {
 const ROBOT_OUT = new Set(["cleaning", "returning", "paused", "error", "idle"]);
 // Its path, asked for again every 20 seconds (as often as the server reads the map).
 const PLAN_PATH_MS = 20000;
+
+// A washing machine seen from the front: its body, the controls along the top and the round door,
+// with the drum turning inside (stopped while it's paused).
+function drawAppliance(add, { kind, at: [x, y] }, value) {
+  if (kind !== "washer") return;
+  const size = 3.6;
+  const paused = /pausa/i.test(value || "");
+  add("rect", { class: "plan-appliance", x: x - size / 2, y: y - size / 2, width: size, height: size, rx: 0.3 });
+  add("line", { class: "plan-appliance-thin", x1: x - size / 2, y1: y - size / 2 + 0.8, x2: x + size / 2, y2: y - size / 2 + 0.8 });
+  add("circle", { class: "plan-appliance-dot", cx: x + size / 2 - 0.55, cy: y - size / 2 + 0.4, r: 0.18 });
+  add("circle", { class: "plan-appliance", cx: x, cy: y + 0.4, r: 1.15 });
+  const drum = add("path", {
+    class: `plan-appliance-drum${paused ? "" : " spinning"}`,
+    d: `M ${x - 0.7} ${y + 0.4} A 0.7 0.7 0 0 1 ${x + 0.7} ${y + 0.4}`,
+  });
+  drum.style.transformOrigin = `${x}px ${y + 0.4}px`;
+}
+
+// A door of the plan: the wall erased between its ends; closed, a thick line; open (its contact
+// sensor on), the leaf turned on its hinge (`from`) to the side of `swing`, with its arc; red if
+// it's alerting.
+const DOOR_OPEN_DEGREES = 75;
+
+function drawDoor(add, door, reading) {
+  const [ax, ay] = door.from;
+  const [bx, by] = door.to;
+  const open = Boolean(reading && reading.switch);
+  const tone = reading && reading.alert ? " plan-door-alert" : "";
+  add("line", { class: "plan-door-gap", x1: ax, y1: ay, x2: bx, y2: by });
+  if (!open) {
+    add("line", { class: `plan-door${tone}`, x1: ax, y1: ay, x2: bx, y2: by });
+    return;
+  }
+  // A double door: two leaves, each on its own hinge, meeting in the middle.
+  if (door.leaves === 2) {
+    const middle = [(ax + bx) / 2, (ay + by) / 2];
+    drawLeaf(add, [ax, ay], middle, door.swing, tone);
+    drawLeaf(add, [bx, by], middle, -door.swing, tone);
+    return;
+  }
+  drawLeaf(add, [ax, ay], [bx, by], door.swing, tone);
+}
+
+// One leaf of an open door: from its hinge, turned to the side of `swing`, and its arc.
+function drawLeaf(add, [ax, ay], [bx, by], swing, tone) {
+  const angle = (-swing * DOOR_OPEN_DEGREES * Math.PI) / 180;
+  const [dx, dy] = [bx - ax, by - ay];
+  const ex = ax + dx * Math.cos(angle) - dy * Math.sin(angle);
+  const ey = ay + dx * Math.sin(angle) + dy * Math.cos(angle);
+  const radius = Math.hypot(dx, dy);
+  add("path", { class: `plan-door-arc${tone}`, d: `M ${bx} ${by} A ${radius} ${radius} 0 0 ${swing > 0 ? 0 : 1} ${ex.toFixed(2)} ${ey.toFixed(2)}` });
+  add("line", { class: `plan-door${tone}`, x1: ax, y1: ay, x2: ex.toFixed(2), y2: ey.toFixed(2) });
+}
 
 // Where the robot is, from its map (the server finds it there): asked for every few seconds
 // while it's out, every minute at its base.
@@ -1512,6 +1645,7 @@ function pressPopupKey(index) {
 
 function togglePopup(index) {
   popup = popup === index ? null : index;
+  roomChooser = null;
   render();
 }
 
@@ -1535,7 +1669,7 @@ function onKey(event) {
   }
   // The arrows move the link cursor instead of scrolling; Enter opens its link, not a focused button;
   // F1 is the help here, not the browser's.
-  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader)) || key === "f1" || MONTH_KEYS[key]) event.preventDefault();
+  if (Object.hasOwn(ARROWS, key) || (key === "enter" && (cursor || reader || roomChooser)) || key === "f1" || MONTH_KEYS[key]) event.preventDefault();
   press(key);
 }
 
@@ -1608,6 +1742,14 @@ function press(key) {
     cursor = null;
     chartHour = null;
     return render();
+  }
+  // Choosing rooms: their numbers tick them, P the passes, Enter cleans, Q goes back.
+  if (roomChooser && popup === roomChooser.panel) {
+    if (/^[1-9]$/.test(key) && roomChooser.rooms[Number(key) - 1]) return toggleRoom(roomChooser.rooms[Number(key) - 1]);
+    if (key === "p") return nextRepeat();
+    if (key === "enter") return cleanChosenRooms();
+    if (key === "escape") return closeRoomChooser();
+    return;
   }
   if (key === "escape" && popup !== null) return togglePopup(popup);
   // In the actions window, 1 to 9 press its buttons.

@@ -548,6 +548,68 @@ a.tile:hover .name {
   color: inherit;
 }
 
+/* Choosing the rooms for the robot vacuum, in the actions window. */
+.room-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0.3rem 0.2rem;
+}
+
+.chooser-rooms {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.35rem 1rem;
+}
+
+.room-chooser button {
+  font: inherit;
+  color: var(--foreground);
+  background: none;
+  border: none;
+  padding: 0.1rem 0.3rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chooser-room {
+  position: relative;
+  padding-left: 1.4rem !important;
+}
+
+.chooser-room .number-key {
+  position: absolute;
+  left: 0;
+  color: var(--dim);
+}
+
+.chooser-room.on,
+.chooser-key.on {
+  background: var(--primary) !important;
+  color: var(--background) !important;
+}
+
+.chooser-room.on .number-key {
+  color: inherit;
+}
+
+.chooser-repeat,
+.chooser-go {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.chooser-go {
+  justify-content: space-between;
+  border-top: 1px solid var(--dim);
+  padding-top: 0.6rem;
+}
+
+.chooser-key.dim {
+  color: var(--dim) !important;
+}
+
 /* An update waiting (What's Up Docker): the icon in red, but without the alert's blinking. */
 .tile.update .icon {
   color: var(--error);
@@ -1341,7 +1403,8 @@ a.tile.cursor > span {
   width: min(48rem, 94vw);
 }
 
-#popup .panel:has(.actions) {
+#popup .panel:has(.actions),
+#popup .panel:has(.room-chooser) {
   width: min(30rem, 92vw);
 }
 
@@ -1528,6 +1591,70 @@ a.tile.cursor > span {
 .plan-outside {
   font-size: 7px;
   fill: var(--accent);
+}
+
+/* Furniture (a kitchen island): fainter than the walls. */
+.plan-furniture {
+  stroke: var(--dim);
+  stroke-dasharray: 3 2;
+}
+
+/* A machine that's on (the washing machine), its drum turning. */
+.plan-appliance,
+.plan-appliance-thin,
+.plan-appliance-drum {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4px;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-appliance-thin {
+  stroke-width: 1px;
+}
+
+.plan-appliance-drum {
+  stroke-width: 1.8px;
+}
+
+.plan-appliance-drum.spinning {
+  animation: drum 1.2s linear infinite;
+}
+
+.plan-appliance-dot {
+  fill: var(--accent);
+}
+
+@keyframes drum {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Doors: the wall erased where they are, the leaf thicker than the walls. */
+.plan-door-gap {
+  stroke: var(--background);
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-door {
+  stroke: var(--accent);
+  stroke-width: 3px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-door-arc {
+  fill: none;
+  stroke: var(--soft);
+  stroke-width: 1px;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-door-alert {
+  stroke: var(--error);
 }
 
 /* The rooms the robot vacuum has been through this time. */
