@@ -116,3 +116,14 @@ def test_whats_up_docker_down_marks_nothing():
     monitor = MonitorSource("servicios", wud="https://wud.test", transport=httpx.MockTransport(wud))
     (reading,) = asyncio.run(monitor.fetch([{"url": "https://bien.test", "name": "X", "container": "x"}]))
     assert not reading.update and reading.switch
+
+
+def test_why_a_service_is_down():
+    from marianne.sources.monitor import failure
+
+    request = httpx.Request("GET", "https://x.test")
+    assert failure(httpx.ConnectTimeout("t", request=request)) == "no responde a tiempo"
+    assert failure(httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed", request=request)) == "certificado no válido"
+    assert failure(httpx.ConnectError("[Errno -2] Name or service not known", request=request)) == "no se encuentra el nombre"
+    assert failure(httpx.ConnectError("[Errno 111] Connection refused", request=request)) == "conexión rechazada"
+    assert failure(httpx.ConnectError("All connection attempts failed", request=request)) == "sin conexión"

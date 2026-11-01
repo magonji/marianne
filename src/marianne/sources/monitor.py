@@ -67,8 +67,12 @@ class MonitorSource(Source):
 
     def _reading(self, item: dict[str, Any], result: tuple[int, float] | BaseException) -> Reading:
         label = item.get("name", item["url"])
+        note = ""
         if isinstance(result, BaseException):
             up, value = False, "CAÍDO"
+            # Why: shown on the icon's tooltip (a service up for everyone else, down only for
+            # marianne, is a certificate or a network problem of marianne's own).
+            note = failure(result)
         else:
             status, ms = result
             up = status < 400
@@ -84,11 +88,29 @@ class MonitorSource(Source):
             minutes = (now - since).total_seconds() / 60
             if minutes >= float(item["alarm_after"]):
                 alarm = f"{item.get('alarm_text') or f'{label} {value}'} · desde hace {int(minutes)} min"
-        return Reading(label, value, switch=up, alert=alert, alarm=alarm, hidden=bool(item.get("hidden")),
+        return Reading(label, value, switch=up, alert=alert, alarm=alarm, hidden=bool(item.get("hidden")), note=note,
                        icon=item.get("icon"), link=item.get("link", item["url"]))
 
     async def close(self) -> None:
         await self.client.aclose()
+
+
+def failure(error: BaseException) -> str:
+    """Why a service didn't answer, in a few words."""
+    text = str(error)
+    if isinstance(error, httpx.TimeoutException):
+        return "no responde a tiempo"
+    if "CERTIFICATE_VERIFY_FAILED" in text or "certificate" in text.lower():
+        return "certificado no válido"
+    if "SSL" in text or "TLS" in text:
+        return "fallo de TLS"
+    if isinstance(error, httpx.ConnectError):
+        if "Name or service not known" in text or "nodename nor servname" in text or "getaddrinfo" in text:
+            return "no se encuentra el nombre"
+        if "refused" in text.lower():
+            return "conexión rechazada"
+        return "sin conexión"
+    return type(error).__name__
 
 
 def containers(item: dict[str, Any]) -> list[str]:

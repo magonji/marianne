@@ -149,7 +149,13 @@ docker compose up -d --build         # http://<este equipo>:1111
   `MUSIC_FOLDER=/ruta/a/la/musica`; `compose.yaml` la monta en `/music` en solo lectura y la
   fuente usa `folder: /music`. El uid 1000 tiene que poder leerla.
 - Para actualizar tras un `git pull`: `docker compose up -d --build`.
-- Para verlo solo desde el propio equipo, cambia el puerto en `compose.yaml` a `"127.0.0.1:1111:1111"`.
+- El contenedor usa la red del equipo (`network_mode: host`): Marianne escucha directamente en su
+  puerto 1111 y llega a los servicios del propio equipo por `127.0.0.1`. Los que se publican con
+  `tailscale serve` (https) no se alcanzan desde la red normal de Docker ("Connection refused"):
+  en el monitor de servicios, compruébalos por su puerto interno (`url: http://127.0.0.1:8096`)
+  y deja la dirección de Tailscale para abrirlos (`link: https://…ts.net:18096`).
+- Para verlo solo desde el propio equipo, añade en `compose.yaml` un `command` con
+  `--host 127.0.0.1` (en lugar del `0.0.0.0` del Dockerfile).
 
 ## Configuración
 

@@ -5,8 +5,10 @@ services:
     image: marianne:latest
     container_name: marianne
     restart: unless-stopped
-    ports:
-      - "1111:1111"
+    # La red del propio equipo: Marianne escucha directamente en su puerto 1111, y llega a los
+    # servicios del equipo por 127.0.0.1 (los que solo escuchan ahí, o detrás de `tailscale
+    # serve`, no se alcanzan desde la red de Docker: "Connection refused").
+    network_mode: host
     volumes:
       # Tu config.yaml (copia de config.example.yaml), solo lectura.
       - ./config.yaml:/config/config.yaml:ro

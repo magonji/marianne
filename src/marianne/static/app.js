@@ -542,7 +542,7 @@ function drawIcons(panel, readings) {
     // With a link (a service's url), the whole tile opens it.
     const tag = reading.link ? "a" : "div";
     const link = reading.link ? { href: reading.link, target: "_blank", rel: "noopener noreferrer" } : {};
-    const title = `${reading.label}: ${reading.value}${reading.update ? " · hay una actualización" : ""}`;
+    const title = `${reading.label}: ${reading.value}${reading.note ? ` (${reading.note})` : ""}${reading.update ? " · hay una actualización" : ""}`;
     return el(tag, { class: `tile ${styleClass(reading)}${reading.update ? " update" : ""}${blinking ? " blinking-icon" : ""}`, title, ...link },
       el("span", { class: "icon" }, icon),
       el("span", { class: "name" }, upper(reading.label)),
