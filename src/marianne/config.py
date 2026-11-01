@@ -159,6 +159,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
 
 
 OUTSIDE = "fuera"
+VACUUM_COMMANDS = {"start", "pause", "stop", "return_to_base", "locate", "clean_rooms"}
 
 
 def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -194,6 +195,19 @@ def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, 
             raise ConfigError(problem + f"'{name}' necesita 'rect' o 'points'")
     if raw.get("outside") is not None:
         plan["outside"] = numbers(raw["outside"], 4, "'outside'")
+    if raw.get("map") is not None:
+        # A picture under the plan (a robot vacuum's map): `box`, the house in it in pixels
+        # [left, top, right, bottom]; `rotate` it 0, 90, 180 or 270 degrees; `to`, where that box
+        # goes on the plan [x, y, width, height].
+        picture = raw["map"]
+        if not str(picture.get("entity", "")).startswith(("image.", "camera.")):
+            raise ConfigError(problem + "'map' necesita 'entity', una entidad image.… o camera.…")
+        rotate = int(picture.get("rotate", 0))
+        if rotate not in (0, 90, 180, 270):
+            raise ConfigError(problem + "'rotate' debe ser 0, 90, 180 o 270")
+        plan["map"] = {"entity": str(picture["entity"]), "box": numbers(picture.get("box"), 4, "el 'box' de 'map'"),
+                       "rotate": rotate, "to": numbers(picture.get("to") or [0, 0, *plan["size"]], 4, "el 'to' de 'map'"),
+                       "opacity": float(picture.get("opacity", 0.35))}
     names = {room["name"] for room in plan["rooms"] if room["name"]} | ({OUTSIDE} if "outside" in plan else set())
     for item in items:
         if "room" in item and item["room"] not in names:
@@ -237,6 +251,11 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
             raise ConfigError(f"Panel '{title}': cada elemento web necesita 'url' y 'selector'")
         if kind == "rss" and not ("url" in item or item.get("feeds")):
             raise ConfigError(f"Panel '{title}': cada elemento rss necesita 'url' (un feed) o 'feeds' (varios)")
+        if "vacuum" in item:
+            if item.get("command") not in VACUUM_COMMANDS:
+                raise ConfigError(f"Panel '{title}': 'command' de la aspiradora debe ser uno de {', '.join(sorted(VACUUM_COMMANDS))}")
+            if item["command"] == "clean_rooms" and not item.get("rooms"):
+                raise ConfigError(f"Panel '{title}': 'clean_rooms' necesita 'rooms', los números de las habitaciones")
         if "script" in item and not str(item["script"]).startswith("script."):
             raise ConfigError(f"Panel '{title}': 'script' debe ser un script de Home Assistant (script.…), no '{item['script']}'")
         if kind == "monitor" and "url" not in item:

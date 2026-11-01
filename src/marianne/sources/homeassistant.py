@@ -18,6 +18,13 @@ from ..sun import sun_path
 from .base import Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number
 
 UNAVAILABLE = {"unavailable", "unknown", "none", ""}
+# A robot vacuum away from its base, for the house plan.
+ROBOT_OUT = {"cleaning", "returning", "paused", "error", "idle"}
+# How long the rooms it has been through and a map's picture are kept before asking again.
+ROBOT_ROOMS_SECONDS = 30.0
+IMAGE_CACHE_SECONDS = 20.0
+VACUUM_ICONS = {"start": "mdi:play", "pause": "mdi:pause", "stop": "mdi:stop", "return_to_base": "mdi:home-import-outline",
+                "locate": "mdi:map-marker-question", "clean_rooms": "mdi:robot-vacuum"}
 # A digit of a value that can't be trusted (a sensor that's down): 6.0 → -.-, 996 → ---.
 OFFLINE_DIGIT = "-"
 # Shortcuts for `format:`; any other value is used as a strftime pattern.
@@ -78,6 +85,8 @@ class HomeAssistantSource(Source):
         # when it was looked up, each kept a few minutes on its own. (One time for all of them let a
         # panel polled often keep another's devices from ever being looked up again.)
         self._seen: dict[str, tuple[float, datetime]] = {}
+        self._images: dict[str, tuple[float, bytes, str]] = {}
+        self._robot_rooms: dict[tuple[str, str], tuple[float, list[str]]] = {}
         # The `history` command's rows, by items, for a few minutes.
         self._history_rows: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
@@ -116,6 +125,12 @@ class HomeAssistantSource(Source):
                 readings.append(Reading(name, script.get("state", "NO EXISTE"), switch=script.get("state") == "on",
                                         error=not script, icon=item.get("icon", "mdi:script-text")))
                 continue
+            if item.get("vacuum"):
+                # A button for a robot vacuum: what it does, and the vacuum's state.
+                vacuum = states.get(item["vacuum"]) or {}
+                readings.append(Reading(item.get("name") or item["command"], vacuum.get("state", "NO EXISTE"),
+                                        error=not vacuum, icon=item.get("icon", VACUUM_ICONS.get(item["command"], "mdi:robot-vacuum"))))
+                continue
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
@@ -135,6 +150,10 @@ class HomeAssistantSource(Source):
                         reading.value, reading.unit = extra.value, extra.unit
                     continue
                 reading.extra.append(extra)
+            if item.get("notice_within") and state:
+                reading.notice = recent_notice(item, state, reading, datetime.now().astimezone())
+            if item.get("robot"):
+                reading.robot = await self._robot(item, states)
             samples = histories.get(item["entity"])
             current = parse_number(state.get("state")) if state else None
             if current is not None:
@@ -183,6 +202,65 @@ class HomeAssistantSource(Source):
         response = await self.client.post("/api/services/script/turn_on", json={"entity_id": script})
         response.raise_for_status()
         self._fetched_at = 0.0  # its state (running) on the next look
+
+    async def run_vacuum(self, item: dict[str, Any]) -> None:
+        """A robot vacuum's command of the config: start, pause, back to its base, find it, or clean
+        some rooms (`rooms:`, the vacuum's own ids for them; see roborock.get_maps)."""
+        entity = item["vacuum"]
+        if item["command"] == "clean_rooms":
+            service = "send_command"
+            body = {"entity_id": entity, "command": "app_segment_clean",
+                    "params": [{"segments": [int(room) for room in item["rooms"]], "repeat": int(item.get("repeat", 1))}]}
+        else:
+            service, body = item["command"], {"entity_id": entity}
+        response = await self.client.post(f"/api/services/vacuum/{service}", json=body)
+        response.raise_for_status()
+        self._fetched_at = 0.0
+
+    async def image(self, entity: str) -> tuple[bytes, str]:
+        """An image entity's picture (a robot vacuum's map), kept a few seconds: every open page
+        asks for it."""
+        cached = self._images.get(entity)
+        if cached and time.monotonic() - cached[0] < IMAGE_CACHE_SECONDS:
+            return cached[1], cached[2]
+        response = await self.client.get(f"/api/image_proxy/{entity}")
+        response.raise_for_status()
+        picture = (response.content, response.headers.get("content-type", "image/png").split(";")[0])
+        self._images[entity] = (time.monotonic(), *picture)
+        return picture
+
+    async def _robot(self, item: dict[str, Any], states: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        """The vacuum's state and, while it's out (cleaning, returning, paused), the rooms it has been
+        through since it set off, from the history of its room sensor, with the names of the plan."""
+        vacuum = states.get(item["robot"]) or {}
+        state = vacuum.get("state", "unavailable")
+        robot: dict[str, Any] = {"state": state, "rooms": []}
+        if state not in ROBOT_OUT:
+            return robot
+        since = parse_timestamp(vacuum.get("last_changed", ""))
+        if since is None:
+            return robot
+        key = (item["entity"], since.isoformat())
+        cached = self._robot_rooms.get(key)
+        if cached and time.monotonic() - cached[0] < ROBOT_ROOMS_SECONDS:
+            robot["rooms"] = cached[1]
+            return robot
+        rooms: list[str] = []
+        try:
+            response = await self.client.get(
+                f"/api/history/period/{quote(since.isoformat())}",
+                params={"filter_entity_id": item["entity"], "minimal_response": "", "no_attributes": ""})
+            response.raise_for_status()
+            for series in response.json():
+                for sample in series:
+                    name = str(item.get("map", {}).get(sample.get("state"), sample.get("state")))
+                    if sample.get("state") not in UNAVAILABLE and name not in rooms:
+                        rooms.append(name)
+        except httpx.HTTPError:
+            pass
+        self._robot_rooms = {key: (time.monotonic(), rooms)}
+        robot["rooms"] = rooms
+        return robot
 
     async def _sun_path(self) -> dict | None:
         """Today's and the solstices' curves of the Sun's height, where Home Assistant is."""
@@ -430,8 +508,10 @@ class HomeAssistantSource(Source):
             unit = item.get("unit", attributes.get("unit_of_measurement", ""))
         raw = "" if raw is None else str(raw)
         changed = parse_timestamp(state.get("last_changed", ""))
-        # `alert_states` lists raw text states that should raise an alert (e.g. a finished washer).
-        text_alert = raw in item.get("alert_states", ())
+        # `alert_states` lists raw text states that should raise an alert (e.g. a finished washer);
+        # `ok_states`, the only ones that shouldn't (a vacuum's error: anything but "none").
+        text_alert = raw in item.get("alert_states", ()) or (
+            "ok_states" in item and raw not in item["ok_states"] and raw.lower() not in UNAVAILABLE)
 
         # `on_states` turns a text state into an on/off indicator (e.g. a thermostat "heating").
         if "on_states" in item:
@@ -615,6 +695,16 @@ def week_totals(part: dict[str, Any], rows: list[dict[str, Any]], days: list) ->
     by_day = {row_time(row).date(): row["change"] * part.get("scale", 1)
               for row in rows if row.get("change") is not None and row["change"] >= 0}
     return [{"total": format_number(by_day[day], part.get("decimals", 1))} if day in by_day else None for day in days]
+
+
+def recent_notice(item: dict[str, Any], state: dict[str, Any], reading: Reading, now: datetime) -> str | None:
+    """`notice_within: 30` on a time (a cleaning's end): for that many minutes after it, a notice
+    with `notice_text` and the item's other values ("Limpieza terminada · 45 min · 38 m²")."""
+    when = parse_timestamp(state.get("state", ""))
+    if when is None or not timedelta(0) <= now - when <= timedelta(minutes=float(item["notice_within"])):
+        return None
+    parts = [f"{extra.value} {extra.unit}".strip() for extra in reading.extra if extra.value and not extra.offline]
+    return " · ".join([str(item.get("notice_text", reading.label)), *parts])
 
 
 def device(entity: str) -> str:

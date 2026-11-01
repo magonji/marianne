@@ -323,6 +323,20 @@ plan:
 Con `rows: 2` (o `span`) tiene sitio de sobra; un plano de una inmobiliaria sirve de guía para
 las medidas.
 
+Con `map`, debajo del plano va una imagen de Home Assistant, como el mapa que hace un robot
+aspirador (`image.…`), en el color del tema y tenue: `box` es la casa dentro de la imagen, en
+píxeles (`[izquierda, arriba, derecha, abajo]`), `rotate` la gira (0, 90, 180, 270), `to` dice
+dónde va en el plano (`[x, y, ancho, alto]`) y `opacity`, cuánto se ve (0.35). El servidor la
+pide a Home Assistant cada 20 s, sin que la página vea su dirección ni su token.
+
+```yaml
+  map:
+    entity: image.aspiradora_mapa
+    box: [410, 430, 1430, 1405]
+    rotate: 90
+    to: [0, 0, 60, 50]
+```
+
 ### El historial
 
 Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` muestran los
@@ -377,6 +391,8 @@ título.
 | `alert: true` | Alerta mientras esté encendido / abierto |
 | `alert_above`, `alert_below` | Alerta por umbral numérico |
 | `alert_states` | Alerta con ciertos estados de texto (`[finish]`) |
+| `ok_states` | Los únicos estados de texto que no son alerta: cualquier otro sí (el error de una aspiradora: `[none]`) |
+| `notice_within`, `notice_text` | En una fecha y hora (el fin de una limpieza): durante esos minutos, un aviso en la franja con ese texto y sus `also` ("Limpieza terminada · 45 min · 38 m²") |
 | `alarm_after`, `alarm_text` | Franja de alarma si la alerta dura N minutos, con este texto |
 | `stale_after` | En rojo si el sensor lleva N minutos sin informar |
 | `trend`, `trend_steady` | Flecha ▲▼► con el cambio respecto a hace N horas |
@@ -391,6 +407,8 @@ título.
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
 | `room` | En un panel con `plan`: la habitación donde va su valor, o `fuera` |
+| `robot` | En un panel con `plan`, en el sensor de la habitación de un robot aspirador: su `vacuum.…`. Mientras está fuera de la base sale en el plano, en la habitación en la que está (con `map` para traducir sus nombres a los del plano), y las que ya ha recorrido se iluminan |
+| `vacuum`, `command` | En un panel de acciones, un botón para un robot aspirador: `command` es `start`, `pause`, `stop`, `return_to_base`, `locate` o `clean_rooms` (con `rooms`, los números de sus habitaciones, que da el servicio `roborock.get_maps`) |
 
 ## Desarrollo
 

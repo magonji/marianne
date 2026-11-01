@@ -50,6 +50,9 @@ class Reading:
     link: str | None = None
     # The room of the house plan its value goes in (`room:`), or "fuera".
     room: str | None = None
+    # A robot vacuum on the house plan: its state, and the rooms it has been through this time
+    # (the reading's value is the room it's in now).
+    robot: dict[str, Any] | None = None
     # A button that opens something of the page's own: "music:<source>", the iPod.
     opens: str | None = None
     # Events from calendars (see ical.parse_events), for the page's calendar to mark.

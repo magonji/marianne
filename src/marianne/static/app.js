@@ -382,7 +382,7 @@ function drawPanel(view) {
     let rows = shown;
     if (panel.plan) {
       body.classList.add("with-plan");
-      body.append(drawPlan(panel, shown));
+      body.append(drawPlan(panel, shown, index));
       rows = [];
     }
     if (panel.actions) {
@@ -1129,7 +1129,7 @@ function chartKey() {
 
 // A panel with `plan`: the house in lines, each room with its name and, if one of the items goes in
 // it (`room:`), its temperature and humidity; the values for "fuera" (the weather station) outside.
-function drawPlan(panel, readings) {
+function drawPlan(panel, readings, index) {
   const { size, rooms, outside } = panel.plan;
   const [W, H] = size;
   const ns = "http://www.w3.org/2000/svg";
@@ -1150,22 +1150,31 @@ function drawPlan(panel, readings) {
     if (!byRoom.has(reading.room)) byRoom.set(reading.room, []);
     byRoom.get(reading.room).push(reading);
   }
+  if (panel.plan.map) drawPlanMap(svg, panel.plan.map, index);
+  // A robot vacuum: the rooms it has been through this time, faintly lit, and itself where it is.
+  const robot = readings.find((reading) => reading.robot);
+  const out = robot && ROBOT_OUT.has(robot.robot.state);
+  const visited = new Set(out ? robot.robot.rooms : []);
+  const roomBoxes = new Map();
+
   // "19.9°" and "58%": the units short, there's little room.
   const short = (reading) => `${reading.value}${reading.unit === "°C" ? "°" : reading.unit === "%" ? "%" : reading.unit ? ` ${reading.unit}` : ""}`;
   const tone = (reading) => (reading.alert ? "plan-alert" : reading.offline || reading.error ? "plan-off" : null);
 
   for (const room of rooms) {
     let box;
+    const lit = visited.has(room.name) ? " plan-visited" : "";
     if (room.rect) {
       const [x, y, w, h] = room.rect;
-      add("rect", { class: "plan-room", x, y, width: w, height: h });
+      add("rect", { class: `plan-room${lit}`, x, y, width: w, height: h });
       box = { x, y, w, h };
     } else {
-      add("polygon", { class: "plan-room", points: room.points.map((point) => point.join(",")).join(" ") });
+      add("polygon", { class: `plan-room${lit}`, points: room.points.map((point) => point.join(",")).join(" ") });
       const xs = room.points.map(([x]) => x), ys = room.points.map(([, y]) => y);
       box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
     }
     if (!room.name) continue;
+    roomBoxes.set(room.name, box);
     const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
     // A text too wide for a narrow room (the pantry) gets smaller: VT323 is about half as wide as high.
     const fit = (text, size) => ({ style: `font-size: ${Math.min(size, (box.w * 0.9) / (text.length * 0.5)).toFixed(2)}px` });
@@ -1181,11 +1190,20 @@ function drawPlan(panel, readings) {
     if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
   }
 
+  // The robot in the corner of the room it's in, like the dot on its own map (blinking if it's stuck).
+  const at = out && roomBoxes.get(robot.value);
+  if (at) {
+    const rx = at.x + at.w - 2.6, ry = at.y + at.h - 2.6;
+    const stuck = robot.robot.state === "error" ? " plan-robot-stuck" : "";
+    add("circle", { class: `plan-robot${stuck}`, cx: rx, cy: ry, r: 1.7 });
+    add("circle", { class: `plan-robot-eye${stuck}`, cx: rx, cy: ry - 0.6, r: 0.5 });
+  }
+
   // Outside: the first value large (the temperature, with its trend, max and min), the rest in rows.
-  const out = byRoom.get("fuera") || [];
-  if (outside && out.length) {
+  const outsideReadings = byRoom.get("fuera") || [];
+  if (outside && outsideReadings.length) {
     const [x, y, w] = outside;
-    const [first, ...rest] = out;
+    const [first, ...rest] = outsideReadings;
     add("text", { class: "plan-name", x, y: y + 2 }, upper("Fuera"));
     add("text", { class: `plan-outside ${tone(first) || ""}`, x, y: y + 9 }, short(first));
     const beside = [first.note, ...(first.extra || []).map((extra) => `${extra.label}${extra.value}°`)].filter(Boolean).join("  ");
@@ -1198,6 +1216,55 @@ function drawPlan(panel, readings) {
     });
   }
   return svg;
+}
+
+// The vacuum's states in which it's away from its base, as the server says (ROBOT_OUT there).
+const ROBOT_OUT = new Set(["cleaning", "returning", "paused", "error", "idle"]);
+// The map's picture, asked for again every half minute (the server keeps it 20 s).
+const PLAN_MAP_MS = 30000;
+const planMapSizes = new Map();
+
+// A picture under the plan (the robot vacuum's own map): its `box` (the house in it, in pixels)
+// turned `rotate` degrees and stretched over `to` on the plan, in the theme's colour and faint: an
+// SVG filter makes each pixel the colour, as opaque as the pixel is dark (the white around the
+// house disappears, its walls come out strongest).
+function drawPlanMap(svg, map, index) {
+  const url = `/api/plan/${index}/map?v=${Math.floor(Date.now() / PLAN_MAP_MS)}`;
+  const size = planMapSizes.get(index);
+  if (!size || size.url !== url) {
+    // Its size first (an SVG image needs it); drawn on the next turn, a second later.
+    const probe = new Image();
+    probe.onload = () => planMapSizes.set(index, { url, width: probe.naturalWidth, height: probe.naturalHeight });
+    probe.src = url;
+    if (!size) return;
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  const make = (tag, attrs) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    return node;
+  };
+  const [x0, y0, x1, y1] = map.box;
+  const [X, Y, W, H] = map.to;
+  const turned = map.rotate % 180 !== 0;
+  const sx = (turned ? H : W) / (x1 - x0), sy = (turned ? W : H) / (y1 - y0);
+  const transform = `translate(${X + W / 2} ${Y + H / 2}) rotate(${map.rotate}) scale(${sx} ${sy}) translate(${-(x0 + x1) / 2} ${-(y0 + y1) / 2})`;
+  const clip = `plan-map-${index}`;
+  const tint = `plan-tint-${index}`;
+  const defs = make("defs", {});
+  const clipPath = make("clipPath", { id: clip });
+  clipPath.append(make("rect", { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }));
+  const filter = make("filter", { id: tint, "color-interpolation-filters": "sRGB" });
+  // Alpha = its own alpha - luminance (the map is transparent around the house, and white there
+  // too would vanish); then the colour, only where there's alpha.
+  filter.append(
+    make("feColorMatrix", { type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 1 0", result: "dark" }),
+    make("feFlood", { "flood-color": getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() }),
+    make("feComposite", { in2: "dark", operator: "in" }));
+  defs.append(clipPath, filter);
+  const group = make("g", { class: "plan-map", transform, opacity: map.opacity, "clip-path": `url(#${clip})` });
+  group.append(make("image", { href: (size && size.url) || url, x: 0, y: 0, width: size.width, height: size.height, filter: `url(#${tint})` }));
+  svg.append(defs, group);
 }
 
 function drawSunPath(readings, path) {

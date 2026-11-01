@@ -104,6 +104,10 @@ panels:
         - {name: Baño, rect: [24, 30, 14, 20]}
         - {name: "", rect: [38, 25, 6, 8]}                  # un armario, sin nombre
       outside: [42, 34, 17, 15]         # dónde van los valores de room: fuera
+      # map:                            # el mapa de un robot aspirador debajo (ver el README)
+      #   entity: image.aspiradora_mapa
+      #   box: [410, 430, 1430, 1405]   # la casa dentro de la imagen, en píxeles
+      #   rotate: 90
     items:
       - entity: sensor.temperatura_salon
         name: Salón
@@ -360,6 +364,9 @@ panels:
       - source: musica                  # un botón que abre el iPod
         name: iPod
         icon: mdi:ipod
+      - vacuum: vacuum.aspiradora       # un robot aspirador: start, pause, return_to_base...
+        command: return_to_base
+        name: Aspiradora a la base
       - script: script.apagar_luces     # solo se pueden lanzar los scripts que estén aquí
         name: Apagar las luces
         icon: mdi:lightbulb-off

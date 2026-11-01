@@ -314,10 +314,13 @@ def make_app(dashboard: Dashboard) -> web.Application:
         except (ValueError, IndexError):
             raise web.HTTPNotFound() from None
         source = dashboard.sources.get(item.get("source", ""))
-        if not item.get("script") or not hasattr(source, "run_script"):
+        if not (item.get("script") or item.get("vacuum")) or not hasattr(source, "run_script"):
             raise web.HTTPNotFound()
         try:
-            await source.run_script(item["script"])
+            if item.get("vacuum"):
+                await source.run_vacuum(item)
+            else:
+                await source.run_script(item["script"])
         except httpx.HTTPStatusError as exc:
             # Never the error's text: it has Home Assistant's address.
             return web.json_response({"error": f"Home Assistant responde {exc.response.status_code}"}, status=502)
@@ -373,6 +376,24 @@ def make_app(dashboard: Dashboard) -> web.Application:
             raise web.HTTPNotFound()
         data, mime = picture
         return web.Response(body=data, content_type=mime, headers={"Cache-Control": "max-age=86400"})
+
+    @routes.get("/api/plan/{panel}/map")
+    async def plan_map(request: web.Request) -> web.Response:
+        # The picture under a plan (a robot vacuum's map), from Home Assistant: the page never
+        # sees its address or token.
+        try:
+            panel = dashboard.config.panels[int(request.match_info["panel"])]
+        except (ValueError, IndexError):
+            raise web.HTTPNotFound() from None
+        picture = (panel.plan or {}).get("map")
+        source = dashboard.sources.get(panel.source)
+        if not picture or not hasattr(source, "image"):
+            raise web.HTTPNotFound()
+        try:
+            data, mime = await source.image(picture["entity"])
+        except Exception:
+            raise web.HTTPBadGateway() from None
+        return web.Response(body=data, content_type=mime, headers={"Cache-Control": "no-cache"})
 
     @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:
