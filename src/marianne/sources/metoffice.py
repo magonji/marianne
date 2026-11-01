@@ -71,7 +71,9 @@ class MetOfficeSource(Source):
         readings = []
         for item in items:
             if not warnings:
-                readings.append(Reading(item.get("none_text", "Sin avisos"), "", switch=False))
+                # Nothing to say: no row, unless `none_text` asks for one ("Sin avisos").
+                if item.get("none_text"):
+                    readings.append(Reading(item["none_text"], "", switch=False))
                 continue
             for warning in warnings[: int(item.get("limit", 3))]:
                 readings.append(warning_reading(item, warning, now))

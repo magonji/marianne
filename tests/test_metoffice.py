@@ -73,5 +73,7 @@ def test_the_same_thing_ending_at_once_only_the_worst():
 def test_no_warnings():
     content = feed()
     source = MetOfficeSource("avisos", "st", transport=httpx.MockTransport(lambda request: httpx.Response(200, content=content)))
-    (reading,) = asyncio.run(source.fetch([{}]))
+    # Nothing at all, unless a text for it is asked for
+    assert asyncio.run(source.fetch([{}])) == []
+    (reading,) = asyncio.run(source.fetch([{"none_text": "Sin avisos"}]))
     assert reading.label == "Sin avisos" and reading.switch is False and not reading.alert
