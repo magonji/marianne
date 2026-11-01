@@ -328,7 +328,10 @@ que hace él mismo (`image.…`): el servidor deja solo los píxeles del color d
 (`path_color`, el de Roborock por defecto) y la página lo pinta en el color de acento. `box` es
 la casa dentro de esa imagen, en píxeles (`[izquierda, arriba, derecha, abajo]`), `rotate` la
 gira (0, 90, 180, 270) y `to` dice dónde va en el plano (`[x, y, ancho, alto]`). El servidor la
-pide a Home Assistant cada 20 s, sin que la página vea su dirección ni su token.
+pide a Home Assistant cada 20 s, sin que la página vea su dirección ni su token. Del mismo mapa
+saca dónde está el robot (el punto blanco con el que lo dibuja), y la página pone ahí un
+dibujito de la aspiradora: en el color de acento mientras limpia, más tenue en su base y
+parpadeando en rojo si se atasca.
 
 ```yaml
   map:

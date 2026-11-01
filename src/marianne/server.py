@@ -377,23 +377,32 @@ def make_app(dashboard: Dashboard) -> web.Application:
         data, mime = picture
         return web.Response(body=data, content_type=mime, headers={"Cache-Control": "max-age=86400"})
 
-    @routes.get("/api/plan/{panel}/map")
-    async def plan_map(request: web.Request) -> web.Response:
-        # A robot vacuum's path for a plan, out of its map in Home Assistant: the page never sees
-        # Home Assistant's address or token.
+    async def vacuum_map(request: web.Request) -> tuple[bytes, list[float] | None]:
+        # A robot vacuum's path and place for a plan, out of its map in Home Assistant: the page
+        # never sees Home Assistant's address or token.
         try:
             panel = dashboard.config.panels[int(request.match_info["panel"])]
         except (ValueError, IndexError):
             raise web.HTTPNotFound() from None
         picture = (panel.plan or {}).get("map")
         source = dashboard.sources.get(panel.source)
-        if not picture or not hasattr(source, "vacuum_path"):
+        if not picture or not hasattr(source, "vacuum_map"):
             raise web.HTTPNotFound()
         try:
-            data = await source.vacuum_path(picture["entity"], picture["box"], picture["path_color"])
+            return await source.vacuum_map(picture["entity"], picture["box"], picture["path_color"])
         except Exception:
             raise web.HTTPBadGateway() from None
-        return web.Response(body=data, content_type="image/png", headers={"Cache-Control": "no-cache"})
+
+    @routes.get("/api/plan/{panel}/map")
+    async def plan_map(request: web.Request) -> web.Response:
+        path, _ = await vacuum_map(request)
+        return web.Response(body=path, content_type="image/png", headers={"Cache-Control": "no-cache"})
+
+    @routes.get("/api/plan/{panel}/robot")
+    async def plan_robot(request: web.Request) -> web.Response:
+        # Where the robot is on its map, in the picture's pixels (the page puts it on the plan).
+        _, where = await vacuum_map(request)
+        return web.json_response({"at": where})
 
     @routes.get("/api/history")
     async def history(request: web.Request) -> web.Response:

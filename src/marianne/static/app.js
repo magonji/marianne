@@ -1191,13 +1191,13 @@ function drawPlan(panel, readings, index) {
     if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
   }
 
-  // The robot in the corner of the room it's in, like the dot on its own map (blinking if it's stuck).
-  const at = out && roomBoxes.get(robot.value);
-  if (at) {
-    const rx = at.x + at.w - 2.6, ry = at.y + at.h - 2.6;
-    const stuck = robot.robot.state === "error" ? " plan-robot-stuck" : "";
-    add("circle", { class: `plan-robot${stuck}`, cx: rx, cy: ry, r: 1.7 });
-    add("circle", { class: `plan-robot-eye${stuck}`, cx: rx, cy: ry - 0.6, r: 0.5 });
+  // The robot where its own map says it is (at its base too, dimmer); without that, while it's out,
+  // in the corner of the room it's in. Blinking in red if it's stuck.
+  if (robot) {
+    const spot = panel.plan.map ? robotSpot(panel.plan.map, index, out) : null;
+    const room = out && roomBoxes.get(robot.value);
+    const at = spot || (room ? [room.x + room.w - 3, room.y + room.h - 3] : null);
+    if (at) drawVacuum(add, at, robot.robot.state === "error" ? "stuck" : out ? "out" : "home");
   }
 
   // Outside: the first value large (the temperature, with its trend, max and min), the rest in rows.
@@ -1223,6 +1223,49 @@ function drawPlan(panel, readings, index) {
 const ROBOT_OUT = new Set(["cleaning", "returning", "paused", "error", "idle"]);
 // Its path, asked for again every 20 seconds (as often as the server reads the map).
 const PLAN_PATH_MS = 20000;
+
+// Where the robot is, from its map (the server finds it there): asked for every few seconds
+// while it's out, every minute at its base.
+const robotSpots = new Map();
+
+function robotSpot(map, index, out) {
+  const known = robotSpots.get(index);
+  const every = out ? 5000 : 60000;
+  if (!known || (Date.now() - known.asked > every && !known.asking)) {
+    const entry = { ...(known || {}), asked: Date.now(), asking: true };
+    robotSpots.set(index, entry);
+    fetch(`/api/plan/${index}/robot`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { at: null }))
+      .then(({ at }) => robotSpots.set(index, { at, asked: Date.now(), asking: false }))
+      .catch(() => robotSpots.set(index, { ...entry, asking: false }));
+  }
+  return known && known.at ? mapToPlan(map, known.at) : null;
+}
+
+// A point of the vacuum's map (pixels) on the plan: the same turn and stretch as its path.
+function mapToPlan(map, [px, py]) {
+  const [x0, y0, x1, y1] = map.box;
+  const [X, Y, W, H] = map.to;
+  const turned = map.rotate % 180 !== 0;
+  const dx = (px - (x0 + x1) / 2) * ((turned ? H : W) / (x1 - x0));
+  const dy = (py - (y0 + y1) / 2) * ((turned ? W : H) / (y1 - y0));
+  const angle = (map.rotate * Math.PI) / 180;
+  return [X + W / 2 + dx * Math.cos(angle) - dy * Math.sin(angle), Y + H / 2 + dx * Math.sin(angle) + dy * Math.cos(angle)];
+}
+
+// A little robot vacuum seen from above: the round body, its laser turret, the button and the two
+// side brushes. "out" in the accent colour, "home" dimmer, "stuck" blinking in red.
+function drawVacuum(add, [x, y], mode) {
+  const look = `plan-vacuum plan-vacuum-${mode}`;
+  add("circle", { class: `${look} plan-vacuum-body`, cx: x, cy: y, r: 2.3 });
+  add("circle", { class: `${look} plan-vacuum-ring`, cx: x, cy: y, r: 1.55 });
+  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y - 0.75, r: 0.7 });
+  add("circle", { class: `${look} plan-vacuum-dot`, cx: x, cy: y + 1.05, r: 0.28 });
+  for (const side of [-1, 1]) {
+    add("line", { class: `${look} plan-vacuum-brush`, x1: x + side * 1.7, y1: y - 1.6, x2: x + side * 2.9, y2: y - 2.5 });
+    add("line", { class: `${look} plan-vacuum-brush`, x1: x + side * 1.7, y1: y - 1.6, x2: x + side * 1.9, y2: y - 3.0 });
+  }
+}
 
 // The robot vacuum's path, out of its own map (the server keeps only the path, cut to the house's
 // `box`): that box turned `rotate` degrees and stretched over `to` on the plan, in the accent colour.

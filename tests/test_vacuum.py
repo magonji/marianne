@@ -12,7 +12,7 @@ from marianne.config import ConfigError, parse_config
 from marianne.server import Dashboard, make_app
 from PIL import Image
 
-from marianne.sources.homeassistant import HomeAssistantSource, path_only
+from marianne.sources.homeassistant import HomeAssistantSource, read_vacuum_map
 
 PATH = (147, 194, 238, 255)
 
@@ -25,6 +25,9 @@ def robot_map() -> bytes:
             image.putpixel((x, y), (133, 193, 233, 255))
     for x in range(30, 100):
         image.putpixel((x, 100), PATH)
+    for x in range(60, 70):  # the robot, a white dot
+        for y in range(150, 160):
+            image.putpixel((x, y), (255, 255, 255, 255))
     out = io.BytesIO()
     image.save(out, "PNG")
     return out.getvalue()
@@ -95,6 +98,8 @@ def test_vacuum_rows_robot_and_map():
             assert picture.status == 200 and picture.content_type == "image/png"
             path = Image.open(io.BytesIO(await picture.read()))
             assert path.size == (100, 200)  # cut to the box
+            spot = await (await client.get("/api/plan/1/robot")).json()
+            assert spot == {"at": [65.0, 155.0]}  # in the whole picture's pixels
             assert (await client.get("/api/plan/0/map")).status == 404
 
     asyncio.run(run())
@@ -144,7 +149,9 @@ def test_wrong_plan_maps(map_):
 
 
 def test_only_the_path_is_kept():
-    path = Image.open(io.BytesIO(path_only(robot_map(), [0, 0, 200, 300], list(PATH[:3])))).convert("RGBA")
+    content, where = read_vacuum_map(robot_map(), [0, 0, 200, 300], list(PATH[:3]))
+    assert where == [65.0, 155.0]
+    path = Image.open(io.BytesIO(content)).convert("RGBA")
     assert path.getpixel((60, 100))[3] == 255          # on the path
     assert path.getpixel((60, 102))[3] == 255          # a little thicker
     assert path.getpixel((60, 150))[3] == 0            # the room, a close blue: gone

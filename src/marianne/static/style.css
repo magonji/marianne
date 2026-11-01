@@ -1536,24 +1536,39 @@ a.tile.cursor > span {
   fill-opacity: 0.1;
 }
 
-.plan-robot {
-  fill: var(--background);
-  stroke: var(--accent);
-  stroke-width: 1.5px;
+/* The robot vacuum: out cleaning in the accent colour, at its base dimmer, stuck in red. */
+.plan-vacuum {
+  --vacuum: var(--accent);
+  stroke: var(--vacuum);
+  stroke-width: 1.4px;
   vector-effect: non-scaling-stroke;
 }
 
-.plan-robot-eye {
-  fill: var(--accent);
+.plan-vacuum-home {
+  --vacuum: var(--soft);
 }
 
-.plan-robot-stuck {
-  stroke: var(--error);
+.plan-vacuum-stuck {
+  --vacuum: var(--error);
   animation: blink 1s steps(1) infinite;
 }
 
-.plan-robot-eye.plan-robot-stuck {
-  fill: var(--error);
+.plan-vacuum-body {
+  fill: var(--background);
+}
+
+.plan-vacuum-ring {
+  fill: none;
+  stroke-width: 1px;
+}
+
+.plan-vacuum-dot {
+  fill: var(--vacuum);
+  stroke: none;
+}
+
+.plan-vacuum-brush {
+  stroke-width: 1px;
 }
 
 .plan-alert {
