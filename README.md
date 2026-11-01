@@ -301,6 +301,28 @@ apagado, lo dice sobre la gráfica.
 Para que el historial de 7 días siga teniendo el consumo y la calefacción de cada día, sus
 elementos pueden quedarse en el panel ocultos: `hidden: true` y, para un contador, `history: true`.
 
+### El plano de la casa
+
+Con `plan`, un panel dibuja un plano esquemático de la casa en lugar de filas: las habitaciones
+en líneas, cada una con su nombre y, si un elemento va en ella (`room: Salón`), su temperatura
+grande y debajo la humedad (su `also`). Lo de `room: fuera` (una estación meteorológica) va fuera
+de la casa, en el recuadro `outside`: el primero en grande, con su tendencia y la máxima y mínima
+de hoy, y los demás (récords, humedad, presión) en filas. Las alertas salen en rojo y un sensor
+caído, en ámbar apagado, como en las filas.
+
+```yaml
+plan:
+  size: [60, 50]                        # ancho y alto, en cualquier unidad
+  rooms:
+    - {name: Salón, rect: [0, 0, 30, 25]}             # x, y, ancho, alto
+    - {name: Pasillo, points: [[30, 18], [60, 18], [60, 25], [30, 25]]}
+    - {name: "", rect: [38, 25, 6, 8]}                # sin nombre: solo las líneas
+  outside: [42, 34, 17, 15]
+```
+
+Con `rows: 2` (o `span`) tiene sitio de sobra; un plano de una inmobiliaria sirve de guía para
+las medidas.
+
 ### El historial
 
 Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` muestran los
@@ -331,6 +353,7 @@ título.
 | `icons: true` | Los elementos, como una cuadrícula de iconos con su nombre y su valor debajo (cada uno con `icon: mdi:dolphin` o `si:jellyfin`, como en Glance); para muchos elementos cortos, como el monitor de servicios |
 | `key: b` | Fuera de la rejilla: se abre como ventana con esa tecla (o con un clic en la barra de abajo). Si tiene `pages` y no `page_key`, la misma tecla pasa a la página siguiente y, tras la última, la cierra |
 | `icon: mdi:battery` | El icono de su botón redondo en el móvil (con `key`) |
+| `plan` | Un plano de la casa en lugar de filas, con los valores en sus habitaciones (ver abajo) |
 | `pages`, `page_key: t` | Varias páginas de elementos (`- name: …` con sus `items`) que se van alternando con esa tecla, p. ej. un teléfono por página; el nombre de la página es el título |
 
 ### Opciones de elemento
@@ -367,6 +390,7 @@ título.
 | `week_order` | Su lugar en la tabla de 7 días: 0 por defecto; cuanto mayor, más a la derecha |
 | `valid_max`, `valid_min` | En el historial, descarta los valores por encima o por debajo (los picos falsos de un sensor) |
 | `sun` | Parte del esquema del sol: `dawn`, `rising`, `noon`, `setting`, `dusk`, `elevation`, `azimuth` |
+| `room` | En un panel con `plan`: la habitación donde va su valor, o `fuera` |
 
 ## Desarrollo
 

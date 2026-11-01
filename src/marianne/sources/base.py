@@ -48,6 +48,8 @@ class Reading:
     icon: str | None = None
     # Where a click on the label goes (a news headline opens the article).
     link: str | None = None
+    # The room of the house plan its value goes in (`room:`), or "fuera".
+    room: str | None = None
     # A button that opens something of the page's own: "music:<source>", the iPod.
     opens: str | None = None
     # Events from calendars (see ical.parse_events), for the page's calendar to mark.

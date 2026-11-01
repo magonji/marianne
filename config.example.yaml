@@ -91,6 +91,34 @@ panels:
       # Para fechas/horas: format: time | date | datetime | auto (hora si es hoy, día y hora si no)
         unit: °C
 
+  - title: Plano
+    source: homeassistant
+    key: l                              # ventana con la tecla L (o en la rejilla, con rows: 2)
+    plan:                               # el plano de la casa en lugar de filas
+      size: [60, 50]                    # ancho y alto, en la unidad que quieras
+      rooms:                            # cada una con rect [x, y, ancho, alto] o points [[x, y], ...]
+        - {name: Salón, rect: [0, 0, 30, 25]}
+        - {name: Cocina, rect: [30, 0, 30, 18]}
+        - {name: Pasillo, points: [[30, 18], [60, 18], [60, 25], [24, 25], [24, 30], [30, 30]]}
+        - {name: Dormitorio, rect: [0, 25, 24, 25]}
+        - {name: Baño, rect: [24, 30, 14, 20]}
+        - {name: "", rect: [38, 25, 6, 8]}                  # un armario, sin nombre
+      outside: [42, 34, 17, 15]         # dónde van los valores de room: fuera
+    items:
+      - entity: sensor.temperatura_salon
+        name: Salón
+        room: Salón                     # en qué habitación del plano va
+        also: sensor.humedad_salon      # la humedad, debajo de la temperatura
+      - entity: sensor.temperatura_dormitorio
+        name: Dormitorio
+        room: Dormitorio
+        also: sensor.humedad_dormitorio
+      - entity: weather.casa
+        name: Fuera
+        attribute: temperature
+        unit: °C
+        room: fuera                     # el primero de fuera, en grande; los demás, en filas
+
   - title: Casa
     source: homeassistant
     items:

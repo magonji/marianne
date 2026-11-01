@@ -119,6 +119,7 @@ class HomeAssistantSource(Source):
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
             reading.hidden = bool(item.get("hidden"))
+            reading.room = item.get("room")
             reading.sun = item.get("sun")
             if reading.sun and path is not None:
                 # The diagram's curves go with the first of its readings.
@@ -139,7 +140,10 @@ class HomeAssistantSource(Source):
             if current is not None:
                 current *= item.get("scale", 1)
             if item.get("records") and item["entity"] in records:
-                readings += record_rows(item, reading, records[item["entity"]], current)
+                rows = record_rows(item, reading, records[item["entity"]], current)
+                for row in rows:
+                    row.room = item.get("room")
+                readings += rows
             if samples is None or current is None or reading.error or reading.offline:
                 continue
             if "trend" in item:

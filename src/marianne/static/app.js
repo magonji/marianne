@@ -380,6 +380,11 @@ function drawPanel(view) {
     body.append(el("div", { class: "waiting" }, "ESPERANDO DATOS"));
   } else {
     let rows = shown;
+    if (panel.plan) {
+      body.classList.add("with-plan");
+      body.append(drawPlan(panel, shown));
+      rows = [];
+    }
     if (panel.actions) {
       body.append(drawActions(view, rows));
       rows = [];
@@ -1120,6 +1125,81 @@ function chartKey() {
 // above it, dim below) with the Sun at this moment, and the solstices' curves, dashed, as the
 // year's highest and lowest; the times of sunrise, solar noon and sunset where they happen. Under
 // it, how long the day and the night are.
+// ---------------------------------------------------------------- house plan
+
+// A panel with `plan`: the house in lines, each room with its name and, if one of the items goes in
+// it (`room:`), its temperature and humidity; the values for "fuera" (the weather station) outside.
+function drawPlan(panel, readings) {
+  const { size, rooms, outside } = panel.plan;
+  const [W, H] = size;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "plan");
+  svg.setAttribute("viewBox", `-0.5 -0.5 ${W + 1} ${H + 1}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  const add = (tag, attrs, text) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, v] of Object.entries(attrs)) if (v !== null && v !== undefined) node.setAttribute(name, v);
+    if (text !== undefined) node.textContent = text;
+    svg.append(node);
+    return node;
+  };
+  const byRoom = new Map();
+  for (const reading of readings) {
+    if (!reading.room) continue;
+    if (!byRoom.has(reading.room)) byRoom.set(reading.room, []);
+    byRoom.get(reading.room).push(reading);
+  }
+  // "19.9°" and "58%": the units short, there's little room.
+  const short = (reading) => `${reading.value}${reading.unit === "°C" ? "°" : reading.unit === "%" ? "%" : reading.unit ? ` ${reading.unit}` : ""}`;
+  const tone = (reading) => (reading.alert ? "plan-alert" : reading.offline || reading.error ? "plan-off" : null);
+
+  for (const room of rooms) {
+    let box;
+    if (room.rect) {
+      const [x, y, w, h] = room.rect;
+      add("rect", { class: "plan-room", x, y, width: w, height: h });
+      box = { x, y, w, h };
+    } else {
+      add("polygon", { class: "plan-room", points: room.points.map((point) => point.join(",")).join(" ") });
+      const xs = room.points.map(([x]) => x), ys = room.points.map(([, y]) => y);
+      box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    }
+    if (!room.name) continue;
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    // A text too wide for a narrow room (the pantry) gets smaller: VT323 is about half as wide as high.
+    const fit = (text, size) => ({ style: `font-size: ${Math.min(size, (box.w * 0.9) / (text.length * 0.5)).toFixed(2)}px` });
+    const [reading] = byRoom.get(room.name) || [];
+    if (!reading) {
+      add("text", { class: "plan-name", x: cx, y: cy + 0.6, "text-anchor": "middle", ...fit(room.name, 2) }, upper(room.name));
+      continue;
+    }
+    // Its name, the temperature large, and the humidity (its `also`) under it.
+    add("text", { class: "plan-name", x: cx, y: cy - 2.6, "text-anchor": "middle", ...fit(room.name, 2) }, upper(room.name));
+    add("text", { class: `plan-temp ${tone(reading) || ""}`, x: cx, y: cy + 1.4, "text-anchor": "middle", ...fit(short(reading), 3.6) }, short(reading));
+    const humidity = (reading.extra || [])[0];
+    if (humidity) add("text", { class: `plan-humidity ${tone(humidity) || ""}`, x: cx, y: cy + 4.3, "text-anchor": "middle" }, short(humidity));
+  }
+
+  // Outside: the first value large (the temperature, with its trend, max and min), the rest in rows.
+  const out = byRoom.get("fuera") || [];
+  if (outside && out.length) {
+    const [x, y, w] = outside;
+    const [first, ...rest] = out;
+    add("text", { class: "plan-name", x, y: y + 2 }, upper("Fuera"));
+    add("text", { class: `plan-outside ${tone(first) || ""}`, x, y: y + 9 }, short(first));
+    const beside = [first.note, ...(first.extra || []).map((extra) => `${extra.label}${extra.value}°`)].filter(Boolean).join("  ");
+    if (beside) add("text", { class: "plan-humidity", x, y: y + 12.5 }, beside);
+    rest.forEach((reading, index) => {
+      const row = y + 16.5 + index * 3;
+      add("text", { class: "plan-label", x, y: row }, upper(reading.label));
+      add("text", { class: `plan-value ${tone(reading) || ""}`, x: x + w, y: row, "text-anchor": "end" },
+        `${short(reading)}${reading.note ? ` ${reading.note}` : ""}`);
+    });
+  }
+  return svg;
+}
+
 function drawSunPath(readings, path) {
   const value = (role) => (readings[role] && !readings[role].error ? `${readings[role].value}${readings[role].unit}` : "");
   const W = 300, top = 10, bottom = 82;

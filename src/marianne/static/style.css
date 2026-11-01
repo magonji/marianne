@@ -1484,6 +1484,60 @@ a.tile.cursor > span {
 }
 
 
+/* ---- house plan ---- */
+
+.body.with-plan {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.plan text {
+  font-family: "VT323", ui-monospace, monospace;
+}
+
+.plan-room {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.plan-name,
+.plan-label {
+  font-size: 2px;
+  fill: var(--soft);
+}
+
+.plan-temp {
+  font-size: 3.6px;
+  fill: var(--accent);
+}
+
+.plan-humidity,
+.plan-value {
+  font-size: 2.4px;
+  fill: var(--foreground);
+}
+
+.plan-outside {
+  font-size: 7px;
+  fill: var(--accent);
+}
+
+.plan-alert {
+  fill: var(--error);
+}
+
+.plan-off {
+  fill: var(--dim);
+}
+
 /* ---- iPod ---- */
 
 #ipod {

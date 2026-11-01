@@ -41,6 +41,8 @@ class PanelConfig:
     actions: bool = False
     # Its icon ("mdi:shield-home") on the phone's round button that opens it (with `key`).
     icon: str | None = None
+    # A plan of the house instead of rows: its rooms, and the items' values in them (`room:`).
+    plan: dict[str, Any] | None = None
     # If set, the panel is not in the grid: this key opens it as a pop-up window.
     key: str | None = None
     # Several sets of items shown one at a time, as (name, items); `page_key` goes to the next.
@@ -149,10 +151,54 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
         pomodoro=bool(raw.get("pomodoro", False)),
         actions=bool(raw.get("actions", False)),
         icon=str(raw["icon"]) if raw.get("icon") else None,
+        plan=_parse_plan(title, raw.get("plan"), items),
         key=key,
         pages=pages,
         page_key=page_key,
     )
+
+
+OUTSIDE = "fuera"
+
+
+def _parse_plan(title: str, raw: Any, items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """A house drawn in lines: `size` [width, height] in any unit, its `rooms` (each a `name`, which
+    may be empty, and a `rect` [x, y, width, height] or `points` [[x, y], ...]) and `outside`, the
+    rect where the values of `room: fuera` go. The items say in which room their value goes."""
+    if raw is None:
+        return None
+    problem = f"Panel '{title}': en 'plan', "
+
+    def numbers(value: Any, count: int | None, what: str) -> list[float]:
+        try:
+            values = [float(number) for number in value]
+        except (TypeError, ValueError):
+            raise ConfigError(problem + f"{what} debe ser una lista de números") from None
+        if count is not None and len(values) != count:
+            raise ConfigError(problem + f"{what} debe tener {count} números")
+        return values
+
+    if not isinstance(raw, dict):
+        raise ConfigError(problem + "hacen falta 'size' y 'rooms'")
+    plan: dict[str, Any] = {"size": numbers(raw.get("size"), 2, "'size'"), "rooms": []}
+    for room in raw.get("rooms") or []:
+        name = str(room.get("name") or "")
+        if "rect" in room:
+            plan["rooms"].append({"name": name, "rect": numbers(room["rect"], 4, f"el 'rect' de '{name}'")})
+        elif "points" in room:
+            points = [numbers(point, 2, f"cada punto de '{name}'") for point in room["points"] or []]
+            if len(points) < 3:
+                raise ConfigError(problem + f"'{name}' necesita al menos 3 puntos")
+            plan["rooms"].append({"name": name, "points": points})
+        else:
+            raise ConfigError(problem + f"'{name}' necesita 'rect' o 'points'")
+    if raw.get("outside") is not None:
+        plan["outside"] = numbers(raw["outside"], 4, "'outside'")
+    names = {room["name"] for room in plan["rooms"] if room["name"]} | ({OUTSIDE} if "outside" in plan else set())
+    for item in items:
+        if "room" in item and item["room"] not in names:
+            raise ConfigError(problem + f"no hay ninguna habitación '{item['room']}' (son {', '.join(sorted(names))})")
+    return plan
 
 
 def _row_heights(raw: Any) -> list[float]:
