@@ -1589,8 +1589,23 @@ a.tile.cursor > span {
 }
 
 .plan-outside {
-  font-size: 7px;
+  font-size: 11px;
   fill: var(--accent);
+}
+
+.plan-outside-name {
+  font-size: 2.6px;
+}
+
+.plan-outside-beside,
+.plan-outside-value {
+  font-size: 3.3px;
+  fill: var(--foreground);
+}
+
+.plan-outside-label {
+  font-size: 3px;
+  fill: var(--soft);
 }
 
 /* Furniture (a kitchen island): fainter than the walls. */

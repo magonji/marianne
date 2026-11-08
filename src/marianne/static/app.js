@@ -393,7 +393,9 @@ function drawPanel(view) {
     body.append(el("div", { class: "waiting" }, "ESPERANDO DATOS"));
   } else {
     let rows = shown;
-    if (panel.plan) {
+    // The plan, on the page that has its items (another page of the panel, the records, in rows).
+    const onPlan = (reading) => reading.room || reading.light || reading.door || reading.robot || reading.appliance;
+    if (panel.plan && data.readings.some(onPlan)) {
       body.classList.add("with-plan");
       body.append(drawPlan(panel, shown, index));
       rows = [];
@@ -1304,14 +1306,14 @@ function drawPlan(panel, readings, index) {
   if (outside && outsideReadings.length) {
     const [x, y, w] = outside;
     const [first, ...rest] = outsideReadings;
-    add("text", { class: "plan-name", x, y: y + 2 }, upper("Fuera"));
-    add("text", { class: `plan-outside ${tone(first) || ""}`, x, y: y + 9 }, short(first));
+    add("text", { class: "plan-name plan-outside-name", x, y: y + 2.6 }, upper("Fuera"));
+    add("text", { class: `plan-outside ${tone(first) || ""}`, x, y: y + 12.5 }, short(first));
     const beside = [first.note, ...(first.extra || []).map((extra) => `${extra.label}${extra.value}°`)].filter(Boolean).join("  ");
-    if (beside) add("text", { class: "plan-humidity", x, y: y + 12.5 }, beside);
+    if (beside) add("text", { class: "plan-outside-beside", x, y: y + 17 }, beside);
     rest.forEach((reading, index) => {
-      const row = y + 16.5 + index * 3;
-      add("text", { class: "plan-label", x, y: row }, upper(reading.label));
-      add("text", { class: `plan-value ${tone(reading) || ""}`, x: x + w, y: row, "text-anchor": "end" },
+      const row = y + 21.5 + index * 4;
+      add("text", { class: "plan-outside-label", x, y: row }, upper(reading.label));
+      add("text", { class: `plan-outside-value ${tone(reading) || ""}`, x: x + w, y: row, "text-anchor": "end" },
         `${short(reading)}${reading.note ? ` ${reading.note}` : ""}`);
     });
   }
