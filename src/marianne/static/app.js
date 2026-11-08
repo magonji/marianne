@@ -1080,7 +1080,9 @@ function conditionsNow(sample) {
   return upper([
     "Ahora", `${sample.temp.toFixed(1)}°C`, `${windAndGusts(sample.wind, sample.gust)} km/h${windFrom(sample.deg, sample.wind)}`,
     `☂ ${sample.rain.toFixed(1)} mm/h`, `︽ ${Math.round(sample.clouds)}%`,
-  ].join("  "));
+    // The relative humidity now, though the chart doesn't draw it.
+    sample.humidity !== undefined ? `HR ${Math.round(sample.humidity)}%` : null,
+  ].filter(Boolean).join("  "));
 }
 
 // Where the hour starts when the cursor lands on the chart: now on today's (in the city's time,
@@ -1308,7 +1310,7 @@ function drawPlan(panel, readings, index) {
     const [first, ...rest] = outsideReadings;
     add("text", { class: "plan-name plan-outside-name", x, y: y + 2.6 }, upper("Fuera"));
     add("text", { class: `plan-outside ${tone(first) || ""}`, x, y: y + 12.5 }, short(first));
-    const beside = [first.note, ...(first.extra || []).map((extra) => `${extra.label}${extra.value}°`)].filter(Boolean).join("  ");
+    const beside = [first.note, ...(first.extra || []).map((extra) => `${extra.label} ${extra.value}°`)].filter(Boolean).join("  ");
     if (beside) add("text", { class: "plan-outside-beside", x, y: y + 17 }, beside);
     rest.forEach((reading, index) => {
       const row = y + 21.5 + index * 4;

@@ -435,6 +435,9 @@ def observed_sample(current: dict[str, Any]) -> dict[str, Any] | None:
     }
     if current.get("wind", {}).get("deg") is not None:
         sample["deg"] = current["wind"]["deg"]
+    # Only for the line under the chart, which says it though the chart doesn't draw it.
+    if current["main"].get("humidity") is not None:
+        sample["humidity"] = current["main"]["humidity"]
     # No gust in it: as strong as the wind itself.
     sample["gust"] = max(current.get("wind", {}).get("gust", 0) * 3.6, sample["wind"])
     return sample
