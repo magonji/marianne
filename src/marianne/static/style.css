@@ -1678,6 +1678,17 @@ a.tile.cursor > span {
   fill: var(--accent);
 }
 
+.plan-appliance-drop {
+  fill: var(--accent);
+  animation: drop 1.2s steps(1) infinite;
+}
+
+@keyframes drop {
+  50% {
+    opacity: 0.15;
+  }
+}
+
 @keyframes drum {
   to {
     transform: rotate(360deg);

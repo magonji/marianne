@@ -1377,10 +1377,24 @@ async function toggleLight(panel, light, name) {
 }
 
 // A washing machine seen from the front: its body, the controls along the top and the round door,
-// with the drum turning inside (stopped while it's paused).
+// with the drum turning inside (stopped while it's paused). A dishwasher: the controls, the handle
+// of its door and three drops of water blinking in turn.
 function drawAppliance(add, { kind, at: [x, y] }, value) {
-  if (kind !== "washer") return;
   const size = 3.6;
+  if (kind === "dishwasher") {
+    add("rect", { class: "plan-appliance", x: x - size / 2, y: y - size / 2, width: size, height: size, rx: 0.3 });
+    add("line", { class: "plan-appliance-thin", x1: x - size / 2, y1: y - size / 2 + 0.8, x2: x + size / 2, y2: y - size / 2 + 0.8 });
+    add("line", { class: "plan-appliance", x1: x - 0.8, y1: y - size / 2 + 1.25, x2: x + 0.8, y2: y - size / 2 + 1.25 });
+    [-0.9, 0, 0.9].forEach((dx, n) => {
+      const drop = add("path", {
+        class: "plan-appliance-drop",
+        d: `M ${x + dx} ${y + 0.05} q 0.4 0.55 0 0.85 q -0.4 -0.3 0 -0.85 z`,
+      });
+      drop.style.animationDelay = `${n * 0.4}s`;
+    });
+    return;
+  }
+  if (kind !== "washer") return;
   const paused = /pausa/i.test(value || "");
   add("rect", { class: "plan-appliance", x: x - size / 2, y: y - size / 2, width: size, height: size, rx: 0.3 });
   add("line", { class: "plan-appliance-thin", x1: x - size / 2, y1: y - size / 2 + 0.8, x2: x + size / 2, y2: y - size / 2 + 0.8 });

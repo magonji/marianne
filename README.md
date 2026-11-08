@@ -333,7 +333,8 @@ esa habitación, encendida o apagada; la habitación se ilumina un poco si algun
 un toque en la bombilla la enciende o la apaga (solo las de la configuración). Van en fila desde
 la esquina de arriba a la derecha, o desde `lights: [x, y]` de la habitación.
 Un elemento con `appliance: {kind: washer, at: [x, y]}` (la lavadora, con `on_states`) se dibuja
-ahí mientras está encendido, con el tambor girando (quieto en pausa).
+ahí mientras está encendido, con el tambor girando (quieto en pausa); con `kind: dishwasher`, un
+lavavajillas con gotas de agua (p. ej. el consumo de su enchufe, con `on_above: 10`).
 
 Con `lines`, líneas de puntos que no cierran (el borde de los muebles de la cocina): cada una
 con sus `points`.
@@ -423,6 +424,8 @@ título.
 | `alert: true` | Alerta mientras esté encendido / abierto |
 | `alert_above`, `alert_below` | Alerta por umbral numérico |
 | `alert_states` | Alerta con ciertos estados de texto (`[finish]`) |
+| `today: true` | En un contador que solo crece (energía total, kWh): lo que lleva hoy, desde medianoche (si se reinicia durante el día, todo lo que marca) |
+| `on_above` | Cuenta como encendido mientras el valor pasa de ahí (un electrodoméstico que consume más de 10 W está funcionando) |
 | `ok_states` | Los únicos estados de texto que no son alerta: cualquier otro sí (el error de una aspiradora: `[none]`) |
 | `notice_within`, `notice_text` | En una fecha y hora (el fin de una limpieza): durante esos minutos, un aviso en la franja con ese texto y sus `also` ("Limpieza terminada · 45 min · 38 m²") |
 | `alarm_after`, `alarm_text` | Franja de alarma si la alerta dura N minutos, con este texto |

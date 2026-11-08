@@ -160,7 +160,7 @@ def _parse_panel(index: int, raw: dict[str, Any], sources: dict[str, Any]) -> Pa
 
 OUTSIDE = "fuera"
 # What an item can draw on the plan while it's on (`appliance: {kind, at}`).
-APPLIANCES = {"washer"}
+APPLIANCES = {"washer", "dishwasher"}
 # The colour of the path on a Roborock's map in Home Assistant.
 ROBOROCK_PATH = [147, 194, 238]
 VACUUM_COMMANDS = {"start", "pause", "stop", "return_to_base", "locate", "clean_rooms"}

@@ -87,6 +87,8 @@ class HomeAssistantSource(Source):
         # when it was looked up, each kept a few minutes on its own. (One time for all of them let a
         # panel polled often keep another's devices from ever being looked up again.)
         self._seen: dict[str, tuple[float, datetime]] = {}
+        # What the `today` meters read at midnight: (that day, by entity).
+        self._midnight: tuple[str, dict[str, float]] = ("", {})
         self._images: dict[str, tuple[float, tuple[bytes, list[float] | None]]] = {}
         self._robot_rooms: dict[tuple[str, str], tuple[float, list[str]]] = {}
         # The `history` command's rows, by items, for a few minutes.
@@ -112,6 +114,7 @@ class HomeAssistantSource(Source):
             raise
         self.mark_ok()
         histories = await self._histories(items)
+        midnight_values = await self._midnight_values(items)
         records = await self._all_records(items)
         seen = await self._last_seen(items, states)
         path = await self._sun_path() if any(item.get("sun") for item in items) else None
@@ -140,6 +143,8 @@ class HomeAssistantSource(Source):
                 continue
             state = states.get(item["entity"])
             reading = await self._on_today(item, state) if item.get("on_today") else self._reading(item, state)
+            if item.get("today"):
+                since_midnight(item, reading, state, midnight_values)
             reading.hidden = bool(item.get("hidden"))
             reading.room = item.get("room")
             reading.door = item.get("door")
@@ -154,6 +159,8 @@ class HomeAssistantSource(Source):
                 mark_stale(item, reading, state, datetime.now().astimezone(), seen.get(device(item["entity"])))
             for extra_item in item.get("also", []):
                 extra = self._extra(extra_item, states.get(extra_item["entity"]), reading, seen)
+                if extra_item.get("today"):
+                    since_midnight(extra_item, extra, states.get(extra_item["entity"]), midnight_values)
                 if extra_item.get("replace"):
                     # Takes the place of the main value when it has something to say (eco mode...).
                     if extra.value and not extra.error:
@@ -195,6 +202,34 @@ class HomeAssistantSource(Source):
         if extra.note == main.note:
             extra.note = ""
         return extra
+
+    async def _midnight_values(self, items: list[dict[str, Any]]) -> dict[str, float]:
+        """For the meters with `today` (an energy total that only grows): what they read at
+        midnight, from the history, kept all day (a meter's past doesn't change)."""
+        wanted = sorted({part["entity"] for item in items for part in [item, *item.get("also", [])]
+                         if part.get("today") and "entity" in part})
+        now = datetime.now().astimezone()
+        day = now.date().isoformat()
+        if self._midnight[0] != day:
+            self._midnight = (day, {})
+        missing = [entity for entity in wanted if entity not in self._midnight[1]]
+        if missing:
+            start = midnight(now)
+            try:
+                response = await self.client.get(
+                    f"/api/history/period/{quote(start.isoformat())}",
+                    params={"filter_entity_id": ",".join(missing), "end_time": now.isoformat(),
+                            "minimal_response": "", "no_attributes": "", "significant_changes_only": "0"})
+                response.raise_for_status()
+                for series in response.json():
+                    # The first one is the state at midnight (or the first after it).
+                    first = next((parse_number(sample.get("state")) for sample in series
+                                  if parse_number(sample.get("state")) is not None), None)
+                    if series and first is not None:
+                        self._midnight[1][series[0]["entity_id"]] = first
+            except httpx.HTTPError:
+                pass  # without history, its total as it is
+        return self._midnight[1]
 
     async def _on_today(self, item: dict[str, Any], state: dict[str, Any] | None) -> Reading:
         """How long the item has been on since midnight (e.g. the boiler heating)."""
@@ -588,10 +623,14 @@ class HomeAssistantSource(Source):
             return Reading(label, format_timestamp(raw, item["format"]), unit)
 
         number = parse_number(raw)
+        switch = None
         if number is not None:
             number *= item.get("scale", 1)
             value = format_number(number, item.get("decimals"))
             alert = check_alert(item, number)
+            # `on_above`: on while the value is over it (an appliance drawing power is running).
+            if "on_above" in item:
+                switch = number > float(item["on_above"])
         else:
             value = raw
             alert = text_alert
@@ -600,7 +639,7 @@ class HomeAssistantSource(Source):
             alarm = alarm_message(item, label, value, changed, alert)
         else:
             alarm = self._numeric_alarm(item, label, f"{value} {unit}".strip(), alert)
-        return Reading(label, value, unit, fraction=fraction, alert=alert, alarm=alarm)
+        return Reading(label, value, unit, fraction=fraction, alert=alert, alarm=alarm, switch=switch)
 
     def _numeric_alarm(self, item: dict[str, Any], label: str, value: str, alert: bool) -> str | None:
         """Numbers change constantly, so the alert's start is tracked here rather than taken from HA."""
@@ -771,6 +810,19 @@ def path_only(image: Image.Image, color: list[int], tolerance: int = 6) -> bytes
     out = io.BytesIO()
     path.save(out, "PNG", optimize=True)
     return out.getvalue()
+
+
+def since_midnight(item: dict[str, Any], reading: Reading, state: dict[str, Any] | None,
+                   midnight_values: dict[str, float]) -> None:
+    """`today`: a meter's total (kWh) turned into what it has added since midnight. If it was reset
+    during the day, all of what it reads now."""
+    now = parse_number((state or {}).get("state"))
+    start = midnight_values.get(item["entity"])
+    if now is None or start is None or reading.offline or reading.error:
+        return
+    now *= item.get("scale", 1)
+    start *= item.get("scale", 1)
+    reading.value = format_number(now - start if now >= start else now, item.get("decimals"))
 
 
 def recent_notice(item: dict[str, Any], state: dict[str, Any], reading: Reading, now: datetime) -> str | None:

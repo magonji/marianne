@@ -1,6 +1,6 @@
 import os
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -107,7 +107,10 @@ def test_29_february_in_a_normal_year():
 
 
 def test_dates_are_sorted_by_proximity():
-    items = [{"name": "Lejos", "date": "12-25"}, {"name": "Pasada", "date": date(2020, 1, 1)}, {"name": "Cerca", "date": "11-01"}]
+    # Counted from today, so the test doesn't depend on the day it runs.
+    today = date.today()
+    items = [{"name": "Lejos", "date": today + timedelta(days=60)}, {"name": "Pasada", "date": date(2020, 1, 1)},
+             {"name": "Cerca", "date": today + timedelta(days=5)}]
     readings = asyncio.run(DatesSource("fechas").fetch(items))
     assert [r.label for r in readings] == ["Cerca", "Lejos", "Pasada"]
 
