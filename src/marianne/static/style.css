@@ -1773,17 +1773,6 @@ a.tile.cursor > span {
   stroke: none;
 }
 
-.plan-vacuum-charging {
-  fill: var(--accent);
-  animation: charging 2s ease-in-out infinite;
-}
-
-@keyframes charging {
-  50% {
-    opacity: 0.45;
-  }
-}
-
 .plan-vacuum-brush {
   stroke-width: 1px;
 }
