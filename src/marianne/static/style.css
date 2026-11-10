@@ -913,6 +913,21 @@ a.tile.cursor > span {
   padding-bottom: 0.6rem;
 }
 
+/* The Sun's path as high as the panel leaves it, as wide as that lets it be. */
+.panel > .body.with-sun {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: auto;
+  /* Room for the update time on the border, so it doesn't cover the last row. */
+  padding-bottom: 0.6rem;
+}
+
+.body.with-sun > .sun.sun-path {
+  height: 100%;
+  min-height: 6.4em;
+  max-height: none;
+}
+
 .body.with-chart > .chart-box {
   min-height: 0;
   display: grid;
@@ -1359,32 +1374,33 @@ a.tile.cursor > span {
   fill: var(--dim);
 }
 
-/* Venus around the Sun, beside the chart. */
-.sun .orbit {
+/* Venus around the Sun, small, in its row. */
+.venus-orbits {
+  width: 1.6em;
+  height: 1.6em;
+  margin: -0.3em 0.8ch -0.3em 0;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.venus-orbits .orbit {
   fill: none;
   stroke: var(--dim);
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
+  stroke-width: 4;
 }
 
-.sun .sight {
-  stroke: var(--dim);
-  stroke-width: 0.8;
+.venus-orbits .sun-dot {
+  fill: var(--accent);
 }
 
-.sun .planet {
+.venus-orbits .planet {
   fill: var(--foreground);
 }
 
-.sun .planet.below {
-  fill: var(--dim);
-}
-
-.sun .venus-path {
-  fill: none;
-  stroke: var(--foreground);
-  stroke-width: 1;
-  stroke-dasharray: 1 2;
+.venus-orbits .planet.earth {
+  fill: var(--background);
+  stroke: var(--accent);
+  stroke-width: 4;
 }
 
 .sun .planet.earth {
@@ -2423,6 +2439,15 @@ a.tile.cursor > span {
 
   .body.with-chart .chart {
     height: 8em;
+  }
+
+  .panel > .body.with-sun {
+    grid-template-rows: auto;
+  }
+
+  .body.with-sun > .sun.sun-path {
+    height: auto;
+    max-height: 9em;
   }
 
   /* Energy: the power on its own line, the chart the whole width under it. */

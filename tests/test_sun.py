@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from marianne.sun import crossings, daylight_minutes, day_curve, elevation, sun_path
+from marianne.sun import daylight_minutes, day_curve, elevation, sun_path
 
 GLASGOW = (55.86, -4.26)
 UTC = timezone.utc
@@ -46,11 +46,3 @@ def test_the_moon_rises_and_sets_and_is_lit_by_its_phase():
     assert young["rise"] < 12 * 60 < young["set"] and young["height"] > 0
     assert not sun_path(*GLASGOW, datetime(2026, 11, 30, 12, tzinfo=UTC))["moon"]["waxing"]
 
-
-def test_venus_rises_before_the_sun_as_the_morning_star():
-    # November 2026, Venus 25° west of the Sun: it rises over two hours before it
-    path = sun_path(*GLASGOW, datetime(2026, 11, 10, 12, 0, tzinfo=UTC))
-    venus_rise, _ = crossings(path["venus"]["today"])
-    sun_rise, _ = crossings(path["today"])
-    assert 90 < sun_rise - venus_rise < 200
-    assert len(path["venus"]["today"]) == 24 * 6 + 1

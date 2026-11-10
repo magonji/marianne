@@ -40,9 +40,8 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   horas de luz y de oscuridad tiene el día. En la misma gráfica, la curva de la **luna** con sus
   horas de salida y puesta y la luna dibujada donde está, tal y como se ve de iluminada.
 - **Fases de la luna** calculadas localmente (algoritmo de Jean Meeus, sin internet).
-- **Venus alrededor del sol**: su curva en la gráfica del sol, con Venus donde está; al lado, un
-  esquema con su órbita y la de la Tierra, y si es lucero del alba o de la tarde y a cuántos grados
-  del sol se ve.
+- **Venus alrededor del sol**: en su fila, un esquema pequeño con su órbita y la de la Tierra, y si
+  es lucero del alba o de la tarde y a cuántos grados del sol se ve.
 - **Pomodoro**: cuenta atrás con descanso automático. Al terminar cada fase suenan tres
   campanadas y el aviso parpadea hasta pulsar una tecla. Basta con definir la fuente: mientras
   está en uso aparece centrada en la cabecera, o, con `pomodoro: true`, en lugar de un panel
@@ -201,7 +200,7 @@ panels:
 |---|---|---|
 | `homeassistant` | REST API de Home Assistant (`url`, `token`, `verify_ssl`) | `entity:`; o `energy: true`, el bloque de energía (ver abajo) |
 | `openweather` | Previsión gratuita de openweathermap.org (`api_key`, `city`, `lang`) | `field:` `chart` (gráfica del día, ver abajo), `now` (temperatura actual, con un dibujo del tiempo que hace si va en grande), `summary`, `max`, `min`, `rain_probability`, `rain`, `next_rain` (cuándo vuelve a llover), `wind`, `hours`, `good_day` |
-| `moon` | Fases de la luna y Venus, calculados en local | `field:` `phase`, `next_phase`, `venus` (con la gráfica del sol, su esquema al lado) |
+| `moon` | Fases de la luna y Venus, calculados en local | `field:` `phase`, `next_phase`, `venus` (con un esquema pequeño de las órbitas) |
 | `web` | Descarga una página y extrae un valor | `url:` y `selector:` (CSS), opcionales `attr`, `regex`, `numeric` |
 | `monitor` | Comprueba que unas webs responden (`timeout`, `verify_ssl`; con `wud: <url>` pregunta además a What's Up Docker qué contenedores tienen actualización, y el icono de su servicio sale en rojo): ● y el tiempo de respuesta, o ○ `CAÍDO` / `ERROR 502` en rojo | `url:`, opcionales `link` (adónde lleva un clic, si no es la misma `url`), `container` o `containers` (sus contenedores en What's Up Docker), `alert: false`, `alarm_after`, `alarm_text` |
 | `ical` | Eventos de calendarios por su enlace iCal privado (`calendars:` una lista de `name` y `url`, mejor como `${ICAL_PERSONAL}` en `.env`: el enlace da acceso a todo el calendario). Un elemento lista los eventos de hoy (con hora de inicio y fin, o "todo el día"; ● el que está en curso) y, con la tecla de mañana (`M`), los de mañana | sin campos; opcional `name`, el título de la lista |

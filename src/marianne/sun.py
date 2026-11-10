@@ -1,5 +1,5 @@
-"""The Sun diagram: its roles, and the Sun's, the Moon's and Venus's height through a day, computed
-locally."""
+"""The Sun diagram: its roles, and the Sun's and the Moon's height through a day, computed locally;
+where the planets are around the Sun."""
 
 from __future__ import annotations
 
@@ -99,14 +99,6 @@ def orbit_position(planet: str, when: datetime) -> tuple[float, float]:
     return math.degrees(math.atan2(y, x)) % 360, math.hypot(x, y)
 
 
-def venus_elevation(latitude: float, longitude: float, when: datetime) -> float:
-    """Venus's height over the horizon: where it is in the sky, from the Earth."""
-    (vx, vy, vz), (ex, ey, ez) = orbit_point("venus", when), orbit_point("earth", when)
-    x, y, z = vx - ex, vy - ey, vz - ez
-    return altitude(latitude, longitude, days_since_j2000(when), math.degrees(math.atan2(y, x)),
-                    math.degrees(math.atan2(z, math.hypot(x, y))))
-
-
 def moon_elevation(latitude: float, longitude: float, when: datetime) -> float:
     """The Moon's height as seen from where we are: being so close, it looks up to a degree lower
     (its parallax) than from the Earth's centre."""
@@ -170,8 +162,6 @@ def sun_path(latitude: float, longitude: float, now: datetime) -> dict:
         "light": light,
         "dark": 24 * 60 - light,
         "moon": moon_path(latitude, longitude, now),
-        "venus": {"today": day_curve(latitude, longitude, now.date(), tz, venus_elevation),
-                  "height": round(venus_elevation(latitude, longitude, now), 2)},
     }
 
 
