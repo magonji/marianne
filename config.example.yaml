@@ -273,6 +273,8 @@ panels:
         field: phase
       - source: luna
         field: next_phase
+      - source: luna
+        field: venus                    # Venus alrededor del sol: lucero del alba o de la tarde
 
   # El pomodoro no necesita panel: mientras está en uso sale centrado en la cabecera.
   # Este panel es opcional, para ver también los pomodoros hechos hoy.

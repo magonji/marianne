@@ -423,7 +423,8 @@ function drawPanel(view) {
       if (reading.sun) {
         if (reading === firstSun) {
           const path = rows.find((row) => row.sun_path);
-          body.append(...(path ? drawSunPath(sun, path.sun_path) : [drawSun(sun)]));
+          const venus = rows.find((row) => row.venus);
+          body.append(...(path ? drawSunPath(sun, path.sun_path, venus && venus.venus) : [drawSun(sun)]));
         }
         continue;
       }
@@ -1520,12 +1521,13 @@ function drawPlanPath(svg, map, index) {
   svg.append(defs, group);
 }
 
-function drawSunPath(readings, path) {
+function drawSunPath(readings, path, venus) {
   const value = (role) => (readings[role] && !readings[role].error ? `${readings[role].value}${readings[role].unit}` : "");
   const W = 300, top = 10, bottom = 82;
   // The summer solstice's top close to the top edge: the room above it was wasted, and the curves
   // (and their labels) spread over the whole height.
-  const highest = Math.max(...path.summer.map(([, e]) => e));
+  const moon = path.moon;
+  const highest = Math.max(...path.summer.map(([, e]) => e), ...(moon ? moon.today.map(([, e]) => e) : []));
   const high = highest + 3;
   // Below the horizon only a little: enough to see the night, not to take the room.
   const low = -10;
@@ -1534,7 +1536,8 @@ function drawSunPath(readings, path) {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("class", "sun sun-path");
-  svg.setAttribute("viewBox", `0 0 ${W} 100`);
+  // With Venus, its drawing to the right of the chart, in room the chart leaves on wide panels.
+  svg.setAttribute("viewBox", `0 0 ${venus ? W + VENUS_ROOM : W} 100`);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   const add = (tag, attrs, text) => {
     const node = document.createElementNS(ns, tag);
@@ -1565,6 +1568,18 @@ function drawSunPath(readings, path) {
   for (const [curve, cls] of [[path.summer, "solstice"], [path.winter, "solstice"]]) {
     for (const points of above(curve)) add("polyline", { class: cls, points });
   }
+  // The Moon's curve, only while it's up, with the times it rises and sets under the horizon: those
+  // near noon pushed aside, off the winter solstice's label.
+  if (moon) {
+    for (const points of above(moon.today)) add("polyline", { class: "moon-path", points });
+    const winterNoon = x(path.winter.reduce((best, point) => (point[1] > best[1] ? point : best))[0]);
+    for (const minute of [moon.rise, moon.set]) {
+      if (minute === null || minute === undefined) continue;
+      let [at, anchor] = [x(minute), minute < 60 ? "start" : minute > 1380 ? "end" : "middle"];
+      if (Math.abs(at - winterNoon) < 55) [at, anchor] = at < winterNoon ? [winterNoon - 27, "end"] : [winterNoon + 27, "start"];
+      add("text", { x: at.toFixed(1), y: y(0) + 10, "text-anchor": anchor, class: "faint small" }, `☾ ${clock(minute)}`);
+    }
+  }
   add("polyline", { class: "night-path", points: line(path.today, () => true) });
   for (const points of above(path.today)) add("polyline", { class: "travelled", points });
   // The solstices' highest points, labelled: summer's over its curve; winter's under the horizon at
@@ -1573,6 +1588,9 @@ function drawSunPath(readings, path) {
     const [m, e] = curve.reduce((best, point) => (point[1] > best[1] ? point : best));
     add("text", { x: x(m), y: under ? y(0) + 10 : y(e) - 3, "text-anchor": "middle", class: "faint small" }, `${name} ${Math.round(e)}°`);
   }
+  // The Moon now, as it's lit, under the Sun if they meet.
+  if (moon) drawMoonShape(add, x(path.now), y(moon.height), 5, moon.lit, moon.waxing, moon.height < 0);
+  if (venus) drawVenus(add, venus, W + VENUS_ROOM / 2 + 4, (top + bottom) / 2, VENUS_ROOM / 2 - 6);
   // The Sun now, on today's curve.
   const at = path.today.reduce((best, point) => (Math.abs(point[0] - path.now) < Math.abs(best[0] - path.now) ? point : best));
   add("circle", { class: at[1] >= 0 ? "body" : "body below", cx: x(path.now).toFixed(1), cy: y(at[1]).toFixed(1), r: 6 });
@@ -1602,6 +1620,52 @@ function drawSunPath(readings, path) {
     el("span", { class: "token-unit" }, "H"), " ", el("span", { class: "token-value" }, String(dm)), " ",
     el("span", { class: "token-unit" }, "MIN")));
   return [svg, lengths, el("div", { class: "rule" })];
+}
+
+// "HH:MM" for a minute of the day.
+function clock(minute) {
+  const whole = Math.round(minute) % 1440;
+  return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+// The Moon as it looks: its dark disc and, over it, the part the Sun lights (on the right while it
+// waxes, as seen from the north), bounded by the half-ellipse of the line between day and night.
+function drawMoonShape(add, cx, cy, r, lit, waxing, below) {
+  const look = below ? "moon below" : "moon";
+  add("circle", { class: `${look} moon-dark`, cx: cx.toFixed(1), cy: cy.toFixed(1), r });
+  if (lit < 0.01) return;
+  if (lit > 0.99) {
+    add("circle", { class: `${look} moon-lit`, cx: cx.toFixed(1), cy: cy.toFixed(1), r });
+    return;
+  }
+  const rx = (r * Math.abs(1 - 2 * lit)).toFixed(2);
+  const [top, bottom] = [`${cx.toFixed(1)},${(cy - r).toFixed(1)}`, `${cx.toFixed(1)},${(cy + r).toFixed(1)}`];
+  const outer = waxing ? 1 : 0;
+  const inner = (lit < 0.5) === waxing ? 0 : 1;
+  add("path", { class: `${look} moon-lit`, d: `M ${top} A ${r} ${r} 0 0 ${outer} ${bottom} A ${rx} ${r} 0 0 ${inner} ${top} Z` });
+}
+
+// Venus and the Earth around the Sun, seen from above, turned so the Earth is at the bottom: the Sun
+// straight up from it, and Venus to the left of the Sun when it's the evening star (east of the Sun,
+// it sets after it) and to the right when it's the morning star. Lines from the Earth to both.
+const VENUS_ROOM = 64;
+
+function drawVenus(add, { venus, earth }, cx, cy, radius) {
+  // The Earth's longitude goes to the bottom (90° on the page, whose y grows down); turning the
+  // other way from there, as y is upside down.
+  const place = ([longitude, distance]) => {
+    const angle = ((90 - (longitude - earth[0])) * Math.PI) / 180;
+    return [cx + distance * radius * Math.cos(angle), cy + distance * radius * Math.sin(angle)];
+  };
+  add("circle", { class: "orbit", cx, cy, r: (earth[1] * radius).toFixed(1) });
+  add("circle", { class: "orbit", cx, cy, r: (venus[1] * radius).toFixed(1) });
+  const [vx, vy] = place(venus), [ex, ey] = place(earth);
+  add("line", { class: "sight", x1: ex.toFixed(1), y1: ey.toFixed(1), x2: cx, y2: cy });
+  add("line", { class: "sight", x1: ex.toFixed(1), y1: ey.toFixed(1), x2: vx.toFixed(1), y2: vy.toFixed(1) });
+  add("circle", { class: "body", cx, cy, r: 4.5 });
+  add("circle", { class: "planet", cx: vx.toFixed(1), cy: vy.toFixed(1), r: 2.8 });
+  add("circle", { class: "planet earth", cx: ex.toFixed(1), cy: ey.toFixed(1), r: 2.8 });
+  add("text", { x: vx + (vx < cx ? -5 : 5), y: vy + 4, "text-anchor": vx < cx ? "end" : "start", class: "small" }, "♀");
 }
 
 // The Sun's day: an arc from sunrise to sunset with the Sun on it, like the terminal diagram.

@@ -1,4 +1,5 @@
-"""Moon phases computed locally (Jean Meeus, Astronomical Algorithms, ch. 49): no API needed."""
+"""Moon phases computed locally (Jean Meeus, Astronomical Algorithms, ch. 49), and where Venus is
+around the Sun: no API needed."""
 
 from __future__ import annotations
 
@@ -18,7 +19,16 @@ SYMBOLS = {0.0: "●", 0.25: "◐", 0.5: "○", 0.75: "◑"}
 # Within this many hours of a principal phase, the Moon is "at" it.
 AT_PHASE_HOURS = 12
 
-FIELDS = {"phase", "next_phase"}
+FIELDS = {"phase", "next_phase", "venus"}
+
+# Orbits (J2000 and their change per century, from JPL's approximate elements): semi-major axis in
+# AU, eccentricity, mean longitude and longitude of the perihelion in degrees.
+ORBITS = {
+    "venus": (0.72333566, 0.00677672, (181.97909950, 58517.81538729), (131.60246718, 0.00268329)),
+    "earth": (1.00000261, 0.01671123, (100.46457166, 35999.37244981), (102.93768193, 0.32327364)),
+}
+# Closer to the Sun than this, Venus is lost in its glare.
+VENUS_HIDDEN_BELOW = 10
 
 
 class MoonSource(Source):
@@ -31,7 +41,7 @@ class MoonSource(Source):
     async def fetch(self, items: list[dict[str, Any]]) -> list[Reading]:
         self.mark_ok()
         now = datetime.now(timezone.utc)
-        return [moon_reading(item, now) for item in items]
+        return [venus_reading(item, now) if item["field"] == "venus" else moon_reading(item, now) for item in items]
 
 
 def phase_time(k: float) -> datetime:
@@ -121,3 +131,38 @@ def moon_reading(item: dict[str, Any], now: datetime) -> Reading:
 def phase_time_of_new(phases: list[tuple[datetime, float]], now: datetime) -> datetime:
     """The last new Moon before `now` (for the Moon's age)."""
     return max(when for when, fraction in phases if fraction == 0.0 and when <= now)
+
+
+def orbit_position(planet: str, when: datetime) -> tuple[float, float]:
+    """A planet's heliocentric ecliptic longitude (degrees) and distance from the Sun (AU), on its
+    orbit's ellipse (its tilt left out: a few degrees that don't change the picture)."""
+    a, e, (mean, mean_rate), (perihelion, perihelion_rate) = ORBITS[planet]
+    centuries = ((when.timestamp() / 86400 + 2440587.5) - 2451545.0) / 36525
+    anomaly = math.radians((mean + mean_rate * centuries - perihelion - perihelion_rate * centuries) % 360)
+    eccentric = anomaly
+    for _ in range(6):
+        eccentric -= (eccentric - e * math.sin(eccentric) - anomaly) / (1 - e * math.cos(eccentric))
+    x, y = a * (math.cos(eccentric) - e), a * math.sqrt(1 - e * e) * math.sin(eccentric)
+    longitude = (math.degrees(math.atan2(y, x)) + perihelion + perihelion_rate * centuries) % 360
+    return longitude, math.hypot(x, y)
+
+
+def venus_reading(item: dict[str, Any], now: datetime) -> Reading:
+    """"♀ Venus …… lucero del alba · 24° del sol", with both planets around the Sun for a drawing."""
+    venus, earth = orbit_position("venus", now), orbit_position("earth", now)
+    point = lambda longitude, distance: (distance * math.cos(math.radians(longitude)),
+                                         distance * math.sin(math.radians(longitude)))
+    (vx, vy), (ex, ey) = point(*venus), point(*earth)
+    # From the Earth: the direction to the Sun and to Venus, and the angle between them.
+    to_sun = math.degrees(math.atan2(-ey, -ex))
+    to_venus = math.degrees(math.atan2(vy - ey, vx - ex))
+    east = (to_venus - to_sun + 180) % 360 - 180
+    apart = abs(east)
+    if apart < VENUS_HIDDEN_BELOW:
+        seen = "junto al sol"
+    else:
+        # East of the Sun it sets after it: in the evening; west, it rises before it.
+        seen = "lucero de la tarde" if east > 0 else "lucero del alba"
+    venus_data = {"venus": [round(venus[0], 1), round(venus[1], 4)], "earth": [round(earth[0], 1), round(earth[1], 4)],
+                  "apart": round(apart, 1), "seen": seen}
+    return Reading(f"♀ {item.get('name', 'Venus')}", f"{seen} · {apart:.0f}° del sol", venus=venus_data)

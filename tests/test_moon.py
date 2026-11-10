@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from marianne.config import ConfigError, parse_config
-from marianne.sources.moon import moon_reading, phases_around
+from marianne.sources.moon import moon_reading, phases_around, venus_reading
 
 
 def utc(*args):
@@ -45,3 +45,20 @@ def test_items_can_use_their_own_source():
     assert [item["source"] for item in parsed.items] == ["homeassistant", "luna"]
     with pytest.raises(ConfigError, match="field"):
         parse_config({"sources": sources, "panels": [{"items": [{"source": "luna", "field": "x"}]}]}, None)
+
+
+@pytest.mark.parametrize(
+    "when, seen, apart",
+    [
+        (utc(2026, 8, 15, 12), "lucero de la tarde", 46),  # greatest eastern elongation
+        (utc(2026, 10, 24, 12), "junto al sol", 0),  # inferior conjunction
+        (utc(2027, 1, 16, 12), "lucero del alba", 47),  # greatest western elongation
+    ],
+)
+def test_venus_around_the_sun(when, seen, apart):
+    reading = venus_reading({"field": "venus"}, when)
+    assert reading.venus["seen"] == seen
+    assert reading.venus["apart"] == pytest.approx(apart, abs=1.5)
+    assert reading.label == "♀ Venus" and reading.value.startswith(seen)
+    # Both planets on their orbits, in AU from the Sun
+    assert 0.71 < reading.venus["venus"][1] < 0.73 and 0.98 < reading.venus["earth"][1] < 1.02

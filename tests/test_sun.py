@@ -33,3 +33,15 @@ def test_sun_path_has_today_and_both_solstices():
     # In the south, the summer solstice is December's
     south = sun_path(-33.9, 18.4, datetime(2026, 10, 26, 12, tzinfo=UTC))
     assert top(south["summer"]) > top(south["winter"])
+
+
+def test_the_moon_rises_and_sets_and_is_lit_by_its_phase():
+    # Full Moon of 24 November 2026: all lit, rising around sunset and setting in the morning
+    full = sun_path(*GLASGOW, datetime(2026, 11, 24, 15, 0, tzinfo=UTC))["moon"]
+    assert full["lit"] > 0.99 and len(full["today"]) == 24 * 6 + 1
+    assert 14 * 60 < full["rise"] < 16 * 60 and 7 * 60 < full["set"] < 9 * 60
+    # The day after the new Moon of 9 November: a thin crescent, up in the day close to the Sun
+    young = sun_path(*GLASGOW, datetime(2026, 11, 10, 12, 0, tzinfo=UTC))["moon"]
+    assert young["lit"] < 0.05 and young["waxing"]
+    assert young["rise"] < 12 * 60 < young["set"] and young["height"] > 0
+    assert not sun_path(*GLASGOW, datetime(2026, 11, 30, 12, tzinfo=UTC))["moon"]["waxing"]

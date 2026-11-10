@@ -1337,6 +1337,51 @@ a.tile.cursor > span {
   fill: var(--accent);
 }
 
+.sun .moon-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 2 1 2;
+  opacity: 0.75;
+}
+
+.sun .moon-dark {
+  fill: var(--background);
+  stroke: var(--dim);
+  stroke-width: 1;
+}
+
+.sun .moon-lit {
+  fill: var(--foreground);
+}
+
+.sun .moon-lit.below {
+  fill: var(--dim);
+}
+
+/* Venus around the Sun, beside the chart. */
+.sun .orbit {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.sun .sight {
+  stroke: var(--dim);
+  stroke-width: 0.8;
+}
+
+.sun .planet {
+  fill: var(--foreground);
+}
+
+.sun .planet.earth {
+  fill: var(--background);
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+
 
 #status {
   flex: none;
