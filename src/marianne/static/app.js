@@ -1527,7 +1527,8 @@ function drawSunPath(readings, path, venus) {
   // The summer solstice's top close to the top edge: the room above it was wasted, and the curves
   // (and their labels) spread over the whole height.
   const moon = path.moon;
-  const highest = Math.max(...path.summer.map(([, e]) => e), ...(moon ? moon.today.map(([, e]) => e) : []));
+  const highest = Math.max(...path.summer.map(([, e]) => e), ...(moon ? moon.today.map(([, e]) => e) : []),
+    ...(venus && path.venus ? path.venus.today.map(([, e]) => e) : []));
   const high = highest + 3;
   // Below the horizon only a little: enough to see the night, not to take the room.
   const low = -10;
@@ -1580,6 +1581,9 @@ function drawSunPath(readings, path, venus) {
       add("text", { x: at.toFixed(1), y: y(0) + 10, "text-anchor": anchor, class: "faint small" }, `☾ ${clock(minute)}`);
     }
   }
+  // Venus's curve too, with the Venus item in the panel, while it's over the horizon.
+  const venusPath = venus && path.venus;
+  if (venusPath) for (const points of above(venusPath.today)) add("polyline", { class: "venus-path", points });
   add("polyline", { class: "night-path", points: line(path.today, () => true) });
   for (const points of above(path.today)) add("polyline", { class: "travelled", points });
   // The solstices' highest points, labelled: summer's over its curve; winter's under the horizon at
@@ -1590,6 +1594,13 @@ function drawSunPath(readings, path, venus) {
   }
   // The Moon now, as it's lit, under the Sun if they meet.
   if (moon) drawMoonShape(add, x(path.now), y(moon.height), 5, moon.lit, moon.waxing, moon.height < 0);
+  // Venus now, a little dot with its sign, dim while it's under the horizon.
+  if (venusPath) {
+    const [vx, vy] = [x(path.now), y(venusPath.height)];
+    const look = venusPath.height < 0 ? "planet below" : "planet";
+    add("circle", { class: look, cx: vx.toFixed(1), cy: vy.toFixed(1), r: 2.8 });
+    add("text", { x: (vx + 5).toFixed(1), y: (vy - 3).toFixed(1), class: venusPath.height < 0 ? "faint small" : "small" }, "♀");
+  }
   if (venus) drawVenus(add, venus, W + VENUS_ROOM / 2 + 4, (top + bottom) / 2, VENUS_ROOM / 2 - 6);
   // The Sun now, on today's curve.
   const at = path.today.reduce((best, point) => (Math.abs(point[0] - path.now) < Math.abs(best[0] - path.now) ? point : best));

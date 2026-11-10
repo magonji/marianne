@@ -7,6 +7,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any
 
+from ..sun import orbit_position
 from .base import Reading, Source
 
 SYNODIC_MONTH = 29.530588861
@@ -21,12 +22,6 @@ AT_PHASE_HOURS = 12
 
 FIELDS = {"phase", "next_phase", "venus"}
 
-# Orbits (J2000 and their change per century, from JPL's approximate elements): semi-major axis in
-# AU, eccentricity, mean longitude and longitude of the perihelion in degrees.
-ORBITS = {
-    "venus": (0.72333566, 0.00677672, (181.97909950, 58517.81538729), (131.60246718, 0.00268329)),
-    "earth": (1.00000261, 0.01671123, (100.46457166, 35999.37244981), (102.93768193, 0.32327364)),
-}
 # Closer to the Sun than this, Venus is lost in its glare.
 VENUS_HIDDEN_BELOW = 10
 
@@ -131,20 +126,6 @@ def moon_reading(item: dict[str, Any], now: datetime) -> Reading:
 def phase_time_of_new(phases: list[tuple[datetime, float]], now: datetime) -> datetime:
     """The last new Moon before `now` (for the Moon's age)."""
     return max(when for when, fraction in phases if fraction == 0.0 and when <= now)
-
-
-def orbit_position(planet: str, when: datetime) -> tuple[float, float]:
-    """A planet's heliocentric ecliptic longitude (degrees) and distance from the Sun (AU), on its
-    orbit's ellipse (its tilt left out: a few degrees that don't change the picture)."""
-    a, e, (mean, mean_rate), (perihelion, perihelion_rate) = ORBITS[planet]
-    centuries = ((when.timestamp() / 86400 + 2440587.5) - 2451545.0) / 36525
-    anomaly = math.radians((mean + mean_rate * centuries - perihelion - perihelion_rate * centuries) % 360)
-    eccentric = anomaly
-    for _ in range(6):
-        eccentric -= (eccentric - e * math.sin(eccentric) - anomaly) / (1 - e * math.cos(eccentric))
-    x, y = a * (math.cos(eccentric) - e), a * math.sqrt(1 - e * e) * math.sin(eccentric)
-    longitude = (math.degrees(math.atan2(y, x)) + perihelion + perihelion_rate * centuries) % 360
-    return longitude, math.hypot(x, y)
 
 
 def venus_reading(item: dict[str, Any], now: datetime) -> Reading:

@@ -1,4 +1,5 @@
-"""The Sun diagram: its roles, and the Sun's and the Moon's height through a day, computed locally."""
+"""The Sun diagram: its roles, and the Sun's, the Moon's and Venus's height through a day, computed
+locally."""
 
 from __future__ import annotations
 
@@ -11,6 +12,14 @@ HORIZON = -0.833
 STEP_MINUTES = 10
 # The Moon's horizontal parallax, in degrees (it varies between 0.9 and 1.0).
 MOON_PARALLAX = 0.95
+# Orbits (J2000 and their change per century, from JPL's approximate elements): semi-major axis in
+# AU, eccentricity, mean longitude, longitude of the perihelion, inclination and longitude of the
+# ascending node, in degrees.
+ORBITS = {
+    "venus": (0.72333566, 0.00677672, (181.97909950, 58517.81538729), (131.60246718, 0.00268329),
+              3.39467605, 76.67984255),
+    "earth": (1.00000261, 0.01671123, (100.46457166, 35999.37244981), (102.93768193, 0.32327364), 0.0, 0.0),
+}
 
 
 def days_since_j2000(when: datetime) -> float:
@@ -62,6 +71,40 @@ def elevation(latitude: float, longitude: float, when: datetime) -> float:
     formulas (within a few tenths of a degree, plenty for a diagram)."""
     days = days_since_j2000(when)
     return altitude(latitude, longitude, days, sun_longitude(days))
+
+
+def orbit_point(planet: str, when: datetime) -> tuple[float, float, float]:
+    """A planet's heliocentric ecliptic x, y, z in AU, on its orbit's ellipse."""
+    a, e, (mean, mean_rate), (perihelion, perihelion_rate), inclination, node = ORBITS[planet]
+    centuries = days_since_j2000(when) / 36525
+    perihelion += perihelion_rate * centuries
+    anomaly = math.radians((mean + mean_rate * centuries - perihelion) % 360)
+    eccentric = anomaly
+    for _ in range(6):
+        eccentric -= (eccentric - e * math.sin(eccentric) - anomaly) / (1 - e * math.cos(eccentric))
+    x, y = a * (math.cos(eccentric) - e), a * math.sqrt(1 - e * e) * math.sin(eccentric)
+    distance = math.hypot(x, y)
+    # From the node, along the orbit; then tilted by the inclination.
+    along = math.atan2(y, x) + math.radians(perihelion - node)
+    node, tilt = math.radians(node), math.radians(inclination)
+    return (distance * (math.cos(node) * math.cos(along) - math.sin(node) * math.sin(along) * math.cos(tilt)),
+            distance * (math.sin(node) * math.cos(along) + math.cos(node) * math.sin(along) * math.cos(tilt)),
+            distance * math.sin(along) * math.sin(tilt))
+
+
+def orbit_position(planet: str, when: datetime) -> tuple[float, float]:
+    """A planet's heliocentric ecliptic longitude (degrees) and distance from the Sun (AU), as seen
+    from above the Earth's orbit."""
+    x, y, _ = orbit_point(planet, when)
+    return math.degrees(math.atan2(y, x)) % 360, math.hypot(x, y)
+
+
+def venus_elevation(latitude: float, longitude: float, when: datetime) -> float:
+    """Venus's height over the horizon: where it is in the sky, from the Earth."""
+    (vx, vy, vz), (ex, ey, ez) = orbit_point("venus", when), orbit_point("earth", when)
+    x, y, z = vx - ex, vy - ey, vz - ez
+    return altitude(latitude, longitude, days_since_j2000(when), math.degrees(math.atan2(y, x)),
+                    math.degrees(math.atan2(z, math.hypot(x, y))))
 
 
 def moon_elevation(latitude: float, longitude: float, when: datetime) -> float:
@@ -127,6 +170,8 @@ def sun_path(latitude: float, longitude: float, now: datetime) -> dict:
         "light": light,
         "dark": 24 * 60 - light,
         "moon": moon_path(latitude, longitude, now),
+        "venus": {"today": day_curve(latitude, longitude, now.date(), tz, venus_elevation),
+                  "height": round(venus_elevation(latitude, longitude, now), 2)},
     }
 
 

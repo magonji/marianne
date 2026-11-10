@@ -1376,6 +1376,17 @@ a.tile.cursor > span {
   fill: var(--foreground);
 }
 
+.sun .planet.below {
+  fill: var(--dim);
+}
+
+.sun .venus-path {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-width: 1;
+  stroke-dasharray: 1 2;
+}
+
 .sun .planet.earth {
   fill: var(--background);
   stroke: var(--accent);
