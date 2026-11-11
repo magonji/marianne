@@ -1375,18 +1375,12 @@ a.tile.cursor > span {
 }
 
 /* Venus around the Sun, small, in its row. */
+/* No taller than the row's line: its values clip what sticks out. */
 .venus-orbits {
-  width: 1.6em;
-  height: 1.6em;
-  margin: -0.3em 0.8ch -0.3em 0;
-  vertical-align: middle;
-  overflow: visible;
-}
-
-.venus-orbits .orbit {
-  fill: none;
-  stroke: var(--dim);
-  stroke-width: 4;
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 0.8ch;
+  vertical-align: -0.2em;
 }
 
 .venus-orbits .hand {
