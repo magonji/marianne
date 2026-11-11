@@ -579,7 +579,9 @@ function drawActions(view, readings) {
     el("span", { class: "number-key" }, String(item + 1)),
     el("span", { class: "icon" }, el("span", { class: "glyph", style: `--icon: url("/api/icon/${kind}/${name}")` })),
     el("span", { class: "name" }, upper(label)),
-    el("span", { class: "dim" }, busy ? upper("en marcha") : reading.error ? upper(reading.opens ? "error" : "no existe") : "\u00a0"));
+    // A server task, when it isn't running: how its last run went ("hecho 10:02"), red if it failed.
+    el("span", { class: !busy && reading.value === "error" ? "alert-text" : "dim" }, busy ? upper("en marcha")
+      : reading.error ? upper(reading.opens ? "error" : "no existe") : reading.note ? upper(reading.note) : "\u00a0"));
   });
   // The free places of the grid, as empty boxes: it's always three by three.
   const free = Array.from({ length: 9 - buttons.length }, () => el("div", { class: "tile action free" }));
@@ -667,7 +669,8 @@ function showToast(text) {
 
 // The window closes at once, and the notice strip says what Home Assistant answered.
 // What a vacuum's button ended up doing, for the notice.
-const DONE = { pause: "en pausa", start: "en marcha", clean_rooms: "en marcha", return_to_base: "volviendo a la estación" };
+const DONE = { pause: "en pausa", start: "en marcha", clean_rooms: "en marcha", return_to_base: "volviendo a la estación",
+  task: "pedido al servidor" };
 
 async function runScript(id, panel, item, name, choice = null) {
   if (running.has(id)) return;

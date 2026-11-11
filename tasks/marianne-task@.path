@@ -1,0 +1,11 @@
+# Watches for Marianne's request of a task (the part after @: marianne-task@update-docker.path).
+# Install: see the README, "Tareas del servidor".
+[Unit]
+Description=Marianne: petición de la tarea %i
+
+[Path]
+PathExists=%h/docker/marianne/data/tasks/%i.request
+Unit=marianne-task@%i.service
+
+[Install]
+WantedBy=default.target

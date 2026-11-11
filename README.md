@@ -161,6 +161,48 @@ docker compose up -d --build         # http://<este equipo>:1111
 - Para verlo solo desde el propio equipo, añade en `compose.yaml` un `command` con
   `--host 127.0.0.1` (en lugar del `0.0.0.0` del Dockerfile).
 
+### Tareas del servidor
+
+Un botón de acciones puede pedir al servidor que ejecute uno de sus scripts, por ejemplo el que
+actualiza los contenedores. Desde el contenedor Marianne no puede ejecutar nada del servidor:
+solo deja una petición, `data/tasks/<tarea>.request`. Una unidad de systemd del servidor la ve,
+ejecuta `~/scripts/<tarea>/<tarea>.sh` y deja cómo fue en `data/tasks/<tarea>.status`. La página
+muestra `EN MARCHA` mientras tanto, y luego `HECHO 10:02` o, en rojo, `FALLÓ 10:02`. Lo que
+escribió el script queda en `data/tasks/<tarea>.log`. Así, desde la página solo se pueden pedir
+las tareas que el servidor tenga instaladas, nunca decir qué ejecutar.
+
+En `config.yaml`, la fuente y su botón en el panel de acciones:
+
+```yaml
+sources:
+  tareas:
+    type: tasks                         # folder: data/tasks por defecto
+
+panels:
+  - title: Acciones
+    actions: true
+    items:
+      - source: tareas
+        task: update-docker             # ejecuta ~/scripts/update-docker/update-docker.sh
+        name: Actualizar contenedores
+        icon: mdi:docker
+```
+
+En el servidor, una vez por tarea, con Marianne en `~/docker/marianne` (las unidades usan esa
+ruta):
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp ~/docker/marianne/tasks/marianne-task@.path ~/docker/marianne/tasks/marianne-task@.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now marianne-task@update-docker.path
+# Que las unidades del usuario sigan funcionando sin tener la sesión abierta:
+sudo loginctl enable-linger "$USER"
+```
+
+El script corre como tu usuario, así que tiene que poder usar Docker (estar en el grupo
+`docker`). La página no tiene contraseña: cualquiera que la abra puede pedir la tarea.
+
 ## Configuración
 
 `config.example.yaml` tiene ejemplos comentados de todo. Resumen:
@@ -209,6 +251,7 @@ panels:
 | `rss` | Titulares de feeds RSS o Atom, del más reciente al más antiguo, con su antigüedad (`5 min`, `3 h`, `2 d`); un clic abre la noticia en un lector con el texto que trae el feed y, al final, el enlace a la web | `url:` (un feed) o `feeds:` (varios juntos), opcional `limit` (7). Las noticias repetidas (mismo enlace o titular casi igual, como cuando se republica para corregir una errata) salen una vez, la más reciente; `similar` (0.85) es cuánto se tienen que parecer, de 0 a 1 |
 | `system` | El equipo en el que corre Marianne | `field:` `cpu`, `load`, `memory`, `swap`, `disk` (con `path`, `/` por defecto), `temperature` (no en macOS), `uptime`, `hostname` (con `title: true`, como título del panel), `platform`, `summary` (tiempo encendido, carga y temperatura en una línea; opcionales `load_above` y `temperature_above`). Opción de la fuente: `host_root` (ver Docker) |
 | `music` | Una carpeta de música para el iPod (ver abajo): `folder`, `key`, `cache`, `ratings`, `rescan_hours` | En un panel de acciones, un botón que abre el iPod (`name`, `icon`) |
+| `tasks` | Tareas del servidor pedidas desde un panel de acciones (ver Docker, «Tareas del servidor»): `folder` (`data/tasks`) | `task:` su nombre (minúsculas, números y guiones), `name`, `icon`; el botón dice si está en marcha y cómo fue la última vez |
 | `pomodoro` | Temporizador (`work`, `short_break`, `long_break` en minutos, `long_every`, `start_key`, `reset_key`) | `field:` `timer`, `status`, `count` |
 | `dates` | Días hasta fechas señaladas (`sort`) y barras de progreso. Con `file: data/fechas.yaml`, las fechas se añaden, cambian y borran desde la página con la tecla `F` (`edit_key`) y se guardan en ese fichero. Allí, una fecha sin año (`25/12`) es de todos los años; con año, si ya pasó (un cumpleaños) se repite cada año diciendo cuántos cumple, y si está por venir (un viaje) es de ese día | `date:` `2026-12-25` (fija) o `12-25` (cada año), opcionales `yearly`, `soon`; o `progress:` `day`, `week`, `month`, `year`, `life` (con `birth`, `end` y opcional `days_left`); o `calendar: true`, el mes en una columna a la izquierda, separada por una línea (encima en el móvil), con hoy en vídeo inverso y las fechas de la cuenta atrás en el color de acento; `‹` `›` o el cursor (ver Teclas) pasan a otros meses |
 

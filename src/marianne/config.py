@@ -11,6 +11,7 @@ import yaml
 
 from .sources.dates import PROGRESS
 from .sources.moon import FIELDS as MOON_FIELDS
+from .sources.tasks import TASK_NAME
 from .sources.openweather import FIELDS as OPENWEATHER_FIELDS
 from .sources.pomodoro import FIELDS as POMODORO_FIELDS
 from .sources.system import FIELDS as SYSTEM_FIELDS
@@ -306,6 +307,9 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
                                   "o sus nombres con su número para elegirlas al pulsar")
         if "script" in item and not str(item["script"]).startswith("script."):
             raise ConfigError(f"Panel '{title}': 'script' debe ser un script de Home Assistant (script.…), no '{item['script']}'")
+        if kind == "tasks" and not TASK_NAME.match(str(item.get("task", ""))):
+            raise ConfigError(f"Panel '{title}': cada tarea necesita 'task', su nombre en minúsculas, números y guiones "
+                              f"(el de su unidad de systemd en el servidor), no '{item.get('task', '')}'")
         if kind == "monitor" and "url" not in item:
             raise ConfigError(f"Panel '{title}': cada servicio necesita 'url'")
         if kind == "dates" and "progress" in item:

@@ -314,6 +314,16 @@ def make_app(dashboard: Dashboard) -> web.Application:
         except (ValueError, IndexError):
             raise web.HTTPNotFound() from None
         source = dashboard.sources.get(item.get("source", ""))
+        if item.get("task") and hasattr(source, "run_task"):
+            # A task of the server: only its request is left, for the server to run it.
+            try:
+                await source.run_task(item)
+            except ValueError as exc:
+                return web.json_response({"error": str(exc)}, status=409)
+            except OSError:
+                return web.json_response({"error": "no se ha podido dejar la petición"}, status=500)
+            await dashboard.reload(item["source"])
+            return web.json_response({**dashboard.state(), "done": "task"})
         if not (item.get("script") or item.get("vacuum")) or not hasattr(source, "run_script"):
             raise web.HTTPNotFound()
         done = None

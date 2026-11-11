@@ -44,6 +44,9 @@ sources:
     # wud: http://servidor.local:3000   # What's Up Docker: icono en rojo si un contenedor tiene actualización
     # wud_user: admin                    # si What's Up Docker pide usuario; la contraseña, WUD_PASSWORD en .env
 
+  tareas:
+    type: tasks                         # scripts del servidor pedidos desde las acciones (ver README, «Tareas del servidor»)
+
   luna:
     type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
 
@@ -373,3 +376,7 @@ panels:
       - script: script.apagar_luces     # solo se pueden lanzar los scripts que estén aquí
         name: Apagar las luces
         icon: mdi:lightbulb-off
+      - source: tareas                  # una tarea del servidor: ~/scripts/update-docker/update-docker.sh
+        task: update-docker
+        name: Actualizar contenedores
+        icon: mdi:docker

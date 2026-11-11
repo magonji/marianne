@@ -16,6 +16,7 @@ from .openweather import OpenWeatherSource
 from .pomodoro import PomodoroSource
 from .rss import RssSource
 from .system import SystemSource
+from .tasks import TasksSource
 from .web import WebSource
 
 __all__ = ["Reading", "Source", "build_source"]
@@ -83,6 +84,8 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
         key = str(spec["key"]).lower() if spec.get("key") else None
         return MusicSource(name, folder=str(spec["folder"]), key=key, cache=spec.get("cache"),
                            rescan_hours=float(spec.get("rescan_hours", 6)), ratings=spec.get("ratings"))
+    if kind == "tasks":
+        return TasksSource(name, folder=str(spec.get("folder", "data/tasks")))
     if kind == "demo":
         return DemoSource(name)
     raise ValueError(f"source '{name}': tipo desconocido '{kind}'")

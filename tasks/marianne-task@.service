@@ -1,0 +1,7 @@
+# Runs a task Marianne asked for: ~/scripts/<task>/<task>.sh, through tasks/run.sh.
+[Unit]
+Description=Marianne: tarea %i
+
+[Service]
+Type=oneshot
+ExecStart=%h/docker/marianne/tasks/run.sh %i
