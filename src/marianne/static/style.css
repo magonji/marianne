@@ -1389,24 +1389,14 @@ a.tile.cursor > span {
   stroke-width: 4;
 }
 
-.venus-orbits .sun-dot {
-  fill: var(--accent);
+.venus-orbits .hand {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
 .venus-orbits .planet {
   fill: var(--foreground);
-}
-
-.venus-orbits .planet.earth {
-  fill: var(--background);
-  stroke: var(--accent);
-  stroke-width: 4;
-}
-
-.sun .planet.earth {
-  fill: var(--background);
-  stroke: var(--accent);
-  stroke-width: 1.2;
 }
 
 

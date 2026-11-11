@@ -1647,9 +1647,9 @@ function drawMoonShape(add, cx, cy, r, lit, waxing, below) {
   add("path", { class: `${look} moon-lit`, d: `M ${top} A ${r} ${r} 0 0 ${outer} ${bottom} A ${rx} ${r} 0 0 ${inner} ${top} Z` });
 }
 
-// Venus and the Earth around the Sun, seen from above and very small, turned so the Earth is at the
-// bottom: the Sun straight up from it, and Venus to the left of the Sun when it's the evening star
-// (east of the Sun, it sets after it) and to the right when it's the morning star.
+// Venus around the Sun, seen from above and very small: its orbit with Venus always on the right,
+// and a thin line from the Sun's centre to the Earth that turns like a clock's hand as they go round
+// (counterclockwise, as seen from the north). The Earth on the right too is a conjunction.
 function drawVenus({ venus, earth }) {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
@@ -1660,19 +1660,12 @@ function drawVenus({ venus, earth }) {
     for (const [name, v] of Object.entries(attrs)) node.setAttribute(name, v);
     svg.append(node);
   };
-  const radius = 40;
-  // The Earth's longitude goes to the bottom (90° on the page, whose y grows down); turning the
-  // other way from there, as y is upside down.
-  const place = ([longitude, distance]) => {
-    const angle = ((90 - (longitude - earth[0])) * Math.PI) / 180;
-    return [distance * radius * Math.cos(angle), distance * radius * Math.sin(angle)];
-  };
-  add("circle", { class: "orbit", cx: 0, cy: 0, r: (earth[1] * radius).toFixed(1) });
-  add("circle", { class: "orbit", cx: 0, cy: 0, r: (venus[1] * radius).toFixed(1) });
-  const [vx, vy] = place(venus), [ex, ey] = place(earth);
-  add("circle", { class: "sun-dot", cx: 0, cy: 0, r: 11 });
-  add("circle", { class: "planet", cx: vx.toFixed(1), cy: vy.toFixed(1), r: 8 });
-  add("circle", { class: "planet earth", cx: ex.toFixed(1), cy: ey.toFixed(1), r: 8 });
+  const scale = 44;
+  const angle = ((earth[0] - venus[0]) * Math.PI) / 180;
+  const [ex, ey] = [earth[1] * scale * Math.cos(angle), -earth[1] * scale * Math.sin(angle)];
+  add("circle", { class: "orbit", cx: 0, cy: 0, r: (venus[1] * scale).toFixed(1) });
+  add("line", { class: "hand", x1: 0, y1: 0, x2: ex.toFixed(1), y2: ey.toFixed(1) });
+  add("circle", { class: "planet", cx: (venus[1] * scale).toFixed(1), cy: 0, r: 8 });
   return svg;
 }
 

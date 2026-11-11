@@ -40,8 +40,9 @@ Marianne está basado en **elinor**, el mejor dashboard del mundo para tu termin
   horas de luz y de oscuridad tiene el día. En la misma gráfica, la curva de la **luna** con sus
   horas de salida y puesta y la luna dibujada donde está, tal y como se ve de iluminada.
 - **Fases de la luna** calculadas localmente (algoritmo de Jean Meeus, sin internet).
-- **Venus alrededor del sol**: en su fila, un esquema pequeño con su órbita y la de la Tierra, y si
-  es lucero del alba o de la tarde y a cuántos grados del sol se ve.
+- **Venus alrededor del sol**: en su fila, un esquema pequeño con su órbita, Venus siempre a la
+  derecha y una manecilla del sol a la Tierra que gira según dónde están; y si es lucero del alba o
+  de la tarde y a cuántos grados del sol se ve.
 - **Pomodoro**: cuenta atrás con descanso automático. Al terminar cada fase suenan tres
   campanadas y el aviso parpadea hasta pulsar una tecla. Basta con definir la fuente: mientras
   está en uso aparece centrada en la cabecera, o, con `pomodoro: true`, en lugar de un panel
