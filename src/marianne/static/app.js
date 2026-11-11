@@ -1647,8 +1647,8 @@ function drawMoonShape(add, cx, cy, r, lit, waxing, below) {
   add("path", { class: `${look} moon-lit`, d: `M ${top} A ${r} ${r} 0 0 ${outer} ${bottom} A ${rx} ${r} 0 0 ${inner} ${top} Z` });
 }
 
-// Venus around the Sun, seen from above and very small: Venus always on the right of the Sun, and a
-// thin line from the Sun's centre to the Earth that turns like a clock's hand as they go round
+// Venus around the Sun, seen from above and very small: its orbit with Venus always on the right,
+// and a thin line from the Sun's centre to the Earth that turns like a clock's hand as they go round
 // (counterclockwise, as seen from the north). The Earth on the right too is a conjunction.
 function drawVenus({ venus, earth }) {
   const ns = "http://www.w3.org/2000/svg";
@@ -1663,6 +1663,7 @@ function drawVenus({ venus, earth }) {
   const scale = 44;
   const angle = ((earth[0] - venus[0]) * Math.PI) / 180;
   const [ex, ey] = [earth[1] * scale * Math.cos(angle), -earth[1] * scale * Math.sin(angle)];
+  add("circle", { class: "orbit", cx: 0, cy: 0, r: (venus[1] * scale).toFixed(1) });
   add("line", { class: "hand", x1: 0, y1: 0, x2: ex.toFixed(1), y2: ey.toFixed(1) });
   add("circle", { class: "planet", cx: (venus[1] * scale).toFixed(1), cy: 0, r: 8 });
   return svg;

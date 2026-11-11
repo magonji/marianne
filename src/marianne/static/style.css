@@ -1383,6 +1383,12 @@ a.tile.cursor > span {
   vertical-align: -0.2em;
 }
 
+.venus-orbits .orbit {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 4;
+}
+
 .venus-orbits .hand {
   stroke: var(--accent);
   stroke-width: 3;
