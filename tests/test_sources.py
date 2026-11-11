@@ -275,10 +275,28 @@ def test_on_today_adds_up_the_time_heating_since_midnight():
     assert on_minutes({"entity": "switch.x"}, [(datetime(2026, 10, 18, 22, 0, tzinfo=tz), "on")], at(1, 30)) == 90
 
 
-def test_on_today_reads_the_attribute_history():
-    from datetime import datetime, timedelta
+def at_noon(monkeypatch):
+    """Today at 12:00 as the source's "now": the tests' times, minutes before it, stay in today even
+    when they run just after midnight."""
+    from datetime import datetime
 
-    start = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    import marianne.sources.homeassistant as homeassistant
+
+    noon = datetime.now().astimezone().replace(hour=12, minute=0, second=0, microsecond=0)
+
+    class Noon(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return noon.astimezone(tz) if tz else noon.replace(tzinfo=None)
+
+    monkeypatch.setattr(homeassistant, "datetime", Noon)
+    return noon
+
+
+def test_on_today_reads_the_attribute_history(monkeypatch):
+    from datetime import timedelta
+
+    start = at_noon(monkeypatch).replace(hour=0)
     iso = lambda minutes: (start + timedelta(minutes=minutes)).isoformat()  # noqa: E731
     history = [[
         {"entity_id": "climate.nest", "state": "heat", "last_updated": iso(0), "attributes": {"hvac_action": "idle"}},
@@ -336,10 +354,10 @@ def test_records_from_daily_statistics():
     assert record_rows({"decimals": 1}, main, records, 1.2)[1].value == "1.2"
 
 
-def test_stats_beside_go_next_to_the_value():
-    from datetime import datetime, timedelta
+def test_stats_beside_go_next_to_the_value(monkeypatch):
+    from datetime import timedelta
 
-    now = datetime.now().astimezone()
+    now = at_noon(monkeypatch)
     iso = lambda minutes: (now - timedelta(minutes=minutes)).isoformat()  # noqa: E731
     state = {"entity_id": "sensor.t", "state": "6.0", "last_updated": iso(1), "last_reported": iso(1), "attributes": {}}
     history = [[{"entity_id": "sensor.t", "state": "4.0", "last_changed": iso(30)},
