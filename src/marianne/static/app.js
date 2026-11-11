@@ -429,6 +429,10 @@ function drawPanel(view) {
         }
         continue;
       }
+      if (reading.heating_summary) {
+        body.append(drawHeatingSummary(reading));
+        continue;
+      }
       if (reading.heating) {
         body.classList.add("with-heating");
         body.append(...drawHeating(view, reading));
@@ -668,9 +672,11 @@ function turnDial(view, step) {
 const decimal = (value, digits = 1) => (value === null || value === undefined ? "–" : Number(value).toFixed(digits));
 const percent = (share) => `${Math.round(share * 100)} %`;
 
+// A row of the window: what, its figure, and a note after it (under it, whole, on a phone).
 function heatingRow(label, value, note, tone = "") {
-  return el("div", { class: `row${tone ? ` ${tone}` : ""}` }, el("span", { class: "label" }, upper(label)), el("span", { class: "leader" }),
-    el("span", { class: "values" }, el("span", { class: "value-text" }, value), note ? el("span", { class: "unit" }, ` ${note}`) : null));
+  return el("div", { class: `row heating-row${tone ? ` ${tone}` : ""}` }, el("span", { class: "label" }, upper(label)), el("span", { class: "leader" }),
+    el("span", { class: "values" }, el("span", { class: "value-text" }, value)),
+    note ? el("span", { class: "heating-row-note unit" }, ` ${note}`) : null);
 }
 
 // The window: the dial and what it means, the boiler against the house's losses, the positions to
@@ -739,6 +745,33 @@ function drawHeating(view, reading) {
   return out;
 }
 
+// The analysis in one line, for another panel (Energía): the dial, whether it condenses and the
+// position to go to; a click opens its window.
+function drawHeatingSummary(reading) {
+  const view = panelViews().find((v) => v.data.readings.some((r) => r.heating));
+  const info = view && view.data.readings.find((r) => r.heating).heating;
+  const tokens = [["label", reading.label]];
+  const result = info && info.analysis;
+  const current = result && (result.dials || []).find((p) => p.dial === info.dial);
+  if (!info) tokens.push(["unit", "sin análisis"]);
+  else if (!info.dial) tokens.push(["unit", `¿regulador? (${view.panel.key ? view.panel.key.toUpperCase() : "abrir"})`]);
+  else if (info.dial === "off") tokens.push(["value", "❄"], ["unit", "apagada"]);
+  else {
+    tokens.push(["value", upper(info.dial)], ["unit", `${Object.fromEntries(info.dials)[info.dial]}°`]);
+    if (current) tokens.push(["sep", "·"], [current.condensing ? "value" : "alert", current.condensing ? "condensa" : "no condensa"]);
+    const best = result.advice && result.dials.find((p) => p.dial === result.advice.best);
+    if (best && best.dial !== info.dial) tokens.push(["sep", "·"], ["label", "mejor"], ["value", upper(best.dial)], ["unit", `${best.saving > 0 ? "−" : "+"}${decimal(Math.abs(best.saving))} % gas`]);
+    else if (result.now && result.now.ratio) tokens.push(["sep", "·"], ["value", `${decimal(result.now.ratio)}×`], ["unit", "lo que se pierde"]);
+  }
+  const line = el("div", { class: "row summary heating-summary" }, el("span", { class: "label" },
+    tokens.flatMap(([kind, text], at) => [at ? " " : "", el("span", { class: `token-${kind}` }, upper(text))])));
+  if (view) {
+    line.setAttribute("title", "Abrir el análisis de la calefacción");
+    line.addEventListener("click", () => togglePopup(view.index));
+  }
+  return line;
+}
+
 function drawDialTable(result, dial) {
   const head = ["Pos.", "Ida", "Vuelta", "Rinde", "Gas", "+2 °C"];
   const rows = result.dials.map((p) => [
@@ -746,26 +779,27 @@ function drawDialTable(result, dial) {
     `${decimal(p.efficiency, 0)} %`, p.saving === null ? "–" : `${p.saving > 0 ? "−" : p.saving < 0 ? "+" : ""}${decimal(Math.abs(p.saving))} %`,
     p.warm_two ? `${decimal(p.warm_two, 0)} h` : "–",
   ]);
-  return el("table", { class: "heating-table" },
+  return el("div", { class: "heating-scroll" }, el("table", { class: "heating-table" },
     el("tr", {}, ...head.map((cell) => el("th", {}, upper(cell)))),
     ...rows.map((cells, i) => {
       const p = result.dials[i];
       const tone = `${p.dial === dial ? "on" : ""}${p.dial === result.advice.best ? " good" : ""}${p.condensing ? "" : " hot"}`;
       return el("tr", { class: tone.trim() }, ...cells.map((cell) => el("td", {}, cell)));
-    }));
+    })));
 }
 
 function drawRoomTable(rooms) {
-  const head = ["", "24 h", "Calefac.", "Se enfría", "Radiador", "Esquinas"];
+  const head = ["", "24 h", "Calef.", "Enfría", "Radiad.", "Esquinas"];
   const times = (value) => (value === null || value === undefined ? "–" : `${decimal(value)}×`);
-  return el("table", { class: "heating-table rooms" },
+  return el("div", { class: "heating-scroll" }, el("table", { class: "heating-table rooms" },
     el("tr", {}, ...head.map((cell) => el("th", {}, upper(cell)))),
     ...rooms.map((room) => el("tr", {},
       el("td", {}, upper(room.name)), el("td", {}, room.mean === null ? "–" : `${decimal(room.mean)}°`),
       el("td", {}, room.behind === undefined ? "termostato" : room.behind === null ? "–" : `${room.behind > 0 ? "+" : ""}${decimal(room.behind)}°`),
       el("td", { class: room.cools >= 1.3 ? "alert-text" : "" }, times(room.cools)),
       el("td", {}, times(room.heat)),
-      el("td", { class: room.mould >= 10 ? "alert-text" : "" }, room.corner === undefined ? "–" : `${room.corner} %${room.mould ? ` · ${room.mould} %` : ""}`))));
+      el("td", { class: room.mould >= 10 ? "alert-text" : "", title: room.mould ? `${room.mould} % del tiempo por encima del 80 %` : null },
+        room.corner === undefined ? "–" : `${room.corner} %${room.mould ? ` (${room.mould})` : ""}`)))));
 }
 
 // What the numbers say, in words: the rooms that lose most, those the thermostat leaves behind, the

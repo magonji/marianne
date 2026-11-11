@@ -48,6 +48,8 @@ class Reading:
     venus: dict[str, Any] | None = None
     # The heating's analysis and the boiler's dial (see heating.analyse), for its window.
     heating: dict[str, Any] | None = None
+    # A one-line summary of that analysis, wherever it is (`heating_summary:`), drawn by the page.
+    heating_summary: bool = False
     # Its icon in a panel drawn as icons, as "mdi:dolphin" or "si:jellyfin".
     icon: str | None = None
     # Where a click on the label goes (a news headline opens the article).

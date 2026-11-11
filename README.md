@@ -460,6 +460,10 @@ estimaciones.
 
 Opcionales: `comfort` (20 °C), `design_outside` (−3 °C), `days` (10), `dial_file`, `publish`.
 
+En cualquier otro panel de Home Assistant, `- heating_summary: true` (con `name`, `Caldera` por
+defecto) lo resume en una línea: la posición del regulador, si condensa y la posición mejor con el
+gas que ahorraría. Un clic en ella abre la ventana.
+
 ### El historial
 
 Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` muestran los

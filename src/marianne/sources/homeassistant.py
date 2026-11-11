@@ -129,6 +129,10 @@ class HomeAssistantSource(Source):
             if item.get("heating"):
                 readings.append(await self._heating(item, states))
                 continue
+            if item.get("heating_summary"):
+                # The page writes it from the analysis' own panel: nothing to read here.
+                readings.append(Reading(item.get("name", "Caldera"), "", heating_summary=True))
+                continue
             if item.get("script"):
                 # A button: its name and icon, and whether the script is running now.
                 script = states.get(item["script"]) or {}

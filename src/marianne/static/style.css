@@ -2557,6 +2557,10 @@ a.tile.cursor > span {
   color: var(--accent);
 }
 
+.heating-scroll {
+  overflow-x: auto;
+}
+
 .heating-table {
   width: 100%;
   border-collapse: collapse;
@@ -2566,12 +2570,13 @@ a.tile.cursor > span {
 .heating-table th {
   color: var(--dim);
   font-weight: normal;
-  text-align: right;
 }
 
-.heating-table td {
+.heating-table td,
+.heating-table th {
   text-align: right;
   padding: 0 0.5ch;
+  white-space: nowrap;
 }
 
 .heating-table th:first-child,
@@ -2593,6 +2598,21 @@ a.tile.cursor > span {
   color: var(--error);
 }
 
+.heating-row-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heating-summary {
+  cursor: pointer;
+}
+
+.row.summary .token-alert {
+  color: var(--error);
+}
+
 .heating-note {
   margin: 0.3rem 0;
   white-space: normal;
@@ -2600,4 +2620,34 @@ a.tile.cursor > span {
 
 .heating-note.dim {
   color: var(--dim);
+}
+
+/* The heating's window on a phone: each row's note under it, whole; the tables smaller. */
+@media (max-width: 760px) and (pointer: coarse) {
+  .row.heating-row {
+    flex-wrap: wrap;
+  }
+
+  .row.heating-row .label {
+    flex: 0 1 auto;
+  }
+
+  .heating-row-note {
+    flex-basis: 100%;
+    white-space: normal;
+    padding-left: 2ch;
+  }
+
+  .heating-table {
+    font-size: 0.85em;
+  }
+
+  .heating-top {
+    gap: 1ch;
+  }
+
+  .dial {
+    width: 7rem;
+    height: 7rem;
+  }
 }

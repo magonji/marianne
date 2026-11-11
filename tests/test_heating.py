@@ -193,3 +193,16 @@ def test_the_dial_from_the_page(tmp_path):
     assert published[0] == ("/api/states/sensor.caldera_impulsion", {
         "state": 61, "attributes": {"unit_of_measurement": "°C", "device_class": "temperature", "position": "3",
                                     "friendly_name": "Caldera: temperatura de impulsión", "icon": "mdi:water-boiler"}})
+
+
+def test_a_summary_line_elsewhere(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[])
+
+    config = parse_config({"boot": False, "sources": {"homeassistant": {"url": "http://ha.test", "token": "x"}},
+                           "panels": [{"title": "Energía", "items": [{"heating_summary": True, "name": "Caldera"}]}]}, None)
+    dashboard = Dashboard(config, demo=False)
+    dashboard.sources["homeassistant"].client._transport = httpx.MockTransport(handler)
+    asyncio.run(dashboard.reload())
+    (reading,) = dashboard.state()["panels"][0][0]["readings"]
+    assert (reading["label"], reading["heating_summary"]) == ("Caldera", True)
