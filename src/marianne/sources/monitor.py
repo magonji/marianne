@@ -23,11 +23,17 @@ class MonitorSource(Source):
         timeout: float = 5,
         verify_ssl: bool = True,
         wud: str | None = None,
+        wud_user: str | None = None,
+        wud_password: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         super().__init__(name)
         # What's Up Docker: which containers have a newer image (each item lists its own).
         self.wud = wud.rstrip("/") if wud else None
+        # Its login, when it has one (WUD_AUTH_BASIC_…): without it, it answers 401.
+        self.wud_auth = httpx.BasicAuth(wud_user, wud_password or "") if wud_user else None
+        # Why it couldn't be asked last time, for the services' tooltips; "" when it answered.
+        self.wud_error = ""
         # Redirects are not followed: a 3xx already means the service is up.
         self.client = httpx.AsyncClient(
             timeout=timeout, verify=verify_ssl, headers={"User-Agent": USER_AGENT}, transport=transport,
@@ -45,15 +51,25 @@ class MonitorSource(Source):
             return response.status_code, (time.monotonic() - start) * 1000
 
     async def _updates(self) -> set[str]:
-        """Names of the containers What's Up Docker says can be updated; none if it can't be asked."""
+        """Names of the containers What's Up Docker says can be updated; none if it can't be asked
+        (and why, in wud_error)."""
         if not self.wud:
             return set()
         try:
-            response = await self.client.get(f"{self.wud}/api/containers")
+            response = await self.client.get(f"{self.wud}/api/containers", auth=self.wud_auth)
+            if response.status_code == 401:
+                self.wud_error = "What's Up Docker pide usuario y contraseña (wud_user, wud_password)"
+                return set()
             response.raise_for_status()
-            return {str(c.get("name")) for c in response.json() if isinstance(c, dict) and c.get("updateAvailable")}
-        except (httpx.HTTPError, ValueError):
+            names = {str(c.get("name")) for c in response.json() if isinstance(c, dict) and c.get("updateAvailable")}
+        except httpx.HTTPStatusError as exc:
+            self.wud_error = f"What's Up Docker: error {exc.response.status_code}"
             return set()
+        except (httpx.HTTPError, ValueError) as exc:
+            self.wud_error = f"What's Up Docker: {failure(exc)}"
+            return set()
+        self.wud_error = ""
+        return names
 
     async def fetch(self, items: list[dict[str, Any]]) -> list[Reading]:
         checks = asyncio.gather(*(self._check(item["url"]) for item in items), return_exceptions=True)
@@ -63,6 +79,9 @@ class MonitorSource(Source):
         readings = [self._reading(item, result) for item, result in zip(items, results)]
         for item, reading in zip(items, readings):
             reading.update = any(name in updates for name in containers(item))
+            # Not knowing about updates shouldn't look like there are none: why, on their tooltips.
+            if self.wud_error and containers(item) and not reading.note:
+                reading.note = self.wud_error
         return readings
 
     def _reading(self, item: dict[str, Any], result: tuple[int, float] | BaseException) -> Reading:

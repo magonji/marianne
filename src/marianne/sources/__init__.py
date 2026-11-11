@@ -47,7 +47,8 @@ def build_source(name: str, spec: dict[str, Any], demo: bool = False) -> Source:
         )
     if kind == "monitor":
         return MonitorSource(name, timeout=spec.get("timeout", 5), verify_ssl=spec.get("verify_ssl", True),
-                             wud=spec.get("wud"))
+                             wud=spec.get("wud"), wud_user=spec.get("wud_user"),
+                             wud_password=secret(spec.get("wud_password", "${WUD_PASSWORD}")))
     if kind == "ical":
         calendars = [{"name": str(c.get("name", "")), "url": secret(c.get("url", ""))} for c in spec.get("calendars") or []]
         return IcalSource(name, calendars, timeout=spec.get("timeout", 20))

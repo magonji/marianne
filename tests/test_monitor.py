@@ -118,6 +118,29 @@ def test_whats_up_docker_down_marks_nothing():
     assert not reading.update and reading.switch
 
 
+
+def test_whats_up_docker_with_a_login():
+    def wud(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "wud.test":
+            # "Basic " + base64 of "yo:secreta"
+            if request.headers.get("Authorization") != "Basic eW86c2VjcmV0YQ==":
+                return httpx.Response(401, text="Unauthorized")
+            return httpx.Response(200, json=[{"name": "x", "updateAvailable": True}])
+        return handler(request)
+
+    item = {"url": "https://bien.test", "name": "X", "container": "x"}
+    other = {"url": "https://bien.test", "name": "Sin contenedor"}
+    with_login = MonitorSource("servicios", wud="https://wud.test", wud_user="yo", wud_password="secreta",
+                               transport=httpx.MockTransport(wud))
+    (reading,) = asyncio.run(with_login.fetch([item]))
+    assert reading.update and reading.note == ""
+    # Without it, no update, but the tooltip says why
+    without = MonitorSource("servicios", wud="https://wud.test", transport=httpx.MockTransport(wud))
+    reading, unrelated = asyncio.run(without.fetch([item, other]))
+    assert not reading.update and "usuario y contraseña" in reading.note
+    assert unrelated.note == ""
+
+
 def test_why_a_service_is_down():
     from marianne.sources.monitor import failure
 

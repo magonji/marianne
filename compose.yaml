@@ -25,6 +25,8 @@ services:
       # Los secretos que config.yaml pide con ${...}, leídos del fichero .env.
       HASS_TOKEN: ${HASS_TOKEN:-}
       OPENWEATHER_KEY: ${OPENWEATHER_KEY:-}
+      # La contraseña de What's Up Docker, si tiene usuario (wud_user).
+      WUD_PASSWORD: ${WUD_PASSWORD:-}
       # Los enlaces iCal de los calendarios (añade aquí los que uses en config.yaml).
       ICAL_PERSONAL: ${ICAL_PERSONAL:-}
       ICAL_VILLCAHITERS: ${ICAL_VILLCAHITERS:-}

@@ -42,6 +42,7 @@ sources:
     timeout: 5                          # segundos antes de darlo por caído
     # verify_ssl: false                 # para certificados autofirmados
     # wud: http://servidor.local:3000   # What's Up Docker: icono en rojo si un contenedor tiene actualización
+    # wud_user: admin                    # si What's Up Docker pide usuario; la contraseña, WUD_PASSWORD en .env
 
   luna:
     type: moon                          # fases de la luna calculadas localmente (field: phase | next_phase)
