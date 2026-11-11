@@ -429,6 +429,11 @@ function drawPanel(view) {
         }
         continue;
       }
+      if (reading.heating) {
+        body.classList.add("with-heating");
+        body.append(...drawHeating(view, reading));
+        continue;
+      }
       if (reading.agenda) {
         body.append(drawAgenda(reading));
         continue;
@@ -586,6 +591,216 @@ function drawActions(view, readings) {
   // The free places of the grid, as empty boxes: it's always three by three.
   const free = Array.from({ length: 9 - buttons.length }, () => el("div", { class: "tile action free" }));
   return el("div", { class: "actions" }, ...buttons, ...free);
+}
+
+// ---------------------------------------------------------------- the heating's efficiency
+
+// The boiler's dial, as on the boiler: its positions round an arc (the snowflake, off, first), the
+// pointer where it is. A click on a position, or ← →, turns it; the server keeps each move with
+// its time, so the analysis knows which it was at each moment.
+const DIAL_FROM = -135, DIAL_TO = 135; // degrees from straight up
+
+function drawDial(view, info) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "dial");
+  svg.setAttribute("viewBox", "-60 -60 120 120");
+  const add = (tag, attrs, text) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [name, v] of Object.entries(attrs)) node.setAttribute(name, v);
+    if (text !== undefined) node.textContent = text;
+    svg.append(node);
+    return node;
+  };
+  const angle = (i) => ((DIAL_FROM + ((DIAL_TO - DIAL_FROM) * i) / (info.dials.length - 1)) * Math.PI) / 180;
+  add("circle", { class: "dial-face", cx: 0, cy: 0, r: 30 });
+  info.dials.forEach(([name], i) => {
+    const a = angle(i);
+    const [x, y] = [Math.sin(a), -Math.cos(a)];
+    add("line", { class: "dial-tick", x1: (x * 33).toFixed(1), y1: (y * 33).toFixed(1), x2: (x * 38).toFixed(1), y2: (y * 38).toFixed(1) });
+    const label = add("text", { class: `dial-label${name === info.dial ? " on" : ""}`, x: (x * 48).toFixed(1), y: (y * 48 + 4).toFixed(1),
+      "text-anchor": "middle" }, name === "off" ? "❄" : name === "min" ? "MIN" : name === "max" ? "MAX" : name);
+    // A bigger target than the label, to click.
+    const target = add("circle", { class: "dial-target", cx: (x * 46).toFixed(1), cy: (y * 46).toFixed(1), r: 9 });
+    for (const node of [label, target]) node.addEventListener("click", () => moveDial(view.index, name));
+  });
+  const at = info.dials.findIndex(([name]) => name === info.dial);
+  if (at >= 0) {
+    const a = angle(at);
+    add("line", { class: "dial-pointer", x1: 0, y1: 0, x2: (Math.sin(a) * 26).toFixed(1), y2: (-Math.cos(a) * 26).toFixed(1) });
+  }
+  add("circle", { class: "dial-hub", cx: 0, cy: 0, r: 4 });
+  return svg;
+}
+
+let dialMoving = false;
+
+async function moveDial(panel, position) {
+  if (dialMoving) return;
+  dialMoving = true;
+  try {
+    const response = await fetch(`/api/dial/${panel}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ position }),
+    });
+    const answer = await response.json().catch(() => ({}));
+    if (response.ok) {
+      update(answer);
+      showToast(answer.warning ? `✓ Regulador · ${answer.warning}` : `✓ Regulador en ${position === "off" ? "❄" : upper(position)}`);
+    } else showToast(`✖ Regulador · ${answer.error || "no se ha podido guardar"}`);
+  } catch {
+    showToast("✖ Regulador · sin conexión con Marianne");
+  } finally {
+    dialMoving = false;
+  }
+}
+
+// ← → in the heating's window: the dial one position down or up.
+function turnDial(view, step) {
+  const info = (view.data.readings.find((reading) => reading.heating) || {}).heating;
+  if (!info) return false;
+  const names = info.dials.map(([name]) => name);
+  const at = names.indexOf(info.dial);
+  const next = names[Math.max(0, Math.min(names.length - 1, (at < 0 ? names.indexOf("4") : at) + step))];
+  if (next !== info.dial) moveDial(view.index, next);
+  return true;
+}
+
+const decimal = (value, digits = 1) => (value === null || value === undefined ? "–" : Number(value).toFixed(digits));
+const percent = (share) => `${Math.round(share * 100)} %`;
+
+function heatingRow(label, value, note, tone = "") {
+  return el("div", { class: `row${tone ? ` ${tone}` : ""}` }, el("span", { class: "label" }, upper(label)), el("span", { class: "leader" }),
+    el("span", { class: "values" }, el("span", { class: "value-text" }, value), note ? el("span", { class: "unit" }, ` ${note}`) : null));
+}
+
+// The window: the dial and what it means, the boiler against the house's losses, the positions to
+// choose from, the rooms, and what all that says, in words.
+function drawHeating(view, reading) {
+  const info = reading.heating;
+  const result = info.analysis;
+  const flows = Object.fromEntries(info.dials);
+  const current = result && (result.dials || []).find((p) => p.dial === info.dial);
+  const out = [];
+  // The dial, and beside it the water it makes.
+  const since = info.since ? new Date(info.since) : null;
+  const facts = [el("div", { class: "dial-name" }, upper("Regulador de la calefacción"))];
+  if (!info.dial) {
+    facts.push(el("div", { class: "alert-text" }, upper("¿En qué posición está? Gírelo a la de la caldera (← →)")));
+  } else if (info.dial === "off") {
+    facts.push(el("div", {}, upper("❄ Calefacción apagada en la caldera")));
+  } else {
+    facts.push(el("div", {}, upper(`Posición ${info.dial} · agua a ${flows[info.dial]} °C`)));
+    if (current) {
+      facts.push(el("div", { class: current.condensing ? "" : "alert-text" },
+        upper(`Vuelve a ≈ ${current.back} °C · ${current.condensing ? "condensa" : "no condensa"} · rinde ≈ ${decimal(current.efficiency, 0)} %`)));
+    }
+  }
+  if (since) facts.push(el("div", { class: "dim" }, upper(`Desde ${since.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })} ${since.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`)));
+  out.push(el("div", { class: "heating-top" }, drawDial(view, info), el("div", { class: "dial-facts" }, ...facts)));
+  out.push(el("div", { class: "rule" }));
+  if (!result || !result.model) {
+    out.push(el("div", { class: "waiting" }, upper(reading.error ? `Sin historial: ${reading.note}` : "Hacen falta unos días de historial con la calefacción funcionando")));
+    return out;
+  }
+  // The boiler against the losses.
+  out.push(el("div", { class: "heating-title" }, upper("La caldera")));
+  const now = result.now;
+  if (now && now.ratio) {
+    out.push(heatingRow("Da ahora", `${decimal(now.ratio)} ×`, `lo que se pierde (${decimal(now.inside)}° dentro, ${decimal(now.outside)}° fuera)`));
+    out.push(heatingRow("Le basta funcionar", percent(now.duty), `del tiempo · en 24 h ha funcionado el ${percent(now.duty_seen || 0)}`));
+  }
+  out.push(heatingRow(`Aguantaría ${decimal(result.comfort, 0)} °C`, result.limit < -20 ? "por debajo de −20 °C" : `hasta ${decimal(result.limit)} °C`, "fuera, sin parar"));
+  if (result.cycles) {
+    out.push(heatingRow("Encendidos", `${result.cycles.count} en ${decimal(result.days, 0)} días`,
+      `${result.cycles.mean} min de media${result.cycles.short ? ` · ${result.cycles.short} de 15 min o menos` : ""}`));
+  }
+  // The positions.
+  if (result.advice) {
+    const best = result.dials.find((p) => p.dial === result.advice.best);
+    out.push(el("div", { class: "heating-title" }, upper("El regulador")));
+    if (best && best.dial !== info.dial) {
+      out.push(heatingRow("Mejor posición", `${best.dial} · ${best.flow} °C`,
+        `condensa · ≈ ${decimal(best.saving)} % menos gas · subir 2 °C: ${decimal(best.warm_two, 0)} h (ahora ${decimal(current.warm_two, 0)} h)`, "good"));
+    } else if (best) {
+      out.push(heatingRow("Mejor posición", `${best.dial} · la de ahora`, "condensa sin tardar mucho más en calentar", "good"));
+    } else {
+      out.push(heatingRow("Mejor posición", "ninguna condensa", "sin tardar mucho más en calentar: deja la de ahora"));
+    }
+    const lowest = result.advice.design;
+    if (lowest) out.push(heatingRow(`Para ${decimal(result.advice.design_outside, 0)} °C fuera`, `bastaría la ${lowest}`, "si no se baja la consigna (calienta muy despacio)"));
+    out.push(drawDialTable(result, info.dial));
+  }
+  // The rooms.
+  out.push(el("div", { class: "heating-title" }, upper("La casa")));
+  out.push(drawRoomTable(result.rooms));
+  for (const text of heatingAdvice(result)) out.push(el("div", { class: "heating-note" }, `▸ ${text}`));
+  out.push(el("div", { class: "heating-note dim" }, `${decimal(result.days, 0)} días de historial, ${decimal(result.heating_hours, 0)} h de calefacción. ` +
+    "Estimaciones: no hay contador de gas ni sensor del agua; las temperaturas del regulador son las del manual (aproximadas)."));
+  return out;
+}
+
+function drawDialTable(result, dial) {
+  const head = ["Pos.", "Ida", "Vuelta", "Rinde", "Gas", "+2 °C"];
+  const rows = result.dials.map((p) => [
+    p.dial === "min" ? "MIN" : p.dial === "max" ? "MAX" : p.dial, `${p.flow}°`, `${p.back}°`,
+    `${decimal(p.efficiency, 0)} %`, p.saving === null ? "–" : `${p.saving > 0 ? "−" : p.saving < 0 ? "+" : ""}${decimal(Math.abs(p.saving))} %`,
+    p.warm_two ? `${decimal(p.warm_two, 0)} h` : "–",
+  ]);
+  return el("table", { class: "heating-table" },
+    el("tr", {}, ...head.map((cell) => el("th", {}, upper(cell)))),
+    ...rows.map((cells, i) => {
+      const p = result.dials[i];
+      const tone = `${p.dial === dial ? "on" : ""}${p.dial === result.advice.best ? " good" : ""}${p.condensing ? "" : " hot"}`;
+      return el("tr", { class: tone.trim() }, ...cells.map((cell) => el("td", {}, cell)));
+    }));
+}
+
+function drawRoomTable(rooms) {
+  const head = ["", "24 h", "Calefac.", "Se enfría", "Radiador", "Esquinas"];
+  const times = (value) => (value === null || value === undefined ? "–" : `${decimal(value)}×`);
+  return el("table", { class: "heating-table rooms" },
+    el("tr", {}, ...head.map((cell) => el("th", {}, upper(cell)))),
+    ...rooms.map((room) => el("tr", {},
+      el("td", {}, upper(room.name)), el("td", {}, room.mean === null ? "–" : `${decimal(room.mean)}°`),
+      el("td", {}, room.behind === undefined ? "termostato" : room.behind === null ? "–" : `${room.behind > 0 ? "+" : ""}${decimal(room.behind)}°`),
+      el("td", { class: room.cools >= 1.3 ? "alert-text" : "" }, times(room.cools)),
+      el("td", {}, times(room.heat)),
+      el("td", { class: room.mould >= 10 ? "alert-text" : "" }, room.corner === undefined ? "–" : `${room.corner} %${room.mould ? ` · ${room.mould} %` : ""}`))));
+}
+
+// What the numbers say, in words: the rooms that lose most, those the thermostat leaves behind, the
+// ones without heating, mould, the sun and the wind.
+function heatingAdvice(result) {
+  const notes = [];
+  const list = (rooms, value) => rooms.map((room) => `${room.name} (${value(room)})`).join(", ").replace(/, ([^,]*)$/, " y $1");
+  const cold = result.rooms.filter((room) => room.cools >= 1.3).sort((a, b) => b.cools - a.cools);
+  if (cold.length) {
+    notes.push(`${list(cold, (room) => `${decimal(room.cools)}×`)} ${cold.length > 1 ? "se enfrían" : "se enfría"} más deprisa que la casa por la noche: sus paredes a la calle o al pasillo del portal, y sus ventanas, son las que más pierden. Ahí rinden más burletes, cortinas gruesas cerradas de noche, lámina o doble ventana en los cristales simples, o aislar los muros por dentro.`);
+  }
+  const behind = result.rooms.filter((room) => room.behind !== undefined && room.behind !== null && room.behind <= -1).sort((a, b) => a.behind - b.behind);
+  if (behind.length) {
+    notes.push(`El termostato está en una habitación que se calienta antes que ${list(behind, (room) => `${decimal(room.behind)}°`)}: apaga la caldera antes de que lleguen. Con las válvulas abiertas del todo, equilibra con los detentores (la llave del otro lado del radiador): ciérralo un poco en el radiador del termostato, o pon un sensor del Nest en una de esas habitaciones.`);
+  }
+  const unheated = result.rooms.filter((room) => room.heat !== null && room.heat !== undefined && room.heat < 0.35);
+  if (unheated.length) notes.push(`${unheated.map((room) => room.name).join(" y ")} apenas ${unheated.length > 1 ? "notan" : "nota"} la calefacción (sin radiador o con él cerrado).`);
+  const aired = result.rooms.filter((room) => room.opened >= 3).sort((a, b) => b.opened - a.opened);
+  if (aired.length) {
+    notes.push(`Ventanas abiertas (caídas bruscas sin calefacción): ${list(aired, (room) => `${room.opened} veces`)} en ${decimal(result.days, 0)} días. Ventilar 5–10 min de golpe renueva el aire sin enfriar los muros; más rato sí los enfría, y luego cuesta recuperarlos.`);
+  }
+  const mould = result.rooms.filter((room) => room.mould >= 10);
+  if (mould.length) {
+    notes.push(`En ${list(mould, (room) => `${room.mould} % del tiempo`)} las esquinas de las paredes de fuera pasan del 80 % de humedad (3 últimos días): riesgo de moho. Ventilar unos minutos después de duchas, cocinar o tender, y no dejar muebles pegados a esas paredes.`);
+  }
+  for (const [side, sun] of Object.entries(result.sun || {})) {
+    notes.push(`El sol de frente en las ventanas del ${side} calienta la casa ${decimal(sun.warms, 2)} °C/h: como la caldera funcionando el ${percent(Math.min(1, sun.share))} del tiempo. Con sol, abre las cortinas de ese lado; al ponerse, ciérralas.`);
+  }
+  if (result.wind && result.wind.sure && result.wind.share > 0.05) {
+    notes.push(`Con cada 10 km/h de viento la casa necesita un ${percent(result.wind.share)} más de calefacción: se cuela aire por ventanas y rendijas.`);
+  }
+  if (result.advice && result.advice.best && result.now) {
+    notes.push("Con una caldera de condensación y muros que guardan tanto el calor, gasta menos tener el agua más fría y la calefacción más horas con una consigna estable que bajarla mucho por la noche y recuperar a golpes.");
+  }
+  return notes;
 }
 
 // A robot vacuum's button that starts a cleaning: "Pausar" while it cleans, "Reanudar" while it's
@@ -1862,6 +2077,11 @@ function press(key) {
       if (box) box.scrollBy(0, ARROWS[key][1] * 4 * parseFloat(getComputedStyle(box).lineHeight || "20"));
       return;
     }
+  }
+  // In the heating's window, ← → turn the boiler's dial.
+  if ((key === "arrowleft" || key === "arrowright") && popup !== null) {
+    const view = panelViews().find((v) => v.index === popup);
+    if (view && turnDial(view, key === "arrowright" ? 1 : -1)) return;
   }
   if (Object.hasOwn(ARROWS, key)) return moveCursor(ARROWS[key]);
   if (key === "enter" && cursor === CHART_CURSOR) return toggleChartDay();

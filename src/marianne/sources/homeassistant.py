@@ -16,6 +16,7 @@ import httpx
 from PIL import Image, ImageChops, ImageFilter
 import websockets
 
+from .. import heating
 from ..sun import sun_path
 from .base import Reading, Source, check_alert, format_number, last_days, make_fraction, parse_number
 
@@ -40,6 +41,8 @@ HISTORY_CACHE_SECONDS = 300.0
 RECORDS_CACHE_SECONDS = 3600.0
 # How far back the history is read to find when a device last really changed a value.
 SEEN_DAYS = 7
+# The heating's analysis reads days of history: once an hour is enough.
+HEATING_HISTORY_SECONDS = 3600.0
 
 Samples = list[tuple[datetime, float]]
 Records = dict[str, tuple[datetime, float]]
@@ -122,6 +125,9 @@ class HomeAssistantSource(Source):
         for item in items:
             if item.get("energy"):
                 readings.append(await self._energy(item, states))
+                continue
+            if item.get("heating"):
+                readings.append(await self._heating(item, states))
                 continue
             if item.get("script"):
                 # A button: its name and icon, and whether the script is running now.
@@ -383,6 +389,68 @@ class HomeAssistantSource(Source):
         if latest is not None and latest > changes[-1][0]:
             changes = [*changes, (latest, raw_state(item, state))]
         return changes
+
+    async def _heating_history(self, item: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+        """The history of every entity the heating's analysis needs, by entity (cached an hour)."""
+        entities = heating.entities(item)
+        key = ("heating", *entities)
+        cached = self._changes.get(key)
+        if cached and time.monotonic() - cached[0] < HEATING_HISTORY_SECONDS:
+            return cached[1]
+        now = datetime.now().astimezone()
+        start = now - timedelta(days=float(item.get("days", heating.DAYS)))
+        params = {"filter_entity_id": ",".join(entities), "significant_changes_only": "0", "end_time": now.isoformat()}
+        response = await self.client.get(f"/api/history/period/{quote(start.isoformat())}", params=params,
+                                         timeout=max(self.client.timeout.read or 10, 60))
+        response.raise_for_status()
+        states = {series[0]["entity_id"]: series for series in response.json() if series}
+        self._changes[key] = (time.monotonic(), states)
+        return states
+
+    async def _heating(self, item: dict[str, Any], states: dict[str, dict[str, Any]]) -> Reading:
+        """The heating's analysis, with the boiler's dial where it is now."""
+        dials = heating.DIALS[item.get("boiler", "greenstar-junior")]
+        log = heating.read_dial_log(item.get("dial_file", heating.DIAL_FILE))
+        dial = log[-1][1] if log else None
+        # Home Assistant forgets a state set from outside when it restarts: set it again.
+        published = states.get(item.get("publish", ""), {}).get("attributes", {}).get("position")
+        if item.get("publish") and dial and published != dial:
+            try:
+                await self._publish_dial(item, dial)
+            except httpx.HTTPError:
+                pass
+        label = item.get("name", "Eficiencia")
+        try:
+            states = await self._heating_history(item)
+        except httpx.HTTPError as exc:
+            return Reading(label, "", error=True, note=f"sin historial ({type(exc).__name__})",
+                           heating={"dials": dials, "dial": dial, "analysis": None})
+        now = datetime.now().astimezone()
+        history = heating.history_from(states, item, now, float(item.get("days", heating.DAYS)), log, dials)
+        analysis = await asyncio.to_thread(heating.analyse, history, dial, dials,
+                                           float(item.get("design_outside", heating.DESIGN_OUTSIDE)),
+                                           float(item.get("comfort", heating.COMFORT)), item.get("thermostat_room"))
+        since = log[-1][0].isoformat() if log else None
+        return Reading(label, "", heating={"dials": dials, "dial": dial, "since": since, "analysis": analysis})
+
+    async def set_dial(self, item: dict[str, Any], position: str) -> None:
+        """The boiler's dial moved (on the page): kept with its time, for the analysis to know which
+        it was at each moment; with `publish`, also as a sensor of Home Assistant's (°C of flow)."""
+        dials = dict(heating.DIALS[item.get("boiler", "greenstar-junior")])
+        if position not in dials:
+            raise ValueError(f"posición desconocida: {position}")
+        heating.add_to_dial_log(item.get("dial_file", heating.DIAL_FILE), position)
+        if item.get("publish"):
+            await self._publish_dial(item, position)
+
+    async def _publish_dial(self, item: dict[str, Any], position: str) -> None:
+        flow = dict(heating.DIALS[item.get("boiler", "greenstar-junior")])[position]
+        response = await self.client.post(f"/api/states/{item['publish']}", json={
+            "state": flow if flow is not None else 0,
+            "attributes": {"unit_of_measurement": "°C", "device_class": "temperature", "position": position,
+                           "friendly_name": "Caldera: temperatura de impulsión", "icon": "mdi:water-boiler"}})
+        response.raise_for_status()
+        self._fetched_at = 0.0  # the next look at the states sees it
 
     async def _energy(self, item: dict[str, Any], states: dict[str, dict[str, Any]]) -> Reading:
         """The energy widget: the power now, its curve today (5-minute means), the heating's spells

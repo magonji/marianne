@@ -361,6 +361,20 @@ panels:
               - https://mundo.example/rss
               - https://mundo.example/atom
 
+  - title: Eficiencia                   # la calefacción y el regulador de la caldera (ver README)
+    source: homeassistant
+    key: g
+    items:
+      - heating: climate.termostato
+        boiler: greenstar-junior
+        outside: sensor.fuera_temperatura
+        weather: weather.forecast_home
+        facades: {este: 90, oeste: 270}  # hacia dónde miran las ventanas
+        thermostat_room: Salón
+        rooms:
+          Salón: {temperature: sensor.salon_temperatura, humidity: sensor.salon_humedad}
+          Dormitorio: sensor.dormitorio_temperatura
+
   - title: Acciones
     source: homeassistant
     key: a                              # ventana con la tecla A: botones que lanzan scripts de Home Assistant

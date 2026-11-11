@@ -2484,3 +2484,120 @@ a.tile.cursor > span {
   }
 }
 
+
+/* The heating's efficiency window: the boiler's dial and what it means, its tables and notes. */
+#popup .panel:has(.with-heating) {
+  width: min(52rem, 94vw);
+}
+
+#popup .panel > .body.with-heating {
+  overflow-y: auto;
+}
+
+.heating-top {
+  display: flex;
+  align-items: center;
+  gap: 2ch;
+}
+
+.dial {
+  flex: none;
+  width: 9rem;
+  height: 9rem;
+}
+
+.dial-face {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-width: 2;
+}
+
+.dial-tick {
+  stroke: var(--dim);
+  stroke-width: 2;
+}
+
+.dial-label {
+  font-family: "VT323", ui-monospace, monospace;
+  font-size: 11px;
+  fill: var(--dim);
+  cursor: pointer;
+}
+
+.dial-label.on {
+  fill: var(--accent);
+}
+
+.dial-target {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.dial-pointer {
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.dial-hub {
+  fill: var(--accent);
+}
+
+.dial-name,
+.heating-title {
+  color: var(--accent);
+}
+
+.heating-title {
+  margin-top: 0.6rem;
+  border-bottom: 1px solid var(--dim);
+}
+
+.row.good .value-text {
+  color: var(--accent);
+}
+
+.heating-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.3rem 0;
+}
+
+.heating-table th {
+  color: var(--dim);
+  font-weight: normal;
+  text-align: right;
+}
+
+.heating-table td {
+  text-align: right;
+  padding: 0 0.5ch;
+}
+
+.heating-table th:first-child,
+.heating-table td:first-child {
+  text-align: left;
+}
+
+.heating-table tr.on td {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.heating-table tr.good td:first-child::after {
+  content: " ◂";
+  color: var(--accent);
+}
+
+.heating-table tr.hot:not(.on) td:nth-child(3) {
+  color: var(--error);
+}
+
+.heating-note {
+  margin: 0.3rem 0;
+  white-space: normal;
+}
+
+.heating-note.dim {
+  color: var(--dim);
+}

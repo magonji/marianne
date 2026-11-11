@@ -417,6 +417,49 @@ parpadeando en rojo si se atasca.
     to: [0, 0, 60, 50]
 ```
 
+### La eficiencia de la calefacción
+
+Un elemento `heating:` (el termostato) en un panel con `key:` abre una ventana que analiza la
+calefacción con los últimos días de historial de Home Assistant (unos 10, lo que guarda el
+recorder). No hace falta contador de gas ni sensor del agua: las cifras de la caldera son
+estimaciones.
+
+- **El regulador de la caldera**, dibujado como el de la caldera: se gira con ← → o con un clic en
+  sus marcas, y cada cambio se guarda con su hora (`dial_file`, `data/caldera.json`), para que el
+  análisis sepa en qué posición estaba en cada momento. Con `publish: sensor.caldera_impulsion`,
+  además se publica en Home Assistant como sensor con la temperatura del agua.
+- **La caldera**: con un balance de energía de los días vistos (el calor que dieron los radiadores es
+  el que perdió la casa), cuántas veces da lo que se pierde ahora, qué parte del tiempo le basta
+  funcionar, hasta qué temperatura de fuera aguantaría y sus encendidos.
+- **El regulador**: para cada posición, la temperatura de ida (la tabla del manual), la de vuelta,
+  si condensa (vuelta por debajo de ~55 °C), su rendimiento, el gas de más o de menos y cuánto
+  tarda la casa en subir 2 °C. La mejor es la más baja que condensa, aguanta el día más frío
+  (`design_outside`, −3 °C) y no tarda mucho más que la de ahora en calentar.
+- **La casa**: por habitación, su temperatura, cuánto se queda por debajo de la del termostato
+  (`thermostat_room`) con la calefacción en marcha, cuánto se enfría por la noche frente a la casa
+  (sin contar los ratos de ventana abierta, que se detectan solos), cuánto la calienta su radiador
+  y la humedad de las esquinas de sus paredes exteriores (moho por encima del 80 %).
+- **El sol** por cada fachada (`facades`: hacia dónde miran sus ventanas, en grados de azimut) y
+  **el viento**, cuando los datos dicen algo claro; y lo que todo eso aconseja, en palabras.
+
+```yaml
+  - title: Eficiencia
+    source: homeassistant
+    key: g
+    items:
+      - heating: climate.termostato
+        boiler: greenstar-junior        # la tabla de su regulador
+        outside: sensor.fuera_temperatura
+        weather: weather.forecast_home  # nubes y viento
+        facades: {este: 119, oeste: 299}
+        thermostat_room: Vestíbulo
+        rooms:
+          Salón: {temperature: sensor.salon_temperatura, humidity: sensor.salon_humedad}
+          Vestíbulo: {temperature: sensor.vestibulo_temperatura}
+```
+
+Opcionales: `comfort` (20 °C), `design_outside` (−3 °C), `days` (10), `dial_file`, `publish`.
+
 ### El historial
 
 Con la tecla `H` (`history_key` en `config.yaml`), los paneles con `history: true` muestran los

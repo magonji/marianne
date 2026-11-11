@@ -343,6 +343,31 @@ def make_app(dashboard: Dashboard) -> web.Application:
         await dashboard.reload(item["source"])
         return web.json_response({**dashboard.state(), "done": done})
 
+    @routes.post("/api/dial/{panel}")
+    async def move_dial(request: web.Request) -> web.Response:
+        # The boiler's dial of the panel's heating analysis (a panel has one at most).
+        try:
+            panel = dashboard.config.panels[int(request.match_info["panel"])]
+        except (ValueError, IndexError):
+            raise web.HTTPNotFound() from None
+        item = next((item for item in panel.items if item.get("heating")), {})
+        source = dashboard.sources.get(item.get("source", ""))
+        if not item.get("heating") or not hasattr(source, "set_dial"):
+            raise web.HTTPNotFound()
+        position = (await body(request)).get("position")
+        try:
+            await source.set_dial(item, str(position))
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except OSError:
+            return web.json_response({"error": "no se ha podido guardar la posición"}, status=500)
+        except httpx.HTTPError:
+            # Kept anyway: only Home Assistant's copy is missing.
+            await dashboard.reload(item["source"])
+            return web.json_response({**dashboard.state(), "warning": "guardada, pero Home Assistant no la ha recibido"})
+        await dashboard.reload(item["source"])
+        return web.json_response(dashboard.state())
+
     @routes.post("/api/light/{panel}/{light}")
     async def toggle_light(request: web.Request) -> web.Response:
         # Only a light of a plan, by its place among the panel's lights: the page can't name any other.

@@ -11,6 +11,7 @@ import yaml
 
 from .sources.dates import PROGRESS
 from .sources.moon import FIELDS as MOON_FIELDS
+from .heating import DIALS as HEATING_DIALS
 from .sources.tasks import TASK_NAME
 from .sources.openweather import FIELDS as OPENWEATHER_FIELDS
 from .sources.pomodoro import FIELDS as POMODORO_FIELDS
@@ -307,6 +308,14 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
                                   "o sus nombres con su número para elegirlas al pulsar")
         if "script" in item and not str(item["script"]).startswith("script."):
             raise ConfigError(f"Panel '{title}': 'script' debe ser un script de Home Assistant (script.…), no '{item['script']}'")
+        if "heating" in item:
+            if not str(item["heating"]).startswith("climate."):
+                raise ConfigError(f"Panel '{title}': 'heating' debe ser el termostato (climate.…), no '{item['heating']}'")
+            if not item.get("outside") or not isinstance(item.get("rooms"), dict) or not item["rooms"]:
+                raise ConfigError(f"Panel '{title}': el análisis de la calefacción necesita 'outside' (la temperatura "
+                                  "de fuera) y 'rooms' (cada habitación con su temperatura)")
+            if item.get("boiler", "greenstar-junior") not in HEATING_DIALS:
+                raise ConfigError(f"Panel '{title}': 'boiler' debe ser uno de {', '.join(sorted(HEATING_DIALS))}")
         if kind == "tasks" and not TASK_NAME.match(str(item.get("task", ""))):
             raise ConfigError(f"Panel '{title}': cada tarea necesita 'task', su nombre en minúsculas, números y guiones "
                               f"(el de su unidad de systemd en el servidor), no '{item.get('task', '')}'")
