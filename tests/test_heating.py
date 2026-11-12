@@ -67,7 +67,7 @@ def test_the_balance_finds_the_house_losses_against_the_boiler():
     assert result["cycles"] == {"count": 3, "mean": 53, "short": 1}
     # The positions: the lower, the cooler the water back, the better the boiler, the slower the warming
     dials = result["dials"]
-    assert [p["dial"] for p in dials] == ["min", "1", "2", "3", "4", "5", "6", "max"]
+    assert [p["dial"] for p in dials] == ["1", "2", "3", "4", "5", "6", "max"]
     assert all(a["back"] < b["back"] and a["efficiency"] >= b["efficiency"] for a, b in zip(dials, dials[1:]))
     warming = [p["warm_two"] for p in dials if p["warm_two"]]
     assert len(warming) >= 4 and warming == sorted(warming, reverse=True)
@@ -206,3 +206,36 @@ def test_a_summary_line_elsewhere(tmp_path):
     asyncio.run(dashboard.reload())
     (reading,) = dashboard.state()["panels"][0][0]["readings"]
     assert (reading["label"], reading["heating_summary"]) == ("Caldera", True)
+
+
+def test_days_kept_and_weeks(tmp_path):
+    from marianne.heating import day_summaries, house_of, keep_days, read_days, weeks
+
+    times, rooms, outside, on, _ = simulated_house(days=10)
+    h = history(times, rooms, outside, on)
+    days = day_summaries(h, house_of(h))
+    # Full days only, each with its hours and its degree-hours
+    assert len(days) == 10 and all(day["degree_hours"] > 0 and day["hours"] > 0 for day in days.values())
+    path = str(tmp_path / "calefaccion.json")
+    first = dict(list(days.items())[:6])
+    keep_days(path, first)
+    # Seen again with more days: merged, nothing lost
+    kept = keep_days(path, dict(list(days.items())[4:]))
+    assert kept == days and read_days(path) == days
+    # The balance from kept days alone gives the same as from the history
+    with_days = analyse(h, "4", JUNIOR, -3, 20, days=kept)
+    assert with_days["model"]["per_degree"] == pytest.approx(analyse(h, "4", JUNIOR, -3, 20)["model"]["per_degree"])
+    assert with_days["kept_days"] == 10
+    week_rows = weeks(kept, None)
+    assert sum(w["days"] for w in week_rows) == 10 and week_rows[0]["monday"] <= week_rows[-1]["monday"]
+    assert all(w["per_degree_day"] > 0 for w in week_rows)
+
+
+def test_a_lower_dial_counts_its_hours_for_less():
+    from marianne.heating import at_dial, radiator_output
+
+    reference = radiator_output(68, 20)[0]
+    # Ten hours at position 2 gave out less than ten at position 4
+    day = {"hours": 10.0, "output": 10 * radiator_output(53, 19)[0], "dial": "2"}
+    assert at_dial(day, reference) < 10
+    assert at_dial({"hours": 10.0, "output": None, "dial": None}, reference) == 10

@@ -623,7 +623,7 @@ function drawDial(view, info) {
     const [x, y] = [Math.sin(a), -Math.cos(a)];
     add("line", { class: "dial-tick", x1: (x * 33).toFixed(1), y1: (y * 33).toFixed(1), x2: (x * 38).toFixed(1), y2: (y * 38).toFixed(1) });
     const label = add("text", { class: `dial-label${name === info.dial ? " on" : ""}`, x: (x * 48).toFixed(1), y: (y * 48 + 4).toFixed(1),
-      "text-anchor": "middle" }, name === "off" ? "❄" : name === "min" ? "MIN" : name === "max" ? "MAX" : name);
+      "text-anchor": "middle" }, name === "off" ? "❄" : name === "max" ? "MAX" : name);
     // A bigger target than the label, to click.
     const target = add("circle", { class: "dial-target", cx: (x * 46).toFixed(1), cy: (y * 46).toFixed(1), r: 9 });
     for (const node of [label, target]) node.addEventListener("click", () => moveDial(view.index, name));
@@ -736,11 +736,17 @@ function drawHeating(view, reading) {
     if (lowest) out.push(heatingRow(`Para ${decimal(result.advice.design_outside, 0)} °C fuera`, `bastaría la ${lowest}`, "si no se baja la consigna (calienta muy despacio)"));
     out.push(drawDialTable(result, info.dial));
   }
+  // The weeks kept: what each change did, the cold of each week taken out.
+  if ((result.weeks || []).length) {
+    out.push(el("div", { class: "heating-title" }, upper("Semana a semana")));
+    out.push(drawWeekTable(result.weeks));
+  }
   // The rooms.
   out.push(el("div", { class: "heating-title" }, upper("La casa")));
   out.push(drawRoomTable(result.rooms));
   for (const text of heatingAdvice(result)) out.push(el("div", { class: "heating-note" }, `▸ ${text}`));
-  out.push(el("div", { class: "heating-note dim" }, `${decimal(result.days, 0)} días de historial, ${decimal(result.heating_hours, 0)} h de calefacción. ` +
+  out.push(el("div", { class: "heating-note dim" }, `${decimal(result.days, 0)} días de historial de Home Assistant, ${decimal(result.heating_hours, 0)} h de calefacción; ` +
+    `${result.kept_days || 0} días guardados para el balance. ` +
     "Estimaciones: no hay contador de gas ni sensor del agua; las temperaturas del regulador son las del manual (aproximadas)."));
   return out;
 }
@@ -775,7 +781,7 @@ function drawHeatingSummary(reading) {
 function drawDialTable(result, dial) {
   const head = ["Pos.", "Ida", "Vuelta", "Rinde", "Gas", "+2 °C"];
   const rows = result.dials.map((p) => [
-    p.dial === "min" ? "MIN" : p.dial === "max" ? "MAX" : p.dial, `${p.flow}°`, `${p.back}°`,
+    p.dial === "max" ? "MAX" : p.dial, `${p.flow}°`, `${p.back}°`,
     `${decimal(p.efficiency, 0)} %`, p.saving === null ? "–" : `${p.saving > 0 ? "−" : p.saving < 0 ? "+" : ""}${decimal(Math.abs(p.saving))} %`,
     p.warm_two ? `${decimal(p.warm_two, 0)} h` : "–",
   ]);
@@ -785,6 +791,23 @@ function drawDialTable(result, dial) {
       const p = result.dials[i];
       const tone = `${p.dial === dial ? "on" : ""}${p.dial === result.advice.best ? " good" : ""}${p.condensing ? "" : " hot"}`;
       return el("tr", { class: tone.trim() }, ...cells.map((cell) => el("td", {}, cell)));
+    })));
+}
+
+// Boiler hours for each degree-day (a day 1 °C warmer inside than outside): the cold taken out, so
+// a lower number is a house that needs less. "A la de hoy": as if the dial had been today's, to
+// compare weeks with the dial in different places.
+function drawWeekTable(weeks) {
+  const head = ["Semana", "Fuera", "Caldera", "Reg.", "h/°C·día", "A la de hoy"];
+  return el("div", { class: "heating-scroll" }, el("table", { class: "heating-table" },
+    el("tr", {}, ...head.map((cell) => el("th", {}, upper(cell)))),
+    ...weeks.map((week) => {
+      const [year, month, day] = week.monday.split("-");
+      return el("tr", {},
+        el("td", {}, `${day}/${month}${week.days < 7 ? ` (${week.days} d)` : ""}`),
+        el("td", {}, `${decimal(week.outside)}°`), el("td", {}, `${decimal(week.hours, 0)} h`),
+        el("td", {}, week.dial.length ? week.dial.map((d) => upper(d)).join("/") : "–"),
+        el("td", {}, decimal(week.per_degree_day, 2)), el("td", {}, decimal(week.at_dial, 2)));
     })));
 }
 
@@ -802,15 +825,11 @@ function drawRoomTable(rooms) {
         room.corner === undefined ? "–" : `${room.corner} %${room.mould ? ` (${room.mould})` : ""}`)))));
 }
 
-// What the numbers say, in words: the rooms that lose most, those the thermostat leaves behind, the
-// ones without heating, mould, the sun and the wind.
+// What the numbers say, in words: the rooms the thermostat leaves behind, the ones without heating,
+// windows opened, mould, the sun and the wind. (The rooms that lose most are red in the table.)
 function heatingAdvice(result) {
   const notes = [];
   const list = (rooms, value) => rooms.map((room) => `${room.name} (${value(room)})`).join(", ").replace(/, ([^,]*)$/, " y $1");
-  const cold = result.rooms.filter((room) => room.cools >= 1.3).sort((a, b) => b.cools - a.cools);
-  if (cold.length) {
-    notes.push(`${list(cold, (room) => `${decimal(room.cools)}×`)} ${cold.length > 1 ? "se enfrían" : "se enfría"} más deprisa que la casa por la noche: sus paredes a la calle o al pasillo del portal, y sus ventanas, son las que más pierden. Ahí rinden más burletes, cortinas gruesas cerradas de noche, lámina o doble ventana en los cristales simples, o aislar los muros por dentro.`);
-  }
   const behind = result.rooms.filter((room) => room.behind !== undefined && room.behind !== null && room.behind <= -1).sort((a, b) => a.behind - b.behind);
   if (behind.length) {
     notes.push(`El termostato está en una habitación que se calienta antes que ${list(behind, (room) => `${decimal(room.behind)}°`)}: apaga la caldera antes de que lleguen. Con las válvulas abiertas del todo, equilibra con los detentores (la llave del otro lado del radiador): ciérralo un poco en el radiador del termostato, o pon un sensor del Nest en una de esas habitaciones.`);

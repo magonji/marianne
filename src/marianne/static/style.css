@@ -2599,13 +2599,15 @@ a.tile.cursor > span {
 }
 
 .heating-row-note {
+  margin-left: 1ch;
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.heating-summary {
+.row.summary.heating-summary {
+  margin-bottom: 0;
   cursor: pointer;
 }
 
@@ -2633,6 +2635,7 @@ a.tile.cursor > span {
   }
 
   .heating-row-note {
+    margin-left: 0;
     flex-basis: 100%;
     white-space: normal;
     padding-left: 2ch;

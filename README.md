@@ -458,7 +458,14 @@ estimaciones.
           Vestíbulo: {temperature: sensor.vestibulo_temperatura}
 ```
 
-Opcionales: `comfort` (20 °C), `design_outside` (−3 °C), `days` (10), `dial_file`, `publish`.
+- **Semana a semana**: cada día completo se guarda resumido (`history_file`,
+  `data/calefaccion.json`), así el balance usa todo el invierno y no solo los días que guarda Home
+  Assistant. La tabla da, por semana, las horas de caldera por grado-día (un día con 1 °C más dentro
+  que fuera): quitado el frío que hizo, cuanto más bajo, menos necesita la casa. «A la de hoy» las
+  pasa a la posición actual del regulador, para comparar semanas con el regulador en sitios distintos.
+
+Opcionales: `comfort` (20 °C), `design_outside` (−3 °C), `days` (10), `dial_file`, `history_file`,
+`publish`.
 
 En cualquier otro panel de Home Assistant, `- heating_summary: true` (con `name`, `Caldera` por
 defecto) lo resume en una línea: la posición del regulador, si condensa y la posición mejor con el

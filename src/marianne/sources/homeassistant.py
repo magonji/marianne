@@ -431,9 +431,18 @@ class HomeAssistantSource(Source):
                            heating={"dials": dials, "dial": dial, "analysis": None})
         now = datetime.now().astimezone()
         history = heating.history_from(states, item, now, float(item.get("days", heating.DAYS)), log, dials)
-        analysis = await asyncio.to_thread(heating.analyse, history, dial, dials,
-                                           float(item.get("design_outside", heating.DESIGN_OUTSIDE)),
-                                           float(item.get("comfort", heating.COMFORT)), item.get("thermostat_room"))
+
+        def work() -> dict[str, Any]:
+            # Each full day kept, for the analysis to see more than Home Assistant keeps.
+            try:
+                days = heating.keep_days(item.get("history_file", heating.DAYS_FILE),
+                                         heating.day_summaries(history, heating.house_of(history)))
+            except OSError:
+                days = None
+            return heating.analyse(history, dial, dials, float(item.get("design_outside", heating.DESIGN_OUTSIDE)),
+                                   float(item.get("comfort", heating.COMFORT)), item.get("thermostat_room"), days)
+
+        analysis = await asyncio.to_thread(work)
         since = log[-1][0].isoformat() if log else None
         return Reading(label, "", heating={"dials": dials, "dial": dial, "since": since, "analysis": analysis})
 

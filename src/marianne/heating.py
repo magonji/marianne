@@ -30,13 +30,15 @@ STEP = timedelta(minutes=30)
 # How many days of history (the recorder keeps about ten), the coldest day the boiler has to hold
 # (Glasgow's, for sizing heating) and the temperature it has to hold then.
 DAYS, DESIGN_OUTSIDE, COMFORT = 10, -3.0, 20.0
-# Where the dial's moves are kept (data/ is the container's volume).
+# Where the dial's moves and each day's summary are kept (data/ is the container's volume).
 DIAL_FILE = "data/caldera.json"
-# Greenstar 24i/28i Junior: the dial's positions and their flow temperatures (user instructions,
-# 6 720 802 048, fig. 2: "approximate"). "off" is the snowflake: no central heating.
+DAYS_FILE = "data/calefaccion.json"
+# Greenstar 24i/28i Junior: the dial's marks and their flow temperatures (user instructions,
+# 6 720 802 048, fig. 2: "approximate"). "off" is the snowflake: no central heating. The manual's
+# table also gives 40 °C for the end stop just past the snowflake, which has no mark on the dial.
 DIALS = {
-    "greenstar-junior": [("off", None), ("min", 40), ("1", 47), ("2", 53), ("3", 61), ("4", 68), ("5", 74),
-                         ("6", 80), ("max", 82)],
+    "greenstar-junior": [("off", None), ("1", 47), ("2", 53), ("3", 61), ("4", 68), ("5", 74), ("6", 80),
+                         ("max", 82)],
 }
 # Radiators at the design point the fixed pump gives: water 15 K cooler on the way back with them
 # giving out what they give at 75 °C of flow and 20 °C in the room (a usual 70-ish/60-ish system).
@@ -70,6 +72,7 @@ class History:
     sun: dict[str, list[float]]  # by side: sin(elevation) · clear sky, while it shines on that side
     flow: list[float | None]  # the dial's flow temperature (°C) at each step, if known
     cycles: list[float] = field(default_factory=list)  # minutes of each burner run
+    dials: list[tuple[str, float | None]] = field(default_factory=list)  # the boiler's positions
 
 
 def on_grid(series: list[tuple[datetime, Any]], times: list[datetime]) -> list[Any]:
@@ -195,29 +198,72 @@ def output_weight(flow: float | None, reference_flow: float | None, room: float)
     return radiator_output(flow, room)[0] / radiator_output(reference_flow, room)[0]
 
 
-def balance(temps: list[float | None], history: History, reference_flow: float | None) -> dict[str, Any] | None:
+def day_summaries(history: History, house: list[float | None]) -> dict[str, dict[str, Any]]:
+    """Each full day of the history (not today), summed up to be kept: the analysis then sees the
+    whole winter, not only the days Home Assistant keeps. `output` is what the radiators gave out
+    (hours at the design point), known once the dial was set."""
+    hours = STEP.total_seconds() / 3600
+    today = datetime.now().astimezone().date()
+    days: dict[str, dict[str, Any]] = {}
+    for k, when in enumerate(history.times):
+        day = when.astimezone().date()
+        if day >= today:
+            continue
+        entry = days.setdefault(day.isoformat(), {"samples": 0, "hours": 0.0, "output": 0.0, "degree_hours": 0.0,
+                                                  "inside": 0.0, "outside": 0.0, "wind": 0.0, "dial": {}, "sun": {}})
+        temp, out = house[k], history.outside[k]
+        if temp is None or out is None:
+            continue
+        entry["samples"] += 1
+        entry["hours"] += history.heating[k] * hours
+        flow = history.flow[k]
+        if entry["output"] is not None:
+            entry["output"] = None if flow is None and history.heating[k] else (
+                entry["output"] + history.heating[k] * hours * (radiator_output(flow, temp)[0] if flow else 0))
+        entry["degree_hours"] += (temp - out) * hours
+        entry["inside"] += temp
+        entry["outside"] += out
+        entry["wind"] += history.wind[k] or 0.0
+        if flow is not None:
+            name = next((d for d, f in history.dials if f == flow), None) if history.dials else None
+            if name:
+                entry["dial"][name] = entry["dial"].get(name, 0) + 1
+        for side, series in history.sun.items():
+            entry["sun"][side] = entry["sun"].get(side, 0.0) + series[k] * hours
+    full = {}
+    for day, entry in days.items():
+        n = entry["samples"]
+        if n < 44:
+            continue
+        full[day] = {"hours": round(entry["hours"], 2),
+                     "output": round(entry["output"], 3) if entry["output"] is not None else None,
+                     "degree_hours": round(entry["degree_hours"], 1), "inside": round(entry["inside"] / n, 1),
+                     "outside": round(entry["outside"] / n, 1), "wind": round(entry["wind"] / n, 1),
+                     "dial": max(entry["dial"], key=entry["dial"].get) if entry["dial"] else None,
+                     "sun": {side: round(v, 2) for side, v in entry["sun"].items()}}
+    return full
+
+
+def at_dial(day: dict[str, Any], reference: float | None) -> float:
+    """A day's boiler hours as if at today's dial: what the radiators gave out, in hours of today's
+    output (the plain hours if either dial isn't known)."""
+    if reference is None or day.get("output") is None or not day.get("dial"):
+        return day["hours"]
+    return day["output"] / reference
+
+
+def balance(days: list[dict[str, Any]], reference: float | None) -> dict[str, Any] | None:
     """Over days the heat the radiators gave out is the heat the house lost (what its walls stored
     at the start they still hold at the end): so the fraction of the time the boiler has to run,
     with today's dial, for each degree of difference with the outside. The sun and the people in it
-    help, and are in it. With enough days, how much more is needed with wind."""
-    heating = degrees = 0.0
-    days: dict[Any, list[float]] = {}
-    for k, (temp, out) in enumerate(zip(temps, history.outside)):
-        if temp is None or out is None:
-            continue
-        on = history.heating[k] * output_weight(history.flow[k], reference_flow, temp)
-        heating += on
-        degrees += temp - out
-        day = days.setdefault(history.times[k].date(), [0.0, 0.0, 0.0, 0])
-        day[0] += on
-        day[1] += temp - out
-        day[2] += history.wind[k] or 0.0
-        day[3] += 1
-    if degrees <= 0 or heating * STEP.total_seconds() / 3600 < 4:
+    help, and are in it. With enough days, how much more is needed with wind. `reference`: today's
+    dial's output at the comfort temperature."""
+    heating = sum(at_dial(day, reference) for day in days)
+    degrees = sum(day["degree_hours"] for day in days)
+    if degrees <= 0 or heating < 4:
         return None
-    result: dict[str, Any] = {"per_degree": heating / degrees}
-    # Wind: each full day's need for each degree, against its mean wind.
-    full = [(d[0] / d[1], d[2] / d[3] / 10) for d in days.values() if d[3] >= 44 and d[1] > 0]
+    result: dict[str, Any] = {"per_degree": heating / degrees, "days": len(days)}
+    full = [(at_dial(d, reference) / d["degree_hours"], d["wind"] / 10) for d in days if d["degree_hours"] > 0]
     if len(full) >= 7:
         solved = solve([[1.0, wind] for _, wind in full], [need for need, _ in full])
         if solved and solved[0][0] > 0:
@@ -226,23 +272,77 @@ def balance(temps: list[float | None], history: History, reference_flow: float |
     return result
 
 
+def weeks(days: dict[str, dict[str, Any]], reference: float | None, count: int = 8) -> list[dict[str, Any]]:
+    """The last weeks (Monday to Sunday), for seeing what each change did: boiler hours for each
+    degree-day (a day 1 °C warmer inside than outside), as they were and as if at today's dial."""
+    by_week: dict[str, list[dict[str, Any]]] = {}
+    for day, entry in sorted(days.items()):
+        date = datetime.fromisoformat(day).date()
+        monday = date - timedelta(days=date.weekday())
+        by_week.setdefault(monday.isoformat(), []).append(entry)
+    out = []
+    for monday, entries in sorted(by_week.items())[-count:]:
+        degree_days = sum(e["degree_hours"] for e in entries) / 24
+        hours = sum(e["hours"] for e in entries)
+        dials = sorted({e["dial"] for e in entries if e.get("dial")})
+        out.append({"monday": monday, "days": len(entries), "outside": round(sum(e["outside"] for e in entries) / len(entries), 1),
+                    "hours": round(hours, 1), "dial": dials,
+                    "per_degree_day": round(hours / degree_days, 3) if degree_days > 0 else None,
+                    "at_dial": round(sum(at_dial(e, reference) for e in entries) / degree_days, 3) if degree_days > 0 else None})
+    return out
+
+
+def read_days(path: str) -> dict[str, dict[str, Any]]:
+    try:
+        days = json.loads(Path(path).read_text()).get("days", {})
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return days if isinstance(days, dict) else {}
+
+
+def keep_days(path: str, new: dict[str, dict[str, Any]], limit: int = 400) -> dict[str, dict[str, Any]]:
+    """The days kept merged with the new ones (a day seen again is summed up again: the same, or
+    better if a sensor came back), the last `limit`; written only if something changed."""
+    kept = read_days(path)
+    merged = {**kept, **new}
+    merged = dict(sorted(merged.items())[-limit:])
+    if merged != kept:
+        file = Path(path)
+        file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = file.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"days": merged}, ensure_ascii=False, indent=1) + "\n")
+        temporary.replace(file)
+    return merged
+
+
 def dew_humidity(temp: float, humidity: float, surface: float) -> float:
     """The humidity of the air touching a surface at `surface` °C, from the room's (Magnus)."""
     psat = lambda t: 6.112 * math.exp(17.62 * t / (243.12 + t))  # noqa: E731
     return humidity * psat(temp) / psat(surface)
 
 
+def house_of(history: History) -> list[float | None]:
+    """The house's temperature: its rooms' mean, at each step."""
+    return [mean_of([series[k] for series in history.rooms.values()]) for k in range(len(history.times))]
+
+
 def analyse(history: History, dial: str | None, dials: list[tuple[str, float | None]], design_outside: float,
-            comfort: float, thermostat_room: str | None = None) -> dict[str, Any]:
+            comfort: float, thermostat_room: str | None = None,
+            days: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Everything the window shows: the boiler, the house, its rooms. In plain numbers; the page
-    words them."""
+    words them. `days`: the days kept (see day_summaries), the history's own if not given."""
     flows = dict(dials)
     flow = flows.get(dial) if dial else None
-    house = [mean_of([series[k] for series in history.rooms.values()]) for k in range(len(history.times))]
+    house = house_of(history)
+    if days is None:
+        days = day_summaries(history, house)
+    reference = radiator_output(flow, comfort)[0] if flow else None
     result: dict[str, Any] = {"comfort": comfort, "days": round(len(history.times) * STEP.total_seconds() / 86400, 1),
                               "heating_hours": round(sum(history.heating) * STEP.total_seconds() / 3600, 1)}
     model = fit(house, history, flow)
-    whole = balance(house, history, flow)
+    whole = balance(list(days.values()), reference)
+    result["weeks"] = weeks(days, reference)
+    result["kept_days"] = len(days)
     last = lambda series: next((v for v in reversed(series) if v is not None), None)  # noqa: E731
     now_in, now_out = last(house), last(history.outside)
     if history.cycles:
@@ -252,7 +352,7 @@ def analyse(history: History, dial: str | None, dials: list[tuple[str, float | N
         result["model"] = None
         return result
     need = whole["per_degree"]
-    result["model"] = {"per_degree": round(need, 4), "r2": round(model.r2, 2) if model else None,
+    result["model"] = {"per_degree": round(need, 4), "days": whole["days"], "r2": round(model.r2, 2) if model else None,
                        "warming": round(model.heat, 3) if model and model.heat > 0 else None}
     if "wind" in whole:
         share, error = whole["wind"]
@@ -478,5 +578,5 @@ def history_from(states: dict[str, list[dict[str, Any]]], item: dict[str, Any], 
     flows = dict(dials)
     flow = on_grid([(when, flows.get(dial)) for when, dial in dial_log], times)
     return History(times, rooms, humidity, on_grid(changes(item["outside"]), times), heating,
-                   on_grid(changes(climate, "temperature"), times), wind, sun, flow, cycles)
+                   on_grid(changes(climate, "temperature"), times), wind, sun, flow, cycles, dials)
 
