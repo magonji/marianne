@@ -290,6 +290,8 @@ function renderPanels() {
 function renderPopup() {
   const box = document.getElementById("popup");
   box.hidden = popup === null && !reader && !dates && !helpOpen;
+  // Something else in the window: the panel will have to be drawn again.
+  if (popup === null || reader || dates || helpOpen) delete box.dataset.panel;
   if (helpOpen) {
     // Only rebuilt when it changes, so that a tap on it isn't lost (as in the status bar).
     const help = drawHelp();
@@ -318,7 +320,25 @@ function renderPopup() {
   }
   delete box.dataset.reader;
   if (popup === null) return;
-  box.replaceChildren(drawPanel(panelViews()[popup]));
+  // Rebuilt only when it changes, and where it had been scrolled to: rebuilding it on every poll
+  // would cut a finger's scroll short on a phone and send it back to the top.
+  const panel = drawPanel(panelViews()[popup]);
+  if (box.dataset.panel === panel.outerHTML) return;
+  const scrolled = [...box.querySelectorAll("*")].filter((node) => node.scrollTop || node.scrollLeft)
+    .map((node) => [scrollPath(box, node), node.scrollTop, node.scrollLeft]);
+  box.replaceChildren(panel);
+  box.dataset.panel = panel.outerHTML;
+  for (const [path, top, left] of scrolled) {
+    const node = path.reduce((parent, index) => parent && parent.children[index], box);
+    if (node) node.scrollTo(left, top);
+  }
+}
+
+// Where a node sits under the root, as the index of each child on the way down.
+function scrollPath(root, node) {
+  const path = [];
+  for (; node !== root; node = node.parentElement) path.unshift([...node.parentElement.children].indexOf(node));
+  return path;
 }
 
 // A story from a feed, in a window: its headline, date and text, and at the end the link to the web.
