@@ -464,8 +464,26 @@ estimaciones.
   que fuera): quitado el frío que hizo, cuanto más bajo, menos necesita la casa. «A la de hoy» las
   pasa a la posición actual del regulador, para comparar semanas con el regulador en sitios distintos.
 
+- **Cambios**: cada arreglo apuntado en `changes` (una ventana arreglada, un burlete, cortinas) dice
+  si funciona y cuánto ahorra. Compara la habitación con las demás las mismas noches (así el frío y
+  el viento de cada noche no cuentan): cuánto más rápido se enfría con la calefacción apagada, hasta
+  14 días antes del cambio y después (el día del cambio no cuenta). Con 5 noches a cada lado da el
+  resultado, «seguro» cuando la diferencia es más del doble de su error. El ahorro sale de la parte
+  de las pérdidas de la casa que se llevaba esa habitación (su enfriamiento por su superficie,
+  `area` en `rooms`; iguales si no se da), en % de la calefacción y en minutos de caldera al día.
+  También compara su humedad (con menos corrientes sube: hay que ventilar) y las horas de caldera
+  por grado-día de toda la casa, que dependen más del viento y del sol.
+
+```yaml
+        rooms:
+          Estudio: {temperature: sensor.estudio_temperatura, humidity: sensor.estudio_humedad, area: 9}
+        changes:
+          - {date: 2026-11-14, room: Estudio, text: ventana arreglada y burlete}
+          - {date: 2026-12-01, text: cortinas gruesas en el salón}   # sin room: solo la casa entera
+```
+
 Opcionales: `comfort` (20 °C), `design_outside` (−3 °C), `days` (10), `dial_file`, `history_file`,
-`publish`.
+`publish`, `changes`.
 
 En cualquier otro panel de Home Assistant, `- heating_summary: true` (con `name`, `Caldera` por
 defecto) lo resume en una línea: la posición del regulador, si condensa y la posición mejor con el

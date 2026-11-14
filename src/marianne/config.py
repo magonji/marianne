@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -316,6 +317,17 @@ def _parse_items(title: str, raw_items: list[Any] | None, source: str, sources: 
                                   "de fuera) y 'rooms' (cada habitación con su temperatura)")
             if item.get("boiler", "greenstar-junior") not in HEATING_DIALS:
                 raise ConfigError(f"Panel '{title}': 'boiler' debe ser uno de {', '.join(sorted(HEATING_DIALS))}")
+            for change in item.get("changes") or []:
+                try:
+                    date.fromisoformat(str(change["date"])[:10])
+                    if not str(change.get("text", "")).strip():
+                        raise ValueError
+                except (TypeError, KeyError, ValueError, AttributeError):
+                    raise ConfigError(f"Panel '{title}': cada cambio de 'changes' necesita 'date' (2026-11-14) "
+                                      "y 'text' (qué se hizo)") from None
+                if change.get("room") and change["room"] not in item["rooms"]:
+                    raise ConfigError(f"Panel '{title}': el cambio del {change['date']} es de '{change['room']}', "
+                                      "que no está en 'rooms'")
         if kind == "tasks" and not TASK_NAME.match(str(item.get("task", ""))):
             raise ConfigError(f"Panel '{title}': cada tarea necesita 'task', su nombre en minúsculas, números y guiones "
                               f"(el de su unidad de systemd en el servidor), no '{item.get('task', '')}'")

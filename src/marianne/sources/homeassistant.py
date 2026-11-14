@@ -439,8 +439,11 @@ class HomeAssistantSource(Source):
                                          heating.day_summaries(history, heating.house_of(history)))
             except OSError:
                 days = None
+            areas = {name: float(spec["area"]) for name, spec in item["rooms"].items()
+                     if isinstance(spec, dict) and spec.get("area")}
             return heating.analyse(history, dial, dials, float(item.get("design_outside", heating.DESIGN_OUTSIDE)),
-                                   float(item.get("comfort", heating.COMFORT)), item.get("thermostat_room"), days)
+                                   float(item.get("comfort", heating.COMFORT)), item.get("thermostat_room"), days,
+                                   item.get("changes"), areas)
 
         analysis = await asyncio.to_thread(work)
         since = log[-1][0].isoformat() if log else None

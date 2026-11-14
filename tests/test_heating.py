@@ -16,18 +16,21 @@ JUNIOR = DIALS["greenstar-junior"]
 START = datetime(2026, 11, 1, tzinfo=timezone.utc)
 
 
-def simulated_house(days=10, rooms=None, sun=0.0, window=None):
+def simulated_house(days=10, rooms=None, sun=0.0, window=None, mend=None, start=START):
     """A house of known make, one thermostat in its first room: each room's air warms `heat` K/h
     with the boiler on and loses `loss` of its difference with the outside each hour; the
     thermostat keeps its room near 20 °C by day and 16 °C at night. Simulated by the minute,
-    sampled every half hour as the analysis does. `window`: (room, half hour) it's opened."""
-    rooms = rooms or {"Casa": (1.5, 0.02)}
+    sampled every half hour as the analysis does. `window`: (room, half hour) it's opened;
+    `mend`: (room, half hour, loss) its losses change from then on."""
+    rooms = dict(rooms or {"Casa": (1.5, 0.02)})
     temps = {name: 18.0 for name in rooms}
     series = {name: [] for name in rooms}
     thermostat = next(iter(rooms))
     times, outside, on, sunny = [], [], [], []
-    burning, t = False, START
+    burning, t = False, start
     for step in range(int(days * 48)):
+        if mend and step == mend[1]:
+            rooms[mend[0]] = (rooms[mend[0]][0], mend[2])
         # As Home Assistant's history gives them: the temperatures at the step's start, the
         # heating over the step.
         times.append(t)
@@ -239,3 +242,51 @@ def test_a_lower_dial_counts_its_hours_for_less():
     day = {"hours": 10.0, "output": 10 * radiator_output(53, 19)[0], "dial": "2"}
     assert at_dial(day, reference) < 10
     assert at_dial({"hours": 10.0, "output": None, "dial": None}, reference) == 10
+
+
+def test_a_change_and_what_it_did():
+    from marianne.heating import day_summaries, house_of
+
+    # The study's window mended (its losses down by 40 %) on the 11th day, after ten
+    start = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    rooms = {"Vestíbulo": (0.6, 0.03), "Estudio": (0.6, 0.05), "Dormitorio": (0.6, 0.03)}
+    times, series, outside, on, _ = simulated_house(days=21, rooms=rooms, mend=("Estudio", 10 * 48 + 12, 0.03),
+                                                    start=start)
+    h = history(times, series, outside, on)
+    h.humidity = {"Estudio": [60.0] * (10 * 48) + [66.0] * (11 * 48)}
+    days = day_summaries(h, house_of(h))
+    assert {"drop", "degree_hours", "humidity"} <= days["2026-10-05"]["rooms"]["Estudio"].keys()
+    changes = [{"date": "2026-10-11", "room": "Estudio", "text": "ventana arreglada y burlete"}]
+    result = analyse(h, "4", JUNIOR, -3, 20, days=days, changes=changes)
+    (change,) = result["changes"]
+    assert (change["days_before"], change["days_after"]) == (10, 10)
+    assert change["nights_before"] >= 8 and change["nights_after"] >= 8
+    # It cooled faster than the rest before, and like them after: it worked, and that's sure
+    assert change["before"] > 1.3 and change["after"] == pytest.approx(1, abs=0.15)
+    assert change["change"] < -0.25 and change["sure"]
+    # Nearly half the house's losses (5 to the others' 3 each), less 40 %: about a sixth saved
+    assert change["share"] == pytest.approx(0.45, abs=0.08)
+    assert 0.1 < change["saving"] < 0.25 and change["hours"] > 0
+    assert (change["humidity_before"], change["humidity_after"]) == (60, 66)
+    # The house's boiler hours went down too
+    assert change["house_after"] < change["house_before"]
+
+    # A change just made: still measuring
+    (fresh,) = analyse(h, "4", JUNIOR, -3, 20, days=days,
+                       changes=[{"date": "2026-10-20", "room": "Estudio", "text": "burlete"}])["changes"]
+    assert fresh["days_after"] == 1 and "change" not in fresh and fresh["nights_after"] < 5
+
+
+def test_changes_in_the_config():
+    base = {"heating": "climate.casa", "outside": "sensor.fuera", "rooms": {"Estudio": "sensor.estudio"}}
+
+    def parse(changes):
+        return parse_config({"boot": False, "sources": {"ha": {"type": "homeassistant", "url": "http://ha", "token": "x"}},
+                             "panels": [{"title": "Eficiencia", "source": "ha", "items": [{**base, "changes": changes}]}]},
+                            None)
+
+    parse([{"date": "2026-11-14", "text": "burlete", "room": "Estudio"}, {"date": "2026-11-20", "text": "cortinas"}])
+    for wrong in ([{"text": "burlete"}], [{"date": "ayer", "text": "burlete"}], [{"date": "2026-11-14"}],
+                  [{"date": "2026-11-14", "text": "burlete", "room": "Cocina"}], ["burlete"]):
+        with pytest.raises(ConfigError):
+            parse(wrong)

@@ -2557,6 +2557,15 @@ a.tile.cursor > span {
   color: var(--accent);
 }
 
+.row.bad .value-text {
+  color: var(--error);
+}
+
+.heating-change {
+  margin-top: 0.3rem;
+  white-space: normal;
+}
+
 .heating-scroll {
   overflow-x: auto;
 }

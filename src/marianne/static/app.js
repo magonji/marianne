@@ -691,6 +691,8 @@ function turnDial(view, step) {
 
 const decimal = (value, digits = 1) => (value === null || value === undefined ? "–" : Number(value).toFixed(digits));
 const percent = (share) => `${Math.round(share * 100)} %`;
+// Nights after a change (and before it) the analysis waits for: heating.CHANGE_NIGHTS.
+const HEATING_NIGHTS = 5;
 
 // A row of the window: what, its figure, and a note after it (under it, whole, on a phone).
 function heatingRow(label, value, note, tone = "") {
@@ -761,6 +763,11 @@ function drawHeating(view, reading) {
     out.push(el("div", { class: "heating-title" }, upper("Semana a semana")));
     out.push(drawWeekTable(result.weeks));
   }
+  // What each change did (a window mended...), the latest first.
+  if ((result.changes || []).length) {
+    out.push(el("div", { class: "heating-title" }, upper("Cambios")));
+    for (const change of [...result.changes].reverse()) out.push(...drawChange(change));
+  }
   // The rooms.
   out.push(el("div", { class: "heating-title" }, upper("La casa")));
   out.push(drawRoomTable(result.rooms));
@@ -768,6 +775,50 @@ function drawHeating(view, reading) {
   out.push(el("div", { class: "heating-note dim" }, `${decimal(result.days, 0)} días de historial de Home Assistant, ${decimal(result.heating_hours, 0)} h de calefacción; ` +
     `${result.kept_days || 0} días guardados para el balance. ` +
     "Estimaciones: no hay contador de gas ni sensor del agua; las temperaturas del regulador son las del manual (aproximadas)."));
+  return out;
+}
+
+// A change and what it did: whether its room cools slower at night than before (against the other
+// rooms, the same nights), what that saves, its humidity, and the house's boiler hours.
+function drawChange(change) {
+  const [, month, day] = change.date.split("-");
+  const out = [el("div", { class: "heating-change" }, upper(`${day}/${month} · ${change.room ? `${change.room}: ` : ""}${change.text}`))];
+  const signed = (share) => `${share > 0 ? "+" : "−"}${Math.abs(Math.round(share * 100))} %`;
+  if (change.room) {
+    if (change.change === undefined) {
+      const missing = [`${change.nights_after} de ${HEATING_NIGHTS} noches después`];
+      if (change.before === undefined) missing.push(`solo ${change.nights_before} antes`);
+      else missing.push(`antes enfriaba ${decimal(change.before, 2)}× el resto (${change.nights_before} noches)`);
+      out.push(heatingRow("¿Funciona?", "midiendo", missing.join(" · ")));
+    } else {
+      const nights = `${change.nights_before} noches antes, ${change.nights_after} después`;
+      const versus = `enfría ${decimal(change.before, 2)}× → ${decimal(change.after, 2)}× el resto de la casa`;
+      if (change.change <= -0.05) {
+        out.push(heatingRow("¿Funciona?", change.sure ? "sí" : "parece que sí", `${versus} (${signed(change.change)})${change.sure ? "" : " · aún poco seguro"} · ${nights}`, change.sure ? "good" : ""));
+      } else if (change.change >= 0.05 && change.sure) {
+        out.push(heatingRow("¿Funciona?", "no", `${versus} (${signed(change.change)}): pierde más que antes · ${nights}`, "bad"));
+      } else {
+        out.push(heatingRow("¿Funciona?", "aún no se nota", `${versus} · ${nights}`));
+      }
+      if (change.saving !== undefined) {
+        const hours = change.hours !== undefined ? ` · ${decimal(Math.abs(change.hours) * 60, 0)} min/día de caldera` : "";
+        out.push(heatingRow(change.saving >= 0 ? "Ahorro estimado" : "Gasto de más", `≈ ${decimal(Math.abs(change.saving) * 100)} %`,
+          `de la calefacción${hours} · ${change.room} se llevaba ≈ ${percent(change.share)} de lo que pierde la casa`, change.saving > 0 && change.sure ? "good" : ""));
+      }
+    }
+    if (change.humidity_before !== null && change.humidity_after !== null) {
+      const rise = change.humidity_after - change.humidity_before;
+      out.push(heatingRow("Humedad", `${change.humidity_before} % → ${change.humidity_after} %`,
+        rise >= 3 ? "sube: con menos corrientes, ventila 5-10 min al día" : "", rise >= 3 ? "bad" : ""));
+    }
+  }
+  if (change.house_before !== null && change.house_after !== null) {
+    out.push(heatingRow("Toda la casa", `${decimal(change.house_before, 2)} → ${decimal(change.house_after, 2)} h/°C·día`,
+      `${signed(change.house_after / change.house_before - 1)} · ${change.days_before} días antes, ${change.days_after} después · también cuentan el viento y el sol`));
+  } else {
+    out.push(heatingRow("Toda la casa", "midiendo", `${change.days_after} días completos después del cambio` +
+      (change.house_before !== null ? ` · antes ${decimal(change.house_before, 2)} h/°C·día` : "")));
+  }
   return out;
 }
 

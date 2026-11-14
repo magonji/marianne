@@ -57,6 +57,9 @@ SLOWER_WARMING = 1.35
 MOULD_HUMIDITY, CORNER_FACTOR = 80.0, 0.75
 # A room cooling faster than this (K/h) with the heating off has a window open.
 WINDOW_OPEN_DROP = 1.0
+# A change (a window mended, a draught strip) is compared with up to this many days before it, and
+# says something once there are this many nights on each side.
+CHANGE_DAYS, CHANGE_NIGHTS = 14, 5
 
 
 @dataclass
@@ -230,17 +233,45 @@ def day_summaries(history: History, house: list[float | None]) -> dict[str, dict
                 entry["dial"][name] = entry["dial"].get(name, 0) + 1
         for side, series in history.sun.items():
             entry["sun"][side] = entry["sun"].get(side, 0.0) + series[k] * hours
+    # Each room's night cooling and humidity by day, for comparing a room before and after a change.
+    nights: dict[str, dict[str, list[float]]] = {}
+    for name, temps in history.rooms.items():
+        for k, drop, degree_hours in night_steps(temps, history):
+            day = history.times[k].astimezone().date().isoformat()
+            if day in days:
+                sums = nights.setdefault(day, {}).setdefault(name, [0.0, 0.0])
+                sums[0] += drop
+                sums[1] += degree_hours
+    humid: dict[str, dict[str, list[float]]] = {}
+    for name, series in history.humidity.items():
+        for k, value in enumerate(series):
+            day = history.times[k].astimezone().date().isoformat()
+            if value is not None and day in days:
+                sums = humid.setdefault(day, {}).setdefault(name, [0.0, 0])
+                sums[0] += value
+                sums[1] += 1
     full = {}
     for day, entry in days.items():
         n = entry["samples"]
         if n < 44:
             continue
+        rooms = {}
+        for name in history.rooms:
+            room: dict[str, float] = {}
+            if name in nights.get(day, {}):
+                drop, degree_hours = nights[day][name]
+                room.update(drop=round(drop, 2), degree_hours=round(degree_hours, 1))
+            if name in humid.get(day, {}):
+                total, count = humid[day][name]
+                room["humidity"] = round(total / count, 1)
+            if room:
+                rooms[name] = room
         full[day] = {"hours": round(entry["hours"], 2),
                      "output": round(entry["output"], 3) if entry["output"] is not None else None,
                      "degree_hours": round(entry["degree_hours"], 1), "inside": round(entry["inside"] / n, 1),
                      "outside": round(entry["outside"] / n, 1), "wind": round(entry["wind"] / n, 1),
                      "dial": max(entry["dial"], key=entry["dial"].get) if entry["dial"] else None,
-                     "sun": {side: round(v, 2) for side, v in entry["sun"].items()}}
+                     "sun": {side: round(v, 2) for side, v in entry["sun"].items()}, "rooms": rooms}
     return full
 
 
@@ -292,6 +323,89 @@ def weeks(days: dict[str, dict[str, Any]], reference: float | None, count: int =
     return out
 
 
+def night_ratio(days: list[dict[str, Any]], room: str) -> dict[str, Any] | None:
+    """How fast a room cools at night against the other rooms over some days (the same nights, so
+    the weather goes out of it): pooled, with its standard error from night to night."""
+    nightly, own_sums, other_sums = [], [0.0, 0.0], [0.0, 0.0]
+    for day in days:
+        rooms = day.get("rooms") or {}
+        own = rooms.get(room) or {}
+        others = [v for name, v in rooms.items() if name != room and v.get("degree_hours")]
+        drop, degree_hours = sum(v["drop"] for v in others), sum(v["degree_hours"] for v in others)
+        if own.get("degree_hours", 0) < 10 or own.get("drop", 0) <= 0 or degree_hours < 10 or drop <= 0:
+            continue
+        nightly.append((own["drop"] / own["degree_hours"]) / (drop / degree_hours))
+        own_sums[0] += own["drop"]
+        own_sums[1] += own["degree_hours"]
+        other_sums[0] += drop
+        other_sums[1] += degree_hours
+    if not nightly:
+        return None
+    n = len(nightly)
+    mean = sum(nightly) / n
+    error = math.sqrt(sum((v - mean) ** 2 for v in nightly) / (n - 1) / n) if n > 1 else None
+    return {"ratio": (own_sums[0] / own_sums[1]) / (other_sums[0] / other_sums[1]), "error": error, "nights": n,
+            "cooling": own_sums[0] / own_sums[1]}
+
+
+def compare_change(change: dict[str, Any], changes: list[dict[str, Any]], days: dict[str, dict[str, Any]],
+                   reference: float | None, per_degree: float | None, areas: dict[str, float]) -> dict[str, Any]:
+    """What a change did: its room's night cooling against the others' before and after it (did it
+    work?), the share of the house's losses that took away (the saving, in boiler hours), its
+    humidity (less draught, more damp), and the house's boiler hours for each degree, measured, as
+    they were and are. The day of the change counts for neither side."""
+    date = str(change["date"])[:10]
+    room = change.get("room")
+    # The days since the change before it (in the same room) up to the next one.
+    related = sorted(str(c["date"])[:10] for c in changes if not room or not c.get("room") or c.get("room") == room)
+    earlier = [d for d in related if d < date]
+    later = [d for d in related if d > date]
+    start = max([(datetime.fromisoformat(date) - timedelta(days=CHANGE_DAYS)).date().isoformat(), *earlier[-1:]])
+    before = [day for key, day in sorted(days.items()) if start <= key < date and (not earlier or key > earlier[-1])]
+    after = [day for key, day in sorted(days.items()) if key > date and (not later or key < later[0])]
+    result: dict[str, Any] = {"date": date, "text": str(change.get("text", "")), "room": room,
+                              "days_before": len(before), "days_after": len(after)}
+    house_before, house_after = balance(before, reference), balance(after, reference)
+    result["house_before"] = round(24 * house_before["per_degree"], 3) if house_before else None
+    result["house_after"] = round(24 * house_after["per_degree"], 3) if house_after else None
+    if not room:
+        return result
+    old, new = night_ratio(before, room), night_ratio(after, room)
+    result["nights_before"] = old["nights"] if old else 0
+    result["nights_after"] = new["nights"] if new else 0
+    humidity = lambda group: mean_of([(d.get("rooms") or {}).get(room, {}).get("humidity") for d in group])  # noqa: E731
+    for side, group in (("before", before), ("after", after)):
+        value = humidity(group)
+        result[f"humidity_{side}"] = round(value) if value is not None else None
+    if old and old["nights"] >= CHANGE_NIGHTS:
+        result["before"] = round(old["ratio"], 2)
+    if not old or not new or old["nights"] < CHANGE_NIGHTS or new["nights"] < CHANGE_NIGHTS:
+        return result
+    result["after"] = round(new["ratio"], 2)
+    change_share = new["ratio"] / old["ratio"] - 1
+    result["change"] = round(change_share, 3)
+    errors = [e / v for e, v in ((old["error"], old["ratio"]), (new["error"], new["ratio"])) if e is not None]
+    result["sure"] = len(errors) == 2 and abs(change_share) > 2 * math.hypot(*errors)
+    # The room's share of the house's losses before: its night cooling by its size (its floor, the
+    # ceilings all the same height; the same for every room if they aren't given).
+    names = {name for day in before for name in (day.get("rooms") or {})}
+    loss = {}
+    for name in names:
+        drop = sum(((d.get("rooms") or {}).get(name) or {}).get("drop", 0) for d in before)
+        degree_hours = sum(((d.get("rooms") or {}).get(name) or {}).get("degree_hours", 0) for d in before)
+        if degree_hours > 0:
+            loss[name] = areas.get(name, 1.0) * drop / degree_hours
+    if room in loss and sum(loss.values()) > 0:
+        share = loss[room] / sum(loss.values())
+        result["share"] = round(share, 3)
+        result["saving"] = round(-share * change_share, 4)
+        recent = list(days.values())[-7:]
+        if per_degree and recent:
+            daily = sum(d["degree_hours"] for d in recent) / len(recent)
+            result["hours"] = round(-share * change_share * per_degree * daily, 2)
+    return result
+
+
 def read_days(path: str) -> dict[str, dict[str, Any]]:
     try:
         days = json.loads(Path(path).read_text()).get("days", {})
@@ -328,9 +442,11 @@ def house_of(history: History) -> list[float | None]:
 
 def analyse(history: History, dial: str | None, dials: list[tuple[str, float | None]], design_outside: float,
             comfort: float, thermostat_room: str | None = None,
-            days: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Everything the window shows: the boiler, the house, its rooms. In plain numbers; the page
-    words them. `days`: the days kept (see day_summaries), the history's own if not given."""
+            days: dict[str, dict[str, Any]] | None = None, changes: list[dict[str, Any]] | None = None,
+            areas: dict[str, float] | None = None) -> dict[str, Any]:
+    """Everything the window shows: the boiler, the house, its rooms, what each change did. In plain
+    numbers; the page words them. `days`: the days kept (see day_summaries), the history's own if
+    not given. `changes`: [{date, text, room}]; `areas`: each room's floor (m²)."""
     flows = dict(dials)
     flow = flows.get(dial) if dial else None
     house = house_of(history)
@@ -348,6 +464,9 @@ def analyse(history: History, dial: str | None, dials: list[tuple[str, float | N
     if history.cycles:
         result["cycles"] = {"count": len(history.cycles), "mean": round(sum(history.cycles) / len(history.cycles)),
                             "short": sum(1 for c in history.cycles if c <= 15)}
+    changes = sorted(changes or [], key=lambda c: str(c["date"]))
+    result["changes"] = [compare_change(c, changes, days, reference, whole["per_degree"] if whole else None, areas or {})
+                         for c in changes]
     if whole is None:
         result["model"] = None
         return result
@@ -443,11 +562,11 @@ def analyse(history: History, dial: str | None, dials: list[tuple[str, float | N
     return result
 
 
-def cooling(temps: list[float | None], history: History) -> float | None:
-    """The night's cooling, in K/h for each degree of difference with the outside: the sun down
-    and the heating off for over an hour (the radiators cold)."""
-    drop = degree_hours = 0.0
+def night_steps(temps: list[float | None], history: History) -> list[tuple[int, float, float]]:
+    """The steps of the night's cooling: the sun down and the heating off for over an hour (the
+    radiators cold). [(step, drop in K, degree-hours with the outside)]."""
     hours = STEP.total_seconds() / 3600
+    steps = []
     for k in range(3, len(history.times)):
         t0, t1, out = temps[k - 1], temps[k], history.outside[k - 1]
         if t0 is None or t1 is None or out is None or t0 - out < 2 or max(history.heating[k - 3:k + 1]) > 0:
@@ -457,8 +576,14 @@ def cooling(temps: list[float | None], history: History) -> float | None:
             continue
         if any(series[k] > 0 for series in history.sun.values()):
             continue
-        drop += t0 - t1
-        degree_hours += (t0 - out) * hours
+        steps.append((k, t0 - t1, (t0 - out) * hours))
+    return steps
+
+
+def cooling(temps: list[float | None], history: History) -> float | None:
+    """The night's cooling, in K/h for each degree of difference with the outside."""
+    steps = night_steps(temps, history)
+    drop, degree_hours = sum(s[1] for s in steps), sum(s[2] for s in steps)
     return drop / degree_hours if degree_hours > 20 and drop > 0 else None
 
 

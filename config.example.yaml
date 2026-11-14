@@ -371,9 +371,11 @@ panels:
         weather: weather.forecast_home
         facades: {este: 90, oeste: 270}  # hacia dónde miran las ventanas
         thermostat_room: Salón
-        rooms:
-          Salón: {temperature: sensor.salon_temperatura, humidity: sensor.salon_humedad}
+        rooms:                          # area: su superficie (para el ahorro de cada cambio)
+          Salón: {temperature: sensor.salon_temperatura, humidity: sensor.salon_humedad, area: 20}
           Dormitorio: sensor.dormitorio_temperatura
+        changes:                        # cada arreglo: ¿funciona?, ¿cuánto ahorra?
+          - {date: 2026-11-14, room: Dormitorio, text: burlete en la ventana}
 
   - title: Acciones
     source: homeassistant
