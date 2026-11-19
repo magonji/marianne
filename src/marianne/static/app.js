@@ -341,6 +341,22 @@ function scrollPath(root, node) {
   return path;
 }
 
+// Installed as an app (Safari's "Add to Dock", or the iPhone's home screen), a link that opens a
+// new window goes to Safari, whatever the default browser; one followed in place, out of the app's
+// own address, goes to the default browser (on the iPhone, a browser over the app). So there links
+// are followed in place.
+const INSTALLED = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+function openLink(url) {
+  if (INSTALLED) location.href = url;
+  else window.open(url, "_blank", "noopener");
+}
+
+document.addEventListener("click", (event) => {
+  const link = INSTALLED && event.target.closest && event.target.closest('a[target="_blank"]');
+  if (link) link.removeAttribute("target");
+}, true);
+
 // A story from a feed, in a window: its headline, date and text, and at the end the link to the web.
 function drawReader() {
   const { reading, title } = reader;
@@ -2187,7 +2203,7 @@ function press(key) {
     // up and down scroll the story. Q (or Esc) leaves too.
     if (key === "enter") {
       if (reader.choice === "close") return closeReader();
-      return void window.open(reader.reading.link, "_blank", "noopener");
+      return void openLink(reader.reading.link);
     }
     if (key === "escape") return closeReader();
     if (key === "arrowleft" || key === "arrowright") {
@@ -2222,7 +2238,7 @@ function press(key) {
   if (key === "enter" && cursor) {
     const link = visibleLinks().find((node) => cursorId(node) === cursor);
     if (link && (link.dataset.reader || link.dataset.script)) return link.click();
-    return void window.open(cursor, "_blank", "noopener");
+    return void openLink(cursor);
   }
   if (key === layout.history_key) return toggleHistory();
   // < and > (or PgUp and PgDn) go to the calendar's month before and after, like its ‹ ›.
