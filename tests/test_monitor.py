@@ -68,11 +68,14 @@ def test_icons_are_downloaded_once_and_validated():
         assert "<svg" in await icons.get("mdi", "dolphin")
         assert await icons.get("si", "missing") == FALLBACK
         assert await icons.get("mdi", "../secret") is None
-        assert await icons.get("fa", "dolphin") is None
+        assert await icons.get("Fa", "dolphin") is None
+        # Any other set, from Iconify
+        assert "<svg" in await icons.get("game-icons", "owl")
         await icons.close()
 
     asyncio.run(run())
-    assert calls == ["/npm/@mdi/svg@7.4.47/svg/dolphin.svg", "/npm/simple-icons@16.35.0/icons/missing.svg"]
+    assert calls == ["/npm/@mdi/svg@7.4.47/svg/dolphin.svg", "/npm/simple-icons@16.35.0/icons/missing.svg",
+                     "/game-icons/owl.svg"]
 
 
 def test_icon_names_are_checked_in_the_config():

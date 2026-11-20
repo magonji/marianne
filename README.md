@@ -552,7 +552,7 @@ título.
 | `trend`, `trend_steady` | Flecha ▲▼► con el cambio respecto a hace N horas |
 | `stats: true` | Filas con la máxima y la mínima de hoy (`stats: beside`: al lado del valor, ▲ ▼) |
 | `records: true` | Filas con la máxima y la mínima de toda la historia, de las estadísticas a largo plazo de Home Assistant |
-| `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)). El servidor los descarga una vez de jsDelivr y la página los pinta con líneas de barrido en el color del tema |
+| `icon` | En un panel con `icons: true`: `mdi:nombre` ([Material Design Icons](https://pictogrammers.com/library/mdi/)) o `si:nombre` ([Simple Icons](https://simpleicons.org)), o de cualquier otro conjunto de [Iconify](https://icon-sets.iconify.design) con su prefijo (`game-icons:barn-owl`). El servidor los descarga una vez (de jsDelivr o de Iconify) y la página los pinta con líneas de barrido en el color del tema |
 | `history: false` | Deja este valor fuera del historial (`history: true`: lo deja dentro aunque esté oculto) |
 | `week: false` | Lo deja fuera solo de la tabla de 7 días (p. ej. una potencia, para quedarse con su consumo) |
 | `week: true` | En un elemento `on_today`: su tiempo encendido de cada día en la tabla de 7 días (la calefacción) |
